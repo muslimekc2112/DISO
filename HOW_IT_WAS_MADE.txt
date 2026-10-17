@@ -1,0 +1,250 @@
+==============================================================================
+  HIZLI INDIRICI ("Fast Downloader") - HOW IT WAS MADE
+==============================================================================
+
+This file explains, in plain English, WHAT the program does and HOW it does it,
+so that anyone (the author, friends, other developers) can understand, fix or
+extend it later.
+
+
+------------------------------------------------------------------------------
+1. WHAT THE PROGRAM DOES
+------------------------------------------------------------------------------
+
+Hizli Indirici is a Windows desktop download manager, similar to IDM
+(Internet Download Manager) or FDM (Free Download Manager). One window does
+three jobs:
+
+  A) FILE DOWNLOADS  (.zip .rar .7z .exe .iso .mp4 ... any direct link)
+     The file is downloaded through 8, 16 or 32 parallel connections, which is
+     usually much faster than a normal browser download.
+
+  B) VIDEO DOWNLOADS (YouTube, Instagram, TikTok, X/Twitter, Facebook, Vimeo
+     and about 1000 other sites)
+     The video is saved as an MP4 file in the quality you choose. The download
+     itself also uses the fast multi-connection engine.
+
+  C) MUSIC / AUDIO DOWNLOADS
+     The audio of a video is saved as an MP3 file (128 - 320 kbps), also with
+     the fast engine.
+
+Download-manager features (like IDM / FDM):
+  * a live list of downloads with progress bar, speed, remaining time
+  * up to 3 downloads run at the same time, the others wait in a queue
+  * Pause / Resume for every download (works even after closing the program)
+  * Cancel / Remove, "Open folder" button
+  * paste several links at once
+  * "Auto-add links from clipboard" switch: every link you copy is added
+  * playlist download (one list entry per video)
+  * automatic retry when the connection drops, automatic slow-down when a
+    server refuses too many parallel connections
+  * "Auto" mode: the program looks at the link and decides by itself whether
+    it is a normal file or a video page
+  * FFmpeg is installed automatically the first time it is needed
+
+
+------------------------------------------------------------------------------
+2. HOW TO RUN IT
+------------------------------------------------------------------------------
+
+  1. Install Python 3.10 or newer (tick "Add Python to PATH" in the installer).
+  2. Double-click  run.bat   (it installs the libraries and starts the program)
+     or, manually:
+         pip install -r requirements.txt
+         python main.py
+  3. To build a single HizliIndirici.exe, double-click  build.bat
+     The exe appears in the "dist" folder.
+
+FFmpeg: you do NOT have to install it. When you download an MP3 (or a video
+whose picture and sound come separately) the program downloads FFmpeg once
+into  C:\Users\<you>\.hizli_indirici\tools  and uses it from then on. If you
+prefer, copy ffmpeg.exe and ffprobe.exe into the "ffmpeg" folder next to
+main.py and it will be used instead.
+
+
+------------------------------------------------------------------------------
+3. FILES AND WHAT EACH ONE DOES
+------------------------------------------------------------------------------
+
+  main.py                     Starts the program (sets PATH, opens the window).
+  run.bat / build.bat         Start from source / build the .exe.
+  requirements.txt            Python libraries that are needed.
+
+  app/ui.py                   The window (customtkinter): link box, option bar,
+                              toolbar, the scrolling list of downloads, and the
+                              status bar. It only DISPLAYS things and forwards
+                              button clicks to the manager.
+  app/manager.py              DownloadManager: owns the list, the queue and the
+                              worker threads. Pause / resume / cancel / remove.
+                              Saves the list to ~/.hizli_indirici/downloads.json.
+  app/models.py               Small data classes: Settings (what the user
+                              chose), Item (one list entry) and the state names
+                              (queued, resolving, downloading, processing,
+                              done, paused, error, cancelled).
+  app/jobs.py                 The real work for one item: detect link type,
+                              download a file, or download + merge a video.
+  app/segmented_downloader.py The fast multi-connection download engine.
+  app/video_engine.py         yt-dlp helpers, format selection, FFmpeg commands.
+  app/ffmpeg_setup.py         Downloads FFmpeg, checks its SHA-256, unpacks it.
+  app/updater.py              Checks yt-dlp, yt-dlp-ejs and FFmpeg on every start and
+                              installs newer versions (SHA-256 checked). Also the
+                              import hook that makes the newer yt-dlp win.
+  app/utils.py                Paths, file-name cleaning, size/time formatting.
+
+
+------------------------------------------------------------------------------
+4. HOW THE FAST ENGINE WORKS  (app/segmented_downloader.py)
+------------------------------------------------------------------------------
+
+This is the same idea that IDM uses.
+
+  Step 1 - PROBE.
+     The program sends one tiny request: "give me byte 0 only"
+     (HTTP header  Range: bytes=0-0).
+       * If the server answers "206 Partial Content" it supports ranges, and
+         the header Content-Range: bytes 0-0/123456 tells us the total file
+         size (123456 bytes). Multi-connection download is possible.
+       * If the server answers "200 OK" it ignores ranges. Then a single normal
+         connection is used (and the list shows a note about it).
+     The probe also finds the real file name (Content-Disposition header or
+     the URL) and follows redirects.
+
+  Step 2 - PREPARE.
+     An empty file of the full size is created on disk: name.ext.part
+     The file is cut into BLOCKS of 256 KB - 8 MB (about 4 blocks per
+     connection). All block numbers are put into a waiting queue.
+
+  Step 3 - DOWNLOAD IN PARALLEL.
+     N worker threads start (N = 8, 16 or 32, your choice). Each worker
+       - takes the next block number from the queue,
+       - requests exactly that byte range (Range: bytes=start-end),
+       - writes the data at the correct position inside the .part file,
+       - marks the block as finished and takes the next one.
+     Because blocks are small, a fast connection just handles more blocks than
+     a slow one, so all workers end at almost the same moment. (The old version
+     cut the file into N fixed pieces, so one slow piece delayed everything.)
+
+  Step 4 - RESUME.
+     Finished block numbers are saved every 2 seconds into name.ext.part.json.
+     After Pause, a crash, or closing the program, pressing Resume reads that
+     file and downloads only the missing blocks.
+
+  Step 5 - ERRORS.
+     * A block that fails is retried up to 6 times with growing waiting time
+       and continues from the byte where it stopped.
+     * If one connection keeps failing (for example the server answers
+       "429 Too Many Requests" because we opened too many connections) that
+       worker retires and the remaining workers finish the job. So the program
+       automatically adapts to the limit of the server.
+     * If no worker is left and blocks are missing, the download stops with an
+       error (the partial file is kept so you can try again).
+
+  Step 6 - FINISH.
+     The size of the .part file is checked, then it is renamed to the final
+     name and the .json file is deleted.
+
+
+------------------------------------------------------------------------------
+5. HOW VIDEO AND MP3 DOWNLOADS WORK  (app/jobs.py + app/video_engine.py)
+------------------------------------------------------------------------------
+
+  1. yt-dlp (a well-known open-source library) is used ONLY to understand the
+     page. It returns the title and the direct media addresses of the best
+     video stream and the best audio stream, plus the headers and cookies the
+     site wants to see.
+
+  2. Our own fast engine (section 4) downloads those addresses, one after the
+     other, with 8/16/32 connections. This is what makes the video/MP3
+     download "IDM fast". The progress bar covers both streams together.
+
+  3. FFmpeg finishes the file:
+       MP4 : video stream + audio stream are merged WITHOUT re-encoding (the
+             picture is copied, so it takes a second). If the audio is not AAC
+             (for example Opus) it is converted to AAC so that every player can
+             play it.
+       MP3 : the audio is converted with the libmp3lame encoder at the chosen
+             bitrate, with title and artist written into the file tags.
+     Temporary files are deleted afterwards.
+
+  4. Quality choices: "En iyi" (best, up to 4K), 2160p, 1440p, 1080p, 720p,
+     480p, 360p. For 1080p and below the program prefers H.264 + AAC because
+     it plays on every device.
+
+  5. FALLBACK: some sites deliver video as hundreds of tiny fragments (HLS /
+     DASH playlists). Those cannot be split into ranges, so for them the
+     program lets yt-dlp download everything itself, with 16 fragments in
+     parallel. The same fallback is used automatically if the fast path fails
+     for any other reason.
+
+  6. "Login cookies" option: for sites that require you to be logged in
+     (age-restricted videos, some Instagram content) choose the browser you
+     are logged in with (Firefox works best) and yt-dlp reads its cookies.
+
+
+------------------------------------------------------------------------------
+6. THE DOWNLOAD MANAGER  (app/manager.py)
+------------------------------------------------------------------------------
+
+  * Every link becomes an Item with a state. New items go into a queue.
+  * Three worker threads take items from the queue, so at most 3 downloads run
+    together (change MAX_PARALLEL in manager.py to change this).
+  * Pause asks the running engine to stop but KEEPS the .part file and the
+    finished-block list. Cancel stops it and DELETES the temporary files.
+  * The list is saved to  ~/.hizli_indirici/downloads.json  after every
+    change. On the next start, items that were running come back as "paused"
+    and can be resumed.
+  * The window never talks to the network. Worker threads only change fields
+    of the Item objects; the window reads them 3 times per second and redraws.
+    This keeps the window smooth while many connections are working.
+
+
+------------------------------------------------------------------------------
+7. LIMITS / GOOD TO KNOW
+------------------------------------------------------------------------------
+
+  * Some sites (YouTube especially) change often. If a video suddenly fails,
+    the program updates yt-dlp itself on every start (app/updater.py); the
+    "Güncellemeler" window shows the state and can check again at any time. In the .exe
+    version, rebuild the exe after "pip install -U yt-dlp".
+  * Recent YouTube versions may also need a JavaScript runtime called Deno.
+    If YouTube videos give "no formats" errors, install it once:
+    winget install DenoLand.Deno   (the program finds it automatically).
+  * Links from file-hosting pages that need a click, a captcha or a login
+    (Google Drive pages, Mega, MediaFire pages...) are not direct links. The
+    program cannot press the buttons of a web page.
+  * DRM-protected videos (Netflix, Disney+, ...) cannot be downloaded.
+  * Please download only content you have the right to download.
+  * There is no browser extension (unlike IDM); use the copy-link box or the
+    "Auto-add links from clipboard" switch instead.
+  * Written for Windows; the engine and manager also run on Linux/macOS, but
+    automatic FFmpeg installation is Windows only (elsewhere install ffmpeg
+    with apt / brew).
+
+
+------------------------------------------------------------------------------
+8. TECHNOLOGY USED
+------------------------------------------------------------------------------
+
+  Python 3.10+       programming language
+  customtkinter      modern-looking window (dark theme)
+  requests           HTTP connections for the fast engine
+  yt-dlp             understands video sites and gives direct media addresses
+  FFmpeg             merges video+audio and converts to MP3
+  PyInstaller        turns the program into a single HizliIndirici.exe
+  threading          parallel connections and background workers
+
+
+------------------------------------------------------------------------------
+9. HOW IT WAS TESTED
+------------------------------------------------------------------------------
+
+The download engine and the manager were tested against a local test server
+that supports Range requests, with these cases: normal 16-connection download
+(file hash compared), pause + resume, randomly dropped connections, a server
+that allows only 3 connections, a server without Range support, cancel (all
+temporary files removed), a missing file (404), a tiny file with 32
+connections, video + audio merge, Opus audio conversion, MP3 conversion, queue
+handling, list saving/loading, and the behavior when FFmpeg is missing.
+The window code was run with a stand-in for customtkinter to check every
+button and update path. Real websites (YouTube etc.) and the real window can
+only be checked on your own computer.

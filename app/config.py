@@ -1,0 +1,100 @@
+"""
+User settings, saved in ~/.hizli_indirici/settings.json so they survive a restart.
+
+Two kinds live here: what the option bar of the main window shows (folder, quality,
+connections ...) and the global switches of the settings window (parallel downloads,
+speed limit, notifications ...).
+"""
+import json
+import os
+import threading
+
+from .utils import app_data_dir
+
+# value shown in the speed-limit menu -> KB/s (0 = no limit)
+SPEED_LIMITS = {
+    "Sınırsız": 0,
+    "128 KB/s": 128,
+    "256 KB/s": 256,
+    "512 KB/s": 512,
+    "1 MB/s": 1024,
+    "2 MB/s": 2048,
+    "5 MB/s": 5120,
+    "10 MB/s": 10240,
+    "25 MB/s": 25600,
+}
+AFTER_ALL = {  # menu text -> action. Not saved: it applies once, to the current session only.
+    "Hiçbir şey yapma": "none",
+    "Uygulamayı kapat": "close",
+    "Bilgisayarı uyut": "sleep",
+    "Bilgisayarı kapat": "shutdown",
+}
+SORTS = ["Yeni üstte", "Eski üstte", "Ad (A→Z)", "Boyut (büyük üstte)", "Duruma göre"]
+FILTERS = ["Hepsi", "Aktif", "Sırada", "Duraklatılmış", "Tamamlanan", "Hatalı"]
+MAX_PARALLEL_CHOICES = [str(n) for n in range(1, 9)]
+
+DEFAULTS = {
+    # main window option bar
+    "folder": "",
+    "kind": "Otomatik (dosya / video)",
+    "quality": "En iyi",
+    "bitrate": "320",
+    "connections": "16",
+    "cookies": "Yok",
+    "playlist": False,
+    "clip_watch": False,
+    # settings window
+    "max_parallel": 3,
+    "speed_limit": "Sınırsız",
+    "notify_sound": True,
+    "notify_toast": True,
+    "block_duplicates": True,
+    # list
+    "sort": "Yeni üstte",
+    "filter": "Hepsi",
+}
+
+
+class Config:
+    def __init__(self, path=None):
+        self.path = path or os.path.join(app_data_dir(), "settings.json")
+        self.data = dict(DEFAULTS)
+        self._lock = threading.Lock()
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                saved = json.load(f)
+        except Exception:
+            return
+        if not isinstance(saved, dict):
+            return
+        for key, default in DEFAULTS.items():
+            if key in saved and isinstance(saved[key], type(default)):
+                self.data[key] = saved[key]
+
+    def sanitize(self, choices: dict):
+        """Drop saved values that are not in the menus any more (e.g. renamed options)."""
+        for key, allowed in choices.items():
+            if self.data.get(key) not in allowed:
+                self.data[key] = DEFAULTS[key]
+
+    def get(self, key):
+        return self.data.get(key, DEFAULTS.get(key))
+
+    def set(self, key, value):
+        with self._lock:
+            if self.data.get(key) == value:
+                return
+            self.data[key] = value
+            self._write()
+
+    def _write(self):
+        tmp = self.path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
