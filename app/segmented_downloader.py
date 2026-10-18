@@ -96,15 +96,32 @@ def is_transient(e) -> bool:
 
 # ---------------------------------------------------------------------------------- proxy
 _proxy = ""
+_PROXY_RE = re.compile(r"^(https?|socks4a?|socks5h?)://[^\s/]+", re.I)
 
 
 def set_proxy(url: str) -> None:
     """Proxy for everything the app downloads. "" = the system's own settings."""
     global _proxy
     url = (url or "").strip()
-    if url and not re.match(r"^(https?|socks4a?|socks5h?)://[^\s/]+", url, re.I):
+    if url and not _PROXY_RE.match(url):
         raise ValueError("Proxy adresi http://, https://, socks4:// veya socks5:// ile başlamalı")
     _proxy = url
+
+
+def check_connection(url="http://connectivitycheck.gstatic.com/generate_204", proxy=None, timeout=8):
+    """(ok, text) for the settings window's test button: one small request, through `proxy`
+    if given (otherwise the proxy that is set now)."""
+    proxy = (proxy or "").strip()
+    if proxy and not _PROXY_RE.match(proxy):
+        return False, "Proxy adresi http://, https://, socks4:// veya socks5:// ile başlamalı"
+    proxies = {"http": proxy, "https": proxy} if proxy else get_proxies()
+    t0 = time.time()
+    try:
+        r = requests.get(url, timeout=timeout, proxies=proxies, stream=True)
+        r.close()
+    except Exception as e:  # noqa: BLE001
+        return False, (str(e).splitlines() or [type(e).__name__])[0][:120]
+    return r.status_code < 400, f"HTTP {r.status_code} • {int((time.time() - t0) * 1000)} ms"
 
 
 def get_proxy() -> str:

@@ -187,10 +187,12 @@ def _finish_media_body(item: Item, info: dict, fmts: list, parts: list, stem: st
         item.message = "MP3'e dönüştürülüyor…"
         meta = {"title": info.get("track") or info.get("title"),
                 "artist": info.get("artist") or info.get("uploader") or info.get("channel")}
+        cover = ve.fetch_cover(info, item) if item.cover else None
         try:
-            ve.to_mp3(parts[-1], tmp_out, item.bitrate, meta, item)
+            ve.to_mp3(parts[-1], tmp_out, item.bitrate, meta, item, cover=cover)
             os.replace(tmp_out, out)
         finally:
+            ve.discard_cover(cover)
             if os.path.exists(tmp_out):
                 os.remove(tmp_out)
     elif len(parts) == 1 and ext_of(parts[0]) == "mp4":
@@ -254,11 +256,13 @@ def run_media(item: Item):
     stem = sanitize_filename(title, 120)
     fmts = info.get("requested_formats") or [info]
 
+    own_engine = False   # True: our engine did the download, so we also fetch the subtitles
     if all(ve.is_fast(f) for f in fmts):
         try:
             item.state = DOWNLOADING
             item.message = ""
             path = _fast_media(item, info, fmts, stem)
+            own_engine = True
         except (DownloadStopped, ve.MissingFFmpeg):
             raise
         except Exception as e:
@@ -268,3 +272,7 @@ def run_media(item: Item):
     else:
         path = _ydl_fallback(item)
     item.final_path = path or ""
+    if own_engine and item.kind == "video" and item.subs != "Yok" and path and os.path.exists(path):
+        subs = ve.pick_subtitles(info, item.subs)
+        saved = ve.download_subtitles(item, subs, os.path.splitext(path)[0]) if subs else []
+        item.message = f"{len(saved)} altyazı kaydedildi" if saved else "Bu video için altyazı bulunamadı"

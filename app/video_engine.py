@@ -12,10 +12,15 @@ fails, we fall back to yt-dlp's own downloader with 16 parallel fragment downloa
 import os
 import re
 import subprocess
+import tempfile
+
+import requests
 
 from . import updater
 from .models import Item
-from .segmented_downloader import LIMITER, DownloadStopped, get_proxy
+from .logs import log
+from .segmented_downloader import (LIMITER, TIMEOUT, DownloadStopped, build_headers, get_proxies,
+                                   get_proxy)
 from .utils import find_ffmpeg, media_folder, subprocess_flags
 
 QUALITIES = ["En iyi", "2160p", "1440p", "1080p", "720p", "480p", "360p"]
@@ -187,9 +192,16 @@ def remux_to_mp4(src, out, item):
                     "-movflags", "+faststart", out], item)
 
 
-def to_mp3(src, out, kbps, meta, item):
-    args = ["-i", src, "-vn", "-map", "0:a:0", "-codec:a", "libmp3lame", "-b:a", f"{kbps}k",
-            "-id3v2_version", "3"]
+def to_mp3(src, out, kbps, meta, item, cover=None):
+    """Convert to MP3 with tags; `cover` is a JPEG that becomes the cover art."""
+    if cover:
+        args = ["-i", src, "-i", cover, "-map", "0:a:0", "-map", "1:v:0", "-codec:a", "libmp3lame",
+                "-b:a", f"{kbps}k", "-c:v", "copy", "-id3v2_version", "3",
+                "-metadata:s:v", "title=Album cover", "-metadata:s:v", "comment=Cover (front)",
+                "-disposition:v", "attached_pic"]
+    else:
+        args = ["-i", src, "-vn", "-map", "0:a:0", "-codec:a", "libmp3lame", "-b:a", f"{kbps}k",
+                "-id3v2_version", "3"]
     for k, v in (meta or {}).items():
         if v:
             args += ["-metadata", f"{k}={v}"]
@@ -197,7 +209,213 @@ def to_mp3(src, out, kbps, meta, item):
     run_ffmpeg(args, item)
 
 
+# ----------------------------------------------------------------- subtitles / cover art
+SUB_LANGS = {"Türkçe": "tr", "İngilizce": "en"}
+_SUB_EXT_ORDER = ("srt", "vtt")
+
+
+def _lang_key(keys, want):
+    """The key of a subtitle dict that is `want` or a regional variant of it (en-US, en-GB)."""
+    for k in keys:
+        if k == want or k.lower().startswith(want + "-"):
+            return k
+    return None
+
+
+def _best_subtitle(entries):
+    usable = {e.get("ext"): e for e in entries or [] if e.get("url")}
+    for ext in _SUB_EXT_ORDER:
+        if ext in usable:
+            return usable[ext]
+    return None
+
+
+def pick_subtitles(info: dict, choice: str) -> list:
+    """Subtitles to save for `choice` (Yok / Türkçe / İngilizce / Tüm diller):
+    [{"lang", "url", "ext"}, ...]. The uploader's own subtitles win over automatic captions;
+    "Tüm diller" takes the uploader's own subtitles only."""
+    if choice in (None, "", "Yok"):
+        return []
+    manual = info.get("subtitles") or {}
+    auto = info.get("automatic_captions") or {}
+    out = []
+    if choice == "Tüm diller":
+        for lang, entries in manual.items():
+            best = _best_subtitle(entries)
+            if lang != "live_chat" and best:
+                out.append({"lang": lang, "url": best["url"], "ext": best["ext"]})
+        return out
+    want = SUB_LANGS.get(choice)
+    if not want:
+        return []
+    for source in (manual, auto):
+        key = _lang_key(source, want)
+        best = _best_subtitle(source.get(key)) if key else None
+        if best:
+            return [{"lang": want, "url": best["url"], "ext": best["ext"]}]
+    return []
+
+
+def _download_small(url: str, headers=None, limit: int = 8 * 1024 * 1024) -> bytes:
+    r = requests.get(url, headers=build_headers(headers), timeout=TIMEOUT, stream=True,
+                     proxies=get_proxies())
+    try:
+        r.raise_for_status()
+        data = bytearray()
+        for chunk in r.iter_content(65536):
+            data += chunk
+            if len(data) > limit:
+                raise ValueError("dosya çok büyük")
+        return bytes(data)
+    finally:
+        r.close()
+
+
+def download_subtitles(item: Item, subs: list, base_path: str) -> list:
+    """Save subtitles next to a video as '<video name>.<lang>.<ext>'. A subtitle that cannot
+    be fetched is skipped (never fails the download). Returns the saved paths."""
+    saved = []
+    for sub in subs:
+        path = f"{base_path}.{sub['lang']}.{sub['ext']}"
+        try:
+            data = _download_small(sub["url"], item.request_headers())
+            with open(path, "wb") as f:
+                f.write(data)
+            saved.append(path)
+        except Exception as e:  # noqa: BLE001 - subtitles are a bonus
+            log.info("subtitle %s skipped: %s", sub["lang"], e)
+    return saved
+
+
+def pick_thumbnail(info: dict) -> str:
+    if info.get("thumbnail"):
+        return info["thumbnail"]
+    usable = [t for t in info.get("thumbnails") or [] if t.get("url")]
+    return usable[-1]["url"] if usable else ""
+
+
+def fetch_cover(info: dict, item: Item):
+    """Download the thumbnail as a JPEG for MP3 cover art. Returns the temp file path, or
+    None if there is no thumbnail / anything fails (the MP3 is made without a cover).
+    Remove the result with discard_cover()."""
+    url = pick_thumbnail(info)
+    if not url:
+        return None
+    tmp = tempfile.mkdtemp(prefix="hizli-cover-")
+    jpg = os.path.join(tmp, "cover.jpg")
+    try:
+        raw = os.path.join(tmp, "cover.raw")
+        with open(raw, "wb") as f:
+            f.write(_download_small(url, item.request_headers()))
+        # YouTube sends WebP; MP3 players want JPEG
+        run_ffmpeg(["-i", raw, "-frames:v", "1", "-q:v", "2", "-vf", "scale='min(1000,iw)':-2", jpg], item)
+        return jpg
+    except DownloadStopped:
+        discard_cover(jpg)
+        raise
+    except Exception as e:  # noqa: BLE001
+        log.info("cover art skipped: %s", e)
+        discard_cover(jpg)
+        return None
+
+
+def discard_cover(path):
+    """Delete the temp folder of a cover made by fetch_cover (None is fine)."""
+    if path:
+        import shutil
+        shutil.rmtree(os.path.dirname(path), ignore_errors=True)
+
+
+# -------------------------------------------------------------------------------- info
+_HEIGHTS = [2160, 1440, 1080, 720, 480, 360]
+
+
+def quality_for_height(height: int) -> str:
+    """The option-bar quality that matches a video height (largest one that is not higher)."""
+    for h in _HEIGHTS:
+        if height >= h:
+            return f"{h}p"
+    return f"{_HEIGHTS[-1]}p"
+
+
+def summarize_info(raw: dict) -> dict:
+    """What the info window shows about a link, from a yt-dlp info dict."""
+    best = {}
+    for f in raw.get("formats") or []:
+        h = f.get("height")
+        if not h or (f.get("vcodec") or "none") == "none":
+            continue
+        entry = {"height": int(h), "fps": int(f.get("fps") or 0),
+                 "codec": (f.get("vcodec") or "").split(".")[0],
+                 "size": int(f.get("filesize") or f.get("filesize_approx") or 0), "ext": f.get("ext") or ""}
+        old = best.get(entry["height"])
+        if old is None or (entry["fps"], entry["size"]) > (old["fps"], old["size"]):
+            best[entry["height"]] = entry
+    audio = [f for f in raw.get("formats") or []
+             if (f.get("vcodec") or "none") == "none" and (f.get("acodec") or "none") != "none"]
+    audio_size = max((int(f.get("filesize") or f.get("filesize_approx") or 0) for f in audio), default=0)
+    manual = sorted(k for k in (raw.get("subtitles") or {}) if k != "live_chat")
+    return {
+        "title": raw.get("title") or "",
+        "uploader": raw.get("uploader") or raw.get("channel") or "",
+        "duration": int(raw.get("duration") or 0),
+        "thumbnail": pick_thumbnail(raw),
+        "qualities": [best[h] for h in sorted(best, reverse=True)],
+        "audio_size": audio_size,
+        "subtitles": manual,
+        "auto_subtitles": len(raw.get("automatic_captions") or {}),
+        "is_playlist": raw.get("_type") == "playlist",
+        "entries": len(raw.get("entries") or []),
+    }
+
+
+def fetch_info(url: str, cookies=None) -> dict:
+    """Ask yt-dlp about a link (no download) and summarize it. Raises on any problem."""
+    yt_dlp = _yt_dlp()
+    opts = base_opts(cookies)
+    opts.update({"skip_download": True})
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        raw = ydl.extract_info(url, download=False)
+    if raw is None:
+        raise RuntimeError("Bilgi alınamadı")
+    return summarize_info(raw)
+
+
 # --------------------------------------------------------------------- yt-dlp fallback
+def ydl_options(item: Item, hook=None) -> dict:
+    """The yt-dlp options for downloading + post-processing one item with yt-dlp itself."""
+    opts = base_opts(item.cookies)
+    opts.update({
+        "format": format_selector(item.kind, item.quality),
+        "outtmpl": os.path.join(media_folder(item.folder, item.kind, item.sort_folders),
+                                "%(title).150B.%(ext)s"),
+        "concurrent_fragment_downloads": 16,
+        "progress_hooks": [hook] if hook else [],
+        "continuedl": True,
+        "ratelimit": int(LIMITER.rate) or None,  # yt-dlp applies it per download
+    })
+    post = []
+    if item.kind == "audio":
+        post.append({"key": "FFmpegExtractAudio", "preferredcodec": "mp3",
+                     "preferredquality": item.bitrate})
+        if item.cover:
+            opts["writethumbnail"] = True
+            post += [{"key": "FFmpegThumbnailsConvertor", "format": "jpg", "when": "before_dl"},
+                     {"key": "FFmpegMetadata", "add_metadata": True}, {"key": "EmbedThumbnail"}]
+    else:
+        opts["merge_output_format"] = "mp4"
+        if item.subs != "Yok":
+            opts.update({"writesubtitles": True, "subtitlesformat": "srt/vtt/best"})
+            if item.subs == "Tüm diller":
+                opts["subtitleslangs"] = ["all", "-live_chat"]
+            else:
+                opts["subtitleslangs"] = [SUB_LANGS.get(item.subs, "en") + ".*"]
+                opts["writeautomaticsub"] = True
+    if post:
+        opts["postprocessors"] = post
+    return opts
+
+
 def ydl_download(item: Item):
     """Let yt-dlp download + post-process everything itself (16 parallel fragments)."""
     yt_dlp = _yt_dlp()
@@ -215,21 +433,7 @@ def ydl_download(item: Item):
         elif d.get("status") == "finished":
             item.fraction = 1.0
 
-    opts = base_opts(item.cookies)
-    opts.update({
-        "format": format_selector(item.kind, item.quality),
-        "outtmpl": os.path.join(media_folder(item.folder, item.kind, item.sort_folders),
-                                "%(title).150B.%(ext)s"),
-        "concurrent_fragment_downloads": 16,
-        "progress_hooks": [hook],
-        "continuedl": True,
-        "ratelimit": int(LIMITER.rate) or None,  # yt-dlp applies it per download
-    })
-    if item.kind == "audio":
-        opts["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3",
-                                   "preferredquality": item.bitrate}]
-    else:
-        opts["merge_output_format"] = "mp4"
+    opts = ydl_options(item, hook)
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(item.url, download=True)

@@ -19,6 +19,8 @@ import uuid
 
 import pytest
 
+pytest_plugins = ["media_support"]   # shared media fixtures (media, served, stand_in)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 

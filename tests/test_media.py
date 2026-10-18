@@ -1,9 +1,6 @@
 """Video / MP3 pipeline with real ffmpeg. yt-dlp is replaced by a stand-in that points to
 media files on the local test server, so no website is needed."""
-import json
 import os
-import shutil
-import subprocess
 import threading
 import time
 
@@ -13,50 +10,7 @@ from app import jobs
 from app import video_engine as ve
 from app.models import Item
 from app.segmented_downloader import DownloadStopped
-from app.utils import find_ffmpeg
-
-FFMPEG = find_ffmpeg()
-FFPROBE = shutil.which("ffprobe")
-
-def needs_ffmpeg(test):
-    """Marks a test 'ffmpeg' (so it can be deselected) and skips it when ffmpeg is missing."""
-    test = pytest.mark.ffmpeg(test)
-    return pytest.mark.skipif(not (FFMPEG and FFPROBE), reason="ffmpeg/ffprobe not found")(test)
-
-
-
-def ffmpeg(*args):
-    subprocess.run([FFMPEG, "-y", "-hide_banner", "-loglevel", "error", *args], check=True,
-                   stdin=subprocess.DEVNULL)
-
-
-def streams_of(path):
-    out = subprocess.run([FFPROBE, "-v", "error", "-show_entries", "stream=codec_type,codec_name",
-                          "-show_entries", "format=bit_rate:format_tags=title,artist", "-of", "json", path],
-                         capture_output=True, text=True, check=True).stdout
-    data = json.loads(out)
-    return ({s["codec_type"]: s["codec_name"] for s in data["streams"]},
-            {k.lower(): v for k, v in data.get("format", {}).get("tags", {}).items()},
-            int(data["format"].get("bit_rate") or 0))
-
-
-@pytest.fixture(scope="session")
-def media(tmp_path_factory):
-    d = tmp_path_factory.mktemp("media")
-    v, a, o, mkv, full = (str(d / n) for n in ("v.mp4", "a.m4a", "o.webm", "x.mkv", "full.mp4"))
-    video = ["-f", "lavfi", "-i", "testsrc=duration=2:size=160x120:rate=15"]
-    audio = ["-f", "lavfi", "-i", "sine=frequency=440:duration=2"]
-    ffmpeg(*video, "-c:v", "libx264", "-pix_fmt", "yuv420p", v)
-    ffmpeg(*audio, "-c:a", "aac", a)
-    ffmpeg(*audio, "-c:a", "libopus", o)
-    ffmpeg(*video, *audio, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", mkv)
-    ffmpeg(*video, *audio, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", full)
-    return {"video": v, "audio": a, "opus": o, "mkv": mkv, "full": full}
-
-
-def fmt(url, ext, path, acodec="none", vcodec="none"):
-    return {"url": url, "ext": ext, "protocol": "https", "filesize": os.path.getsize(path),
-            "acodec": acodec, "vcodec": vcodec, "http_headers": {}, "_fast_headers": {}}
+from media_support import fmt, needs_ffmpeg, new_item, streams_of
 
 
 @pytest.fixture
@@ -64,13 +18,6 @@ def folder(tmp_path):
     d = tmp_path / "out"
     d.mkdir()
     return str(d)
-
-
-def new_item(url, kind, folder, **kw):
-    it = Item(url, kind=kind, quality="En iyi", bitrate="192", connections=4, folder=folder)
-    for k, v in kw.items():
-        setattr(it, k, v)
-    return it
 
 
 # ------------------------------------------------------------------------- selectors
@@ -156,19 +103,6 @@ def test_missing_ffmpeg_is_a_clear_error(monkeypatch):
 
 
 # ------------------------------------------------------------------------ full pipeline
-@pytest.fixture
-def stand_in(monkeypatch):
-    """Make ve.resolve return a prepared info dict instead of asking yt-dlp."""
-    box = {}
-    monkeypatch.setattr(ve, "resolve", lambda url, kind, quality, cookies=None: box["info"])
-    return box
-
-
-@pytest.fixture
-def served(server, media):
-    return {k: server.add(open(p, "rb").read(), os.path.splitext(p)[1]) for k, p in media.items()}
-
-
 @needs_ffmpeg
 def test_video_plus_audio_are_downloaded_and_merged_into_one_mp4(server, media, served, stand_in, folder):
     stand_in["info"] = {"title": "Test: Video?", "requested_formats": [
