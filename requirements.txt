@@ -1,4 +1,6 @@
 customtkinter>=5.2.2
 yt-dlp[default]>=2025.11.12
-requests>=2.31.0
+requests[socks]>=2.31.0
 tkinterdnd2>=0.4.2
+pystray>=0.19.5
+Pillow>=10.0

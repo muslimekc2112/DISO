@@ -32,7 +32,8 @@ import zipfile
 import requests
 
 from . import ffmpeg_setup
-from .segmented_downloader import TIMEOUT, DownloadError, FastDownloader, build_headers
+from .segmented_downloader import (TIMEOUT, DownloadError, FastDownloader, build_headers,
+                                   get_proxies)
 from .utils import app_data_dir, find_ffmpeg, human_size
 
 PYPI_URL = "https://pypi.org/pypi/{}/json"
@@ -225,7 +226,7 @@ def fetch_release(pkg: str) -> dict:
     """Newest version of a PyPI package, with the URL and SHA-256 of its universal wheel."""
     # the JSON is ~1.2 MB uncompressed but ~270 KB with gzip, so ask for compression here
     headers = {**build_headers(), "Accept-Encoding": "gzip, deflate"}
-    r = requests.get(PYPI_URL.format(pkg), headers=headers, timeout=TIMEOUT)
+    r = requests.get(PYPI_URL.format(pkg), headers=headers, timeout=TIMEOUT, proxies=get_proxies())
     r.raise_for_status()
     data = r.json()
     for f in data.get("urls", []):

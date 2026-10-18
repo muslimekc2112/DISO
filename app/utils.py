@@ -124,6 +124,39 @@ def unique_path(folder: str, filename: str) -> str:
     return os.path.join(folder, f"{base} ({i}){ext}")
 
 
+# ------------------------------------------------------------------------ type folders
+CATEGORIES = {
+    "Video": (".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg", ".3gp"),
+    "Müzik": (".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".opus", ".wma", ".mid"),
+    "Arşiv": (".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso", ".img", ".cab"),
+    "Belge": (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".odt",
+              ".ods", ".csv", ".epub"),
+    "Program": (".exe", ".msi", ".apk", ".dmg", ".deb", ".rpm", ".appx", ".msix", ".jar"),
+    "Resim": (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".tif", ".tiff", ".ico", ".heic"),
+}
+OTHER_CATEGORY = "Diğer"
+
+
+def category_for(filename: str) -> str:
+    """Sub-folder name for a file: Video, Müzik, Arşiv, Belge, Program, Resim or Diğer."""
+    ext = os.path.splitext(filename or "")[1].lower()
+    for name, exts in CATEGORIES.items():
+        if ext in exts:
+            return name
+    return OTHER_CATEGORY
+
+
+def category_folder(base: str, filename: str) -> str:
+    return os.path.join(base, category_for(filename))
+
+
+def media_folder(base: str, kind: str, sort: bool) -> str:
+    """Where a finished video / MP3 goes: the chosen folder, or its Video / Müzik sub-folder."""
+    if not sort:
+        return base
+    return os.path.join(base, "Müzik" if kind == "audio" else "Video")
+
+
 # ------------------------------------------------------------------------------- URLs
 _URL_RE = re.compile(r"^https?://\S+$", re.I)
 

@@ -56,7 +56,63 @@ class DownloadStopped(Exception):
 
 
 class DownloadError(Exception):
-    pass
+    def __init__(self, message="", network=False):
+        super().__init__(message)
+        self.network = network  # True: a connection problem that may go away by itself
+
+
+class TransientError(RuntimeError):
+    """A connection problem described in words (used when the original exception is hidden)."""
+
+
+# Texts of connection problems from libraries that hide the real exception type
+# (yt-dlp, urllib3 ...). Permanent errors (404, "unsupported URL") are not in this list.
+_TRANSIENT_TEXT = (
+    "getaddrinfo failed", "name or service not known", "temporary failure in name resolution",
+    "timed out", "timeout", "connection reset", "connection aborted", "connection refused",
+    "network is unreachable", "no route to host", "remote end closed", "remotedisconnected",
+    "transporterror", "max retries exceeded", "incompleteread", "eof occurred", "broken pipe",
+    "bad gateway", "service unavailable", "gateway time-out", "too many requests",
+    "unable to connect",
+)
+_TRANSIENT_HTTP = re.compile(r"http error (408|425|429|5\d\d)")
+
+
+def is_transient(e) -> bool:
+    """True if retrying after a while can help: the network is down or flaky, or the server
+    is overloaded. False for permanent problems (missing file, access denied, bad link)."""
+    if isinstance(e, TransientError):
+        return True
+    if isinstance(e, DownloadError):
+        return e.network
+    if isinstance(e, requests.HTTPError):
+        return getattr(e.response, "status_code", 0) in (408, 425, 429, 500, 502, 503, 504)
+    if isinstance(e, (requests.ConnectionError, requests.Timeout, ConnectionError, TimeoutError,
+                      requests.exceptions.ChunkedEncodingError)):
+        return True
+    text = str(e).lower()
+    return bool(_TRANSIENT_HTTP.search(text)) or any(t in text for t in _TRANSIENT_TEXT)
+
+
+# ---------------------------------------------------------------------------------- proxy
+_proxy = ""
+
+
+def set_proxy(url: str) -> None:
+    """Proxy for everything the app downloads. "" = the system's own settings."""
+    global _proxy
+    url = (url or "").strip()
+    if url and not re.match(r"^(https?|socks4a?|socks5h?)://[^\s/]+", url, re.I):
+        raise ValueError("Proxy adresi http://, https://, socks4:// veya socks5:// ile başlamalı")
+    _proxy = url
+
+
+def get_proxy() -> str:
+    return _proxy
+
+
+def get_proxies():
+    return {"http": _proxy, "https": _proxy} if _proxy else None
 
 
 @dataclass
@@ -84,6 +140,8 @@ def make_session(pool: int = 1) -> requests.Session:
     ad = HTTPAdapter(pool_connections=pool, pool_maxsize=pool, max_retries=0)
     s.mount("http://", ad)
     s.mount("https://", ad)
+    if _proxy:
+        s.proxies.update({"http": _proxy, "https": _proxy})
     return s
 
 
@@ -116,7 +174,8 @@ def probe(url: str, headers=None, timeout=20) -> ProbeResult:
         h = CaseInsensitiveDict(base)
         if with_range:
             h["Range"] = "bytes=0-0"
-        return requests.get(url, headers=h, stream=True, timeout=timeout, allow_redirects=True)
+        return requests.get(url, headers=h, stream=True, timeout=timeout, allow_redirects=True,
+                            proxies=get_proxies())
 
     r = fetch(True)
     if r.status_code >= 400:  # some servers reject Range on the first request
@@ -272,7 +331,7 @@ class FastDownloader:
         """Called with self.lock held by every worker when it leaves."""
         self.active -= 1
         if self.active == 0 and self._todo and not self.stop_event.is_set() and self.error is None:
-            self.error = DownloadError(self._last_err or "Connection failed")
+            self.error = DownloadError(self._last_err or "Connection failed", network=True)
             self.stop_event.set()
 
     def _fetch_block(self, session, fh, start, end):

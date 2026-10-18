@@ -21,7 +21,8 @@ from urllib.parse import urlparse
 
 import requests
 
-from .segmented_downloader import TIMEOUT, DownloadError, FastDownloader, build_headers
+from .segmented_downloader import (TIMEOUT, DownloadError, FastDownloader, build_headers,
+                                   get_proxies)
 from .utils import find_ffmpeg, subprocess_flags, user_tools_dir
 
 # (archive, checksum file). The checksum file is either a bare hash (gyan.dev) or
@@ -41,7 +42,7 @@ last_error = ""
 # ----------------------------------------------------------------------- checksums
 def fetch_expected_sha256(archive_url: str, sha_url: str) -> str:
     """SHA-256 the mirror publishes for archive_url."""
-    r = requests.get(sha_url, headers=build_headers(), timeout=TIMEOUT)
+    r = requests.get(sha_url, headers=build_headers(), timeout=TIMEOUT, proxies=get_proxies())
     r.raise_for_status()
     name = os.path.basename(urlparse(archive_url).path)
     for line in r.text.splitlines():

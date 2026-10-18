@@ -7,6 +7,8 @@ DownloadManager - the "IDM / FDM" part.
 * pause / resume / cancel / remove for every item
 * expands playlists into one item per video
 * refuses a link that is already in the list (optional)
+* tries again by itself when the connection drops (WAITING state, growing delays)
+* a "gate" the scheduler can close: nothing new starts while it is closed
 """
 import json
 import os
@@ -16,12 +18,15 @@ from urllib.parse import urlsplit
 
 from . import jobs
 from . import video_engine as ve
+from .logs import log
 from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED, PROCESSING,
-                     QUEUED, RESOLVING, RESTARTABLE_STATES, Item, Settings)
-from .segmented_downloader import DownloadStopped, FastDownloader
+                     QUEUED, RESOLVING, RESTARTABLE_STATES, WAITING, Item, Settings)
+from .segmented_downloader import DownloadStopped, FastDownloader, is_transient
 from .utils import app_data_dir, default_download_dir, normalize_url
 
 MAX_PARALLEL = 3
+MAX_RETRIES = 3
+RETRY_DELAYS = (10, 30, 60, 120, 300)   # seconds before automatic retry 1, 2, 3 ... (tests shorten it)
 
 
 def url_key(url: str) -> tuple:
@@ -32,7 +37,7 @@ def url_key(url: str) -> tuple:
 
 
 class DownloadManager:
-    def __init__(self, max_parallel=MAX_PARALLEL, store_path=None):
+    def __init__(self, max_parallel=MAX_PARALLEL, store_path=None, max_retries=MAX_RETRIES):
         self.items = []
         self.notices = queue.Queue()      # short messages for the UI status bar
         self.events = queue.Queue()       # ("done"|"error", item) for notifications
@@ -42,8 +47,10 @@ class DownloadManager:
         self.store_path = store_path or os.path.join(app_data_dir(), "downloads.json")
         self._last_save = 0.0
         self.max_parallel = max(1, int(max_parallel))
-        self._slots = threading.Condition()   # guards _running / max_parallel
+        self.max_retries = max(0, int(max_retries))
+        self._slots = threading.Condition()   # guards _running / max_parallel / _gate_open
         self._running = 0
+        self._gate_open = True
         self._load()
         threading.Thread(target=self._dispatch, daemon=True).start()
 
@@ -52,6 +59,19 @@ class DownloadManager:
         with self._slots:
             self.max_parallel = max(1, int(n))
             self._slots.notify_all()
+
+    def set_max_retries(self, n):
+        self.max_retries = max(0, int(n))
+
+    def set_gate(self, open_: bool):
+        """Scheduler: while the gate is closed queued downloads wait, running ones go on."""
+        with self._slots:
+            self._gate_open = bool(open_)
+            self._slots.notify_all()
+
+    @property
+    def gate_open(self) -> bool:
+        return self._gate_open
 
     # ------------------------------------------------------------------ persistence
     def _load(self):
@@ -84,9 +104,18 @@ class DownloadManager:
                     return it
         return None
 
-    def add_url(self, url: str, s: Settings, start=True, skip_duplicates=False) -> bool:
+    @staticmethod
+    def _make_item(url, s: Settings, folder, title="", kind=None, extra=None) -> Item:
+        extra = extra or {}
+        return Item(url, kind or s.kind, s.quality, s.bitrate, s.connections, folder, s.cookies, title,
+                    subs=s.subs, cover=s.cover, sort_folders=s.sort_folders,
+                    referer=extra.get("referer", ""), user_agent=extra.get("user_agent", ""),
+                    cookie_header=extra.get("cookie", ""))
+
+    def add_url(self, url: str, s: Settings, start=True, skip_duplicates=False, extra=None) -> bool:
         """Add one link. Returns False if it was skipped because it is already in the list.
-        Playlists are expanded in a background thread."""
+        Playlists are expanded in a background thread. `extra` may hold referer, user_agent
+        and cookie (a link handed over by the browser extension)."""
         if skip_duplicates and self.find_duplicate(url):
             return False
         folder = s.folder or default_download_dir()
@@ -94,7 +123,7 @@ class DownloadManager:
             threading.Thread(target=self._add_playlist, args=(url, s, folder, start, skip_duplicates),
                              daemon=True).start()
             return True
-        self._add_item(Item(url, s.kind, s.quality, s.bitrate, s.connections, folder, s.cookies), start)
+        self._add_item(self._make_item(url, s, folder, extra=extra), start)
         return True
 
     def _add_item(self, item: Item, start=True):
@@ -105,20 +134,28 @@ class DownloadManager:
             self.start(item)
         self.save()
 
+    def add_entries(self, entries, s: Settings, start=True, skip_duplicates=False):
+        """Add the chosen videos of a playlist: entries = [(url, title, ...), ...].
+        Returns (added, skipped)."""
+        folder = s.folder or default_download_dir()
+        kind = "video" if s.kind == "auto" else s.kind
+        added = skipped = 0
+        for entry in entries:
+            url, title = entry[0], (entry[1] if len(entry) > 1 else "")
+            if skip_duplicates and self.find_duplicate(url):
+                skipped += 1
+                continue
+            self._add_item(self._make_item(url, s, folder, title, kind), start)
+            added += 1
+        return added, skipped
+
     def _add_playlist(self, url, s, folder, start, skip_duplicates=False):
         try:
             entries = ve.expand_playlist(url, s.cookies)
         except Exception as e:
             self.notices.put(f"Liste okunamadı: {ve.pretty_error(e)}")
-            entries = [(url, "")]
-        kind = "video" if s.kind == "auto" else s.kind
-        added = skipped = 0
-        for u, title in entries:
-            if skip_duplicates and self.find_duplicate(u):
-                skipped += 1
-                continue
-            self._add_item(Item(u, kind, s.quality, s.bitrate, s.connections, folder, s.cookies, title), start)
-            added += 1
+            entries = [(url, "", 0)]
+        added, skipped = self.add_entries(entries, s, start, skip_duplicates)
         if len(entries) > 1:
             text = f"{added} video listeye eklendi"
             if skipped:
@@ -134,13 +171,21 @@ class DownloadManager:
             item.stop_reason = None
             item.error = ""
             item.message = ""
+            item.retries = 0                  # the user is trying again: start counting afresh
             item.speed, item.eta = 0.0, None
         self.q.put(item)
 
+    def _cancel_timer(self, item: Item):
+        timer, item._timer = item._timer, None
+        if timer is not None:
+            timer.cancel()
+
     def pause(self, item: Item):
         with self.lock:
-            if item.state == QUEUED:
+            if item.state in (QUEUED, WAITING):
+                self._cancel_timer(item)
                 item.state = PAUSED
+                item.message = ""
             elif item.state in ACTIVE_STATES:
                 item.request_stop("pause")
         self.save()
@@ -154,16 +199,19 @@ class DownloadManager:
             if item.state in (RESOLVING, DOWNLOADING, PROCESSING):
                 item.request_stop("cancel")
                 return
-            if item.state == QUEUED:
+            if item.state in (QUEUED, WAITING):
+                self._cancel_timer(item)
                 item.state = CANCELLED
+                item.message = ""
         self._cleanup(item)
         self.save()
 
     def remove(self, item: Item):
         item.removed = True
-        if item.state in ACTIVE_STATES:
+        if item.state in (RESOLVING, DOWNLOADING, PROCESSING):
             item.request_stop("cancel")
         else:
+            self._cancel_timer(item)
             self._cleanup(item)
         with self.lock:
             if item in self.items:
@@ -188,7 +236,10 @@ class DownloadManager:
         """Window is closing: ask everything that runs to pause and remember the list.
         Returns at once (the window must not freeze); poll busy() to see when it is done."""
         for it in list(self.items):
-            if it.state in ACTIVE_STATES:
+            if it.state == WAITING:
+                self._cancel_timer(it)
+                it.state = PAUSED
+            elif it.state in ACTIVE_STATES:
                 it.request_stop("pause")
         self.save()
 
@@ -210,11 +261,13 @@ class DownloadManager:
 
     def _dispatch(self):
         """One thread hands queued items to worker threads, oldest first, as long as fewer
-        than max_parallel run. An item that is paused / removed while it waits is skipped."""
+        than max_parallel run and the scheduler's gate is open. An item that is paused /
+        removed while it waits is skipped."""
         while True:
             item = self.q.get()
             with self._slots:
-                while self._running >= self.max_parallel and item.state == QUEUED and not item.removed:
+                while (self._running >= self.max_parallel or not self._gate_open) \
+                        and item.state == QUEUED and not item.removed:
                     self._slots.wait(0.5)
                 with self.lock:
                     if item.state != QUEUED or item.removed:
@@ -231,6 +284,38 @@ class DownloadManager:
                 self._running -= 1
                 self._slots.notify_all()
 
+    def _schedule_retry(self, item: Item, error) -> bool:
+        """Connection problem: wait a little, then try again by itself (the partial file is
+        kept, so it continues where it stopped). False if it is not worth retrying."""
+        if item.removed or item.retries >= self.max_retries or not is_transient(error):
+            return False
+        item.retries += 1
+        delay = RETRY_DELAYS[min(item.retries - 1, len(RETRY_DELAYS) - 1)]
+        item.error = ""
+        item.message = f"Bağlantı sorunu: {delay:g} sn sonra tekrar denenecek ({item.retries}/{self.max_retries})"
+        item.state = WAITING
+        timer = threading.Timer(delay, self._requeue, args=(item,))
+        timer.daemon = True
+        item._timer = timer
+        timer.start()
+        log.info("connection problem, retry %d/%d in %gs: %s (%s)", item.retries, self.max_retries,
+                 delay, item.url, error)
+        return True
+
+    def _requeue(self, item: Item):
+        with self.lock:
+            item._timer = None
+            if item.state != WAITING or item.removed:
+                return
+            if item.stop_reason == "pause":
+                item.state = PAUSED
+                item.message = ""
+                return
+            item.state = QUEUED
+            item.stop_reason = None
+            item.message = ""
+        self.q.put(item)
+
     def _run(self, item: Item):
         try:
             if item.kind == "auto":
@@ -243,7 +328,9 @@ class DownloadManager:
                 jobs.run_media(item)
             item.state = DONE
             item.fraction = 1.0
+            item.retries = 0
             self.events.put(("done", item))
+            log.info("done: %s -> %s", item.url, item.final_path)
         except DownloadStopped as e:
             if e.reason == "cancel":
                 self._cleanup(item)
@@ -256,10 +343,13 @@ class DownloadManager:
                 item.state = CANCELLED
             elif item.stop_reason == "pause":
                 item.state = PAUSED
+            elif self._schedule_retry(item, e):
+                pass
             else:
                 item.state = ERROR
                 item.error = ve.pretty_error(e) if not isinstance(e, ve.MissingFFmpeg) else str(e)
                 self.events.put(("error", item))
+                log.error("failed: %s: %s", item.url, item.error, exc_info=True)
         finally:
             item._fd = None
             item._proc = None

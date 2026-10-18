@@ -15,8 +15,8 @@ import subprocess
 
 from . import updater
 from .models import Item
-from .segmented_downloader import LIMITER, DownloadStopped
-from .utils import find_ffmpeg, subprocess_flags
+from .segmented_downloader import LIMITER, DownloadStopped, get_proxy
+from .utils import find_ffmpeg, media_folder, subprocess_flags
 
 QUALITIES = ["En iyi", "2160p", "1440p", "1080p", "720p", "480p", "360p"]
 BITRATES = ["320", "256", "192", "128"]
@@ -71,6 +71,8 @@ def base_opts(cookies=None) -> dict:
     }
     if cookies and cookies != "Yok":
         o["cookiesfrombrowser"] = (cookies.lower(),)
+    if get_proxy():
+        o["proxy"] = get_proxy()
     ff = find_ffmpeg()
     if ff:
         o["ffmpeg_location"] = os.path.dirname(ff)
@@ -115,14 +117,14 @@ def resolve(url, kind, quality, cookies=None) -> dict:
 
 
 def expand_playlist(url, cookies=None) -> list:
-    """[(entry_url, title), ...] for a playlist URL; a single [(url, title)] otherwise."""
+    """[(entry_url, title, duration_seconds), ...] for a playlist URL; one entry otherwise."""
     yt_dlp = _yt_dlp()
     opts = base_opts(cookies)
     opts.update({"extract_flat": "in_playlist", "skip_download": True, "noplaylist": False})
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if not info or info.get("_type") != "playlist":
-        return [(url, (info or {}).get("title") or "")]
+        return [(url, (info or {}).get("title") or "", (info or {}).get("duration") or 0)]
     out = []
     for e in info.get("entries") or []:
         if not e:
@@ -134,8 +136,8 @@ def expand_playlist(url, cookies=None) -> list:
             else:
                 continue
         if u:
-            out.append((u, e.get("title") or ""))
-    return out or [(url, "")]
+            out.append((u, e.get("title") or "", e.get("duration") or 0))
+    return out or [(url, "", 0)]
 
 
 # ---------------------------------------------------------------------------- ffmpeg
@@ -216,7 +218,8 @@ def ydl_download(item: Item):
     opts = base_opts(item.cookies)
     opts.update({
         "format": format_selector(item.kind, item.quality),
-        "outtmpl": os.path.join(item.folder, "%(title).150B.%(ext)s"),
+        "outtmpl": os.path.join(media_folder(item.folder, item.kind, item.sort_folders),
+                                "%(title).150B.%(ext)s"),
         "concurrent_fragment_downloads": 16,
         "progress_hooks": [hook],
         "continuedl": True,

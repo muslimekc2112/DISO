@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 # ---- item states
 QUEUED = "queued"
+WAITING = "waiting"            # connection problem: will try again by itself (see manager)
 RESOLVING = "resolving"        # finding out the file / video info
 DOWNLOADING = "downloading"
 PROCESSING = "processing"      # ffmpeg merge / MP3 conversion
@@ -13,8 +14,10 @@ PAUSED = "paused"
 ERROR = "error"
 CANCELLED = "cancelled"
 
-ACTIVE_STATES = (QUEUED, RESOLVING, DOWNLOADING, PROCESSING)
+ACTIVE_STATES = (QUEUED, WAITING, RESOLVING, DOWNLOADING, PROCESSING)
 RESTARTABLE_STATES = (PAUSED, ERROR, CANCELLED)
+
+SUBTITLE_CHOICES = ["Yok", "Türkçe", "İngilizce", "Tüm diller"]
 
 
 @dataclass
@@ -27,16 +30,21 @@ class Settings:
     folder: str = ""
     playlist: bool = False
     cookies: str = "Yok"        # browser to read login cookies from
+    subs: str = "Yok"           # subtitles to save next to a video (SUBTITLE_CHOICES)
+    cover: bool = True          # put the thumbnail into an MP3 as cover art
+    sort_folders: bool = False  # save into Video / Müzik / Arşiv ... sub-folders
 
 
 class Item:
     """One entry of the download list."""
 
     PERSISTED = ("id", "url", "kind", "quality", "bitrate", "connections", "folder",
-                 "cookies", "title", "state", "dest", "final_path", "error", "added")
+                 "cookies", "title", "state", "dest", "final_path", "error", "added",
+                 "subs", "cover", "sort_folders", "referer", "user_agent")
 
     def __init__(self, url, kind="auto", quality="En iyi", bitrate="320", connections=16,
-                 folder="", cookies="Yok", title=""):
+                 folder="", cookies="Yok", title="", *, subs="Yok", cover=True,
+                 sort_folders=False, referer="", user_agent="", cookie_header=""):
         self.id = uuid.uuid4().hex[:10]
         self.url = url
         self.kind = kind
@@ -46,12 +54,19 @@ class Item:
         self.folder = folder
         self.cookies = cookies
         self.title = title
+        self.subs = subs
+        self.cover = cover
+        self.sort_folders = sort_folders
+        self.referer = referer          # sent as the Referer header (browser extension)
+        self.user_agent = user_agent    # ... and as User-Agent
         self.state = QUEUED
         self.dest = ""             # final path of a plain file download (kept for resume)
         self.final_path = ""
         self.error = ""
         self.added = time.time()
         # ---- runtime only (not saved)
+        # The browser's cookies for this download stay in memory only: they are a login.
+        self.cookie_header = cookie_header
         self.done = 0
         self.total = 0
         self.fraction = 0.0
@@ -62,6 +77,8 @@ class Item:
         self.stop_reason = None    # None | "pause" | "cancel"
         self.temp_files = []
         self.removed = False
+        self.retries = 0           # automatic retries after connection problems
+        self._timer = None         # pending automatic retry
         self._fd = None
         self._proc = None
         self._probe = None
@@ -86,6 +103,17 @@ class Item:
     @property
     def display_name(self):
         return self.title or (self.dest and self.dest.split("/")[-1].split("\\")[-1]) or self.url
+
+    def request_headers(self) -> dict:
+        """Extra headers for the requests of this download (Referer / User-Agent / Cookie)."""
+        h = {}
+        if self.referer:
+            h["Referer"] = self.referer
+        if self.user_agent:
+            h["User-Agent"] = self.user_agent
+        if self.cookie_header:
+            h["Cookie"] = self.cookie_header
+        return h
 
     def attach(self, fd):
         """Register the engine that is downloading right now so stop requests reach it."""

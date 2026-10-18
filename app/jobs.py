@@ -12,8 +12,10 @@ import threading
 from . import video_engine as ve
 from .ffmpeg_setup import ensure_ffmpeg
 from .models import DOWNLOADING, PROCESSING, RESOLVING, Item
-from .segmented_downloader import DownloadStopped, FastDownloader, probe
-from .utils import find_ffmpeg, human_size, sanitize_filename, unique_path
+from .segmented_downloader import (DownloadStopped, FastDownloader, TransientError, is_transient,
+                                   probe)
+from .utils import (category_folder, find_ffmpeg, human_size, media_folder, sanitize_filename,
+                    unique_path)
 
 
 def _check_stop(item: Item):
@@ -45,7 +47,7 @@ def classify(item: Item):
     """Sets item.kind to 'file' or 'video' by looking at the server's answer."""
     item.message = "Bağlantı türü algılanıyor…"
     try:
-        pr = probe(item.url, timeout=12)
+        pr = probe(item.url, item.request_headers(), timeout=12)
     except Exception:
         item.kind = "video"  # pages that block plain requests are usually video sites
         return
@@ -64,12 +66,15 @@ def classify(item: Item):
 def run_file(item: Item):
     os.makedirs(item.folder, exist_ok=True)
     pr = item._probe
+    headers = item.request_headers()
     if not item.dest:
-        pr = pr or probe(item.url)
-        item.dest = reserve_path(item.folder, pr.filename)  # the placeholder becomes the .part file
+        pr = pr or probe(item.url, headers)
+        target = category_folder(item.folder, pr.filename) if item.sort_folders else item.folder
+        os.makedirs(target, exist_ok=True)
+        item.dest = reserve_path(target, pr.filename)  # the placeholder becomes the .part file
         item.title = os.path.basename(item.dest)
     item._probe = None
-    fd = FastDownloader(item.url, item.dest, item.connections,
+    fd = FastDownloader(item.url, item.dest, item.connections, headers=headers,
                         on_progress=item.on_progress, probe_result=pr)
     item.attach(fd)
     _check_stop(item)
@@ -167,7 +172,8 @@ def _reserve(reserved: list, folder: str, filename: str) -> str:
 
 
 def _finish_media_body(item: Item, info: dict, fmts: list, parts: list, stem: str, reserved: list) -> str:
-    folder = item.folder
+    folder = media_folder(item.folder, item.kind, item.sort_folders)
+    os.makedirs(folder, exist_ok=True)
     item.state, item.speed, item.eta, item.fraction = PROCESSING, 0.0, None, 1.0
     _check_stop(item)
 
@@ -240,7 +246,7 @@ def run_media(item: Item):
         info = ve.resolve(item.url, item.kind, item.quality, item.cookies)
     except Exception as e:
         _check_stop(item)
-        raise RuntimeError(ve.pretty_error(e))
+        raise (TransientError if is_transient(e) else RuntimeError)(ve.pretty_error(e))
     _check_stop(item)
 
     title = info.get("title") or info.get("id") or "video"

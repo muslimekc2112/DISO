@@ -47,6 +47,8 @@ def clean_globals():
     modules = set(sys.modules)
     yield
     LIMITER.set_rate(0)
+    from app import segmented_downloader
+    segmented_downloader.set_proxy("")
     sys.meta_path[:] = meta_path
     updater._overrides.clear()
     updater._active.clear()
@@ -92,6 +94,8 @@ class _State:
         self.limit = 3       # connections the "limit" mode allows at once
         self.active = 0
         self.flaky_counter = 0
+        self.fail_requests = 0   # the next N requests get no answer at all (network down)
+        self.seen = {}           # name -> headers of the last request for it
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
@@ -113,6 +117,14 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         mode, _, name = path.lstrip("/").partition("/")
         with st.lock:
             st.hits[name] = st.hits.get(name, 0) + 1
+            st.seen[name] = {k.lower(): v for k, v in self.headers.items()}
+            if st.fail_requests > 0 and mode != "pypi":
+                st.fail_requests -= 1
+                self.close_connection = True   # hang up without an answer
+                return
+        if mode == "auth" and (self.headers.get("Referer") != "http://site.example/page"
+                               or "sid=1" not in (self.headers.get("Cookie") or "")):
+            return self._reply(403)
         if mode == "pypi":
             doc = st.pypi.get(name.removesuffix("/json"))
             if doc is None:
@@ -222,6 +234,62 @@ class TestServer:
         return self.base + "/pypi/{}/json"
 
 
+class _ProxyHandler(http.server.BaseHTTPRequestHandler):
+    """A very small HTTP proxy: forwards absolute-URI GET requests (what requests sends)."""
+
+    def log_message(self, *args):
+        pass
+
+    def do_GET(self):
+        import requests
+        self.server.hits.append(self.path)
+        headers = {k: v for k, v in self.headers.items()
+                   if k.lower() in ("range", "referer", "cookie", "user-agent")}
+        try:
+            r = requests.get(self.path, headers=headers, stream=True, timeout=10,
+                             proxies={"http": None, "https": None})
+        except Exception:  # noqa: BLE001
+            self.send_response(502)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        body = r.content
+        self.send_response(r.status_code)
+        for k in ("Content-Range", "Content-Type", "Content-Disposition"):
+            if k in r.headers:
+                self.send_header(k, r.headers[k])
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+
+class TestProxy:
+    __test__ = False
+
+    def __init__(self):
+        self.httpd = _Server(("127.0.0.1", 0), _ProxyHandler)
+        self.httpd.hits = []
+        self.hits = self.httpd.hits
+        self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def stop(self):
+        self.httpd.shutdown()
+
+
+@pytest.fixture
+def proxy():
+    """A local proxy. The speed of the proxy setting is reset after the test."""
+    from app import segmented_downloader
+    p = TestProxy()
+    yield p
+    segmented_downloader.set_proxy("")
+    p.stop()
+
+
 @pytest.fixture(scope="session")
 def _server():
     s = TestServer()
@@ -234,4 +302,5 @@ def server(_server):
     _server.state.limit = 3
     _server.state.active = 0
     _server.state.flaky_counter = 0
+    _server.state.fail_requests = 0
     return _server
