@@ -238,6 +238,10 @@ This is the same idea that IDM uses.
 9. HOW IT WAS TESTED
 ------------------------------------------------------------------------------
 
+UPDATE: the tests now live in the tests/ folder and run with "python -m pytest"
+(or run_tests.bat). See the "Testler" section of README.md. The text below is the
+original description of what was covered.
+
 The download engine and the manager were tested against a local test server
 that supports Range requests, with these cases: normal 16-connection download
 (file hash compared), pause + resume, randomly dropped connections, a server

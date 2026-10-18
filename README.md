@@ -22,6 +22,13 @@ IDM / FDM tarzı indirme yöneticisi: **dosya** (parçalı, çok bağlantılı) 
 - Listede arama, filtre (aktif, tamamlanan, hatalı…), sıralama ve kutucukla çoklu seçim (toplu başlat/duraklat/sil) var.
 - İndirme bitince ses ve Windows bildirimi gelir.
 
+## Testler (geliştirenler için)
+`run_tests.bat` (ya da `python -m pytest`) tüm testleri çalıştırır. İnternet gerekmez: testler yerel bir sunucuyla
+Range desteği olmayan, bağlantısı kopan, bağlantı sınırı koyan sunucuları ve sahte bir PyPI'yi taklit eder.
+Gerçek FFmpeg gerektiren testler `ffmpeg/` klasöründe (veya PATH'te) ffmpeg yoksa, pencere testleri ekran yoksa atlanır.
+- Sadece hızlı testler: `python -m pytest -m "not gui and not ffmpeg"`
+- Tek dosya: `python -m pytest tests/test_downloader.py`
+
 ## Sorun giderme
 - **Güncellemeler:** Program her açılışta yt-dlp, yt-dlp-ejs ve FFmpeg'i kontrol eder; yeni sürüm varsa kendisi indirir (SHA-256 ile doğrulanır). Durumu ve elle kontrolü `⟳ Güncellemeler` penceresinden yapabilirsin.
 - **YouTube/Instagram aniden çalışmazsa:** `⟳ Güncellemeler` → "Kontrol et" → programı yeniden aç. EXE'de de aynısı geçerli; yt-dlp program içinde güncellenir, `build.bat` gerekmez.
