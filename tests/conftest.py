@@ -2,7 +2,7 @@
 Shared test setup.
 
 * every test gets its own empty "home" folder, so nothing touches the real
-  ~/.hizli_indirici (settings, download list, updated packages, FFmpeg)
+  %LOCALAPPDATA%\\DISO (settings, download list, updated packages, FFmpeg)
 * `server` is a local HTTP server that behaves like the awkward servers the downloader
   must survive: no Range support, connections that drop, a connection limit, 404 ...
   It also plays PyPI for the updater tests. No test needs the internet.
@@ -35,9 +35,10 @@ setup_environment()  # the project's ffmpeg/ folder is found like in the real ap
 @pytest.fixture(autouse=True)
 def isolated_home(tmp_path, monkeypatch):
     home = tmp_path / "home"
-    home.mkdir()
+    (home / "AppData" / "Local").mkdir(parents=True)                          # like a real profile
     monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("LOCALAPPDATA", str(home / "AppData" / "Local"))      # where the program keeps its data now
     monkeypatch.setenv("PATH", os.environ.get("PATH", ""))  # restored after the test
     return home
 
@@ -312,3 +313,23 @@ def server(_server):
     _server.state.flaky_counter = 0
     _server.state.fail_requests = 0
     return _server
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """The installer tests keep their registry entries under HKCU\\Software\\DISOTest\\<id>.
+    Each test removes its own <id>; this removes the (then empty) parent so nothing is left behind."""
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\DISOTest") as key:
+            empty = True
+            try:
+                winreg.EnumKey(key, 0)
+                empty = False
+            except OSError:
+                pass
+        if empty:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\DISOTest")
+    except OSError:
+        pass

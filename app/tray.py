@@ -8,6 +8,7 @@ those on its own thread.
 import os
 import threading
 
+from .i18n import tr
 from .utils import resource_path
 
 try:
@@ -35,13 +36,13 @@ class TrayIcon:
             raise RuntimeError("pystray is not installed")
         self._on_event = on_event
         menu = pystray.Menu(
-            pystray.MenuItem("Göster", lambda: self._fire("show"), default=True),
-            pystray.MenuItem("Hepsini duraklat", lambda: self._fire("pause_all")),
-            pystray.MenuItem("Hepsini başlat", lambda: self._fire("resume_all")),
+            pystray.MenuItem(tr("Göster"), lambda: self._fire("show"), default=True),
+            pystray.MenuItem(tr("Hepsini duraklat"), lambda: self._fire("pause_all")),
+            pystray.MenuItem(tr("Hepsini başlat"), lambda: self._fire("resume_all")),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Çıkış", lambda: self._fire("quit")),
+            pystray.MenuItem(tr("Çıkış"), lambda: self._fire("quit")),
         )
-        self._icon = pystray.Icon("HizliIndirici", image or load_image(), title[:127], menu)
+        self._icon = pystray.Icon("DISO", image or load_image(), title[:127], menu)
         self.running = False
 
     def _fire(self, name):

@@ -3,7 +3,7 @@ Local bridge for the browser extension (and for the "one window only" check).
 
 A tiny HTTP server on 127.0.0.1 only. The extension sends it the links it catches:
 
-  GET  /ping    -> {"app": "HizliIndirici", "version": ...}         (is the app running?)
+  GET  /ping    -> {"app": "DISO", "version": ...}         (is the app running?)
   GET  /status  -> {"active": n, "queued": n, "speed": bytes/s ...}
   POST /add     -> {"urls": [...], "referer", "userAgent", "cookies", "kind"}
   POST /show    -> brings the window to the front (a second launch uses this)
@@ -24,7 +24,7 @@ import requests
 from . import __version__
 from .utils import is_url
 
-APP_ID = "HizliIndirici"
+APP_ID = "DISO"
 DEFAULT_PORT = 17653
 MAX_BODY = 1_000_000
 MAX_URLS = 500

@@ -340,3 +340,13 @@ def test_delete_with_file_copes_with_a_file_that_is_already_gone(manager, server
     os.remove(manager.items[0].final_path)
     manager.delete_with_file(manager.items[0])
     assert manager.items == []
+
+
+def test_a_download_that_is_only_being_looked_up_does_not_hold_up_closing(tmp_path):
+    from app.models import DOWNLOADING, PROCESSING, RESOLVING
+    m = DownloadManager(store_path=str(tmp_path / "d.json"))
+    it = Item("http://x")
+    m.items.append(it)
+    for state, busy in ((RESOLVING, False), (DOWNLOADING, True), (PROCESSING, True)):
+        it.state = state
+        assert m.busy() is busy

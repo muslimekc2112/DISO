@@ -52,7 +52,7 @@ Download-manager features (like IDM / FDM):
      or, manually:
          pip install -r requirements.txt
          python main.py
-  3. To build a single HizliIndirici.exe, double-click  build.bat
+  3. To build a single DISO.exe, double-click  build.bat
      The exe appears in the "dist" folder.
 
 FFmpeg: you do NOT have to install it. When you download an MP3 (or a video
@@ -76,7 +76,7 @@ main.py and it will be used instead.
                               button clicks to the manager.
   app/manager.py              DownloadManager: owns the list, the queue and the
                               worker threads. Pause / resume / cancel / remove.
-                              Saves the list to ~/.hizli_indirici/downloads.json.
+                              Saves the list to %LOCALAPPDATA%\\DISO/downloads.json.
   app/models.py               Small data classes: Settings (what the user
                               chose), Item (one list entry) and the state names
                               (queued, resolving, downloading, processing,
@@ -190,7 +190,7 @@ This is the same idea that IDM uses.
     together (change MAX_PARALLEL in manager.py to change this).
   * Pause asks the running engine to stop but KEEPS the .part file and the
     finished-block list. Cancel stops it and DELETES the temporary files.
-  * The list is saved to  ~/.hizli_indirici/downloads.json  after every
+  * The list is saved to  %LOCALAPPDATA%\\DISO/downloads.json  after every
     change. On the next start, items that were running come back as "paused"
     and can be resumed.
   * The window never talks to the network. Worker threads only change fields
@@ -230,7 +230,7 @@ This is the same idea that IDM uses.
   requests           HTTP connections for the fast engine
   yt-dlp             understands video sites and gives direct media addresses
   FFmpeg             merges video+audio and converts to MP3
-  PyInstaller        turns the program into a single HizliIndirici.exe
+  PyInstaller        turns the program into a single DISO.exe
   threading          parallel connections and background workers
 
 

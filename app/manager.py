@@ -14,6 +14,7 @@ import json
 import os
 import queue
 import threading
+import time
 from urllib.parse import urlsplit
 
 from . import jobs
@@ -105,12 +106,12 @@ class DownloadManager:
         return None
 
     @staticmethod
-    def _make_item(url, s: Settings, folder, title="", kind=None, extra=None) -> Item:
+    def _make_item(url, s: Settings, folder, title="", kind=None, extra=None, group="") -> Item:
         extra = extra or {}
         return Item(url, kind or s.kind, s.quality, s.bitrate, s.connections, folder, s.cookies, title,
                     subs=s.subs, cover=s.cover, sort_folders=s.sort_folders,
                     referer=extra.get("referer", ""), user_agent=extra.get("user_agent", ""),
-                    cookie_header=extra.get("cookie", ""))
+                    cookie_header=extra.get("cookie", ""), group=group)
 
     def add_url(self, url: str, s: Settings, start=True, skip_duplicates=False, extra=None) -> bool:
         """Add one link. Returns False if it was skipped because it is already in the list.
@@ -139,21 +140,29 @@ class DownloadManager:
         Returns (added, skipped)."""
         folder = s.folder or default_download_dir()
         kind = "video" if s.kind == "auto" else s.kind
+        group = getattr(entries, "title", "") or ""     # the playlist's name, when these are its videos
         added = skipped = 0
         for entry in entries:
             url, title = entry[0], (entry[1] if len(entry) > 1 else "")
             if skip_duplicates and self.find_duplicate(url):
                 skipped += 1
                 continue
-            self._add_item(self._make_item(url, s, folder, title, kind), start)
+            self._add_item(self._make_item(url, s, folder, title, kind, group=group), start)
             added += 1
         return added, skipped
+
+    def add_song(self, url: str, title: str, s: Settings, origin="music") -> Item:
+        """A song found in the music player: always MP3, one video (never a playlist), started at once."""
+        item = self._make_item(url, s, s.folder or default_download_dir(), title, kind="audio")
+        item.origin = origin
+        self._add_item(item, True)
+        return item
 
     def _add_playlist(self, url, s, folder, start, skip_duplicates=False):
         try:
             entries = ve.expand_playlist(url, s.cookies)
         except Exception as e:
-            self.notices.put(f"Liste okunamadı: {ve.pretty_error(e)}")
+            self.notices.put(f"Listeyi okuyamadım: {ve.pretty_error(e)}")
             entries = [(url, "", 0)]
         added, skipped = self.add_entries(entries, s, start, skip_duplicates)
         if len(entries) > 1:
@@ -265,8 +274,10 @@ class DownloadManager:
         self.save()
 
     def busy(self) -> bool:
-        """True while a worker thread still runs (used when closing)."""
-        return any(i.state in (RESOLVING, DOWNLOADING, PROCESSING) for i in self.items)
+        """True while a download is still writing (used when closing). One that is only being
+        looked up (RESOLVING) has nothing on the disk yet and yt-dlp cannot be stopped mid-question:
+        it is not waited for (it is saved as paused and starts again next time)."""
+        return any(i.state in (DOWNLOADING, PROCESSING) for i in self.items)
 
     # ------------------------------------------------------------------------ workers
     def _cleanup(self, item: Item):
@@ -294,6 +305,7 @@ class DownloadManager:
                     if item.state != QUEUED or item.removed:
                         continue
                     item.state = RESOLVING
+                item.started = time.time()
                 self._running += 1
             threading.Thread(target=self._work, args=(item,), daemon=True).start()
 
@@ -313,7 +325,7 @@ class DownloadManager:
         item.retries += 1
         delay = RETRY_DELAYS[min(item.retries - 1, len(RETRY_DELAYS) - 1)]
         item.error = ""
-        item.message = f"Bağlantı sorunu: {delay:g} sn sonra tekrar denenecek ({item.retries}/{self.max_retries})"
+        item.message = f"Bağlantı sorunu: {delay:g} sn sonra tekrar deneyeceğim ({item.retries}/{self.max_retries})"
         item.state = WAITING
         timer = threading.Timer(delay, self._requeue, args=(item,))
         timer.daemon = True

@@ -5,7 +5,7 @@ MP3 conversion and MP4 merging (video stream + audio stream) need ffmpeg.
 If ffmpeg cannot be found, on Windows we download the official "essentials" build
 once, with our own fast multi-connection engine, check its SHA-256 against the checksum
 the same mirror publishes, and unpack ffmpeg.exe / ffprobe.exe into
-~/.hizli_indirici/tools (that folder is on PATH, see utils.setup_environment).
+%LOCALAPPDATA%\\DISO/tools (that folder is on PATH, see utils.setup_environment).
 A mismatch means the archive is corrupt or was tampered with: it is never unpacked.
 """
 import hashlib

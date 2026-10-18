@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 
 import requests
 
@@ -28,6 +29,9 @@ BITRATES = ["320", "256", "192", "128"]
 BROWSERS = ["Yok", "firefox", "chrome", "edge", "brave"]
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+LOOKUP_TIMEOUT = 15     # s: a request that hangs while a video is looked up is asked again sooner
 
 
 class MissingFFmpeg(RuntimeError):
@@ -48,7 +52,7 @@ def pretty_error(e) -> str:
     if "sign in to confirm" in low or "not a bot" in low or "login required" in low or "cookies" in low:
         msg += "\n→ 'Giriş çerezleri' menüsünden tarayıcını seç (giriş yaptığın tarayıcı)."
     elif "unsupported url" in low:
-        msg += "\n→ Bu bağlantı bir video sayfası / indirilebilir dosya değil."
+        msg += "\n→ Bu link ne bir video sayfası ne de indirilebilir bir dosya gibi duruyor."
     elif "no module named 'yt_dlp'" in low:
         msg = "yt-dlp kurulu değil: pip install -U yt-dlp"
     return msg[:600]
@@ -99,15 +103,16 @@ def resolve(url, kind, quality, cookies=None) -> dict:
     """Ask yt-dlp for the video info (title, chosen formats, direct URLs, headers)."""
     yt_dlp = _yt_dlp()
     opts = base_opts(cookies)
-    opts.update({"format": format_selector(kind, quality), "skip_download": True})
+    opts.update({"format": format_selector(kind, quality), "skip_download": True,
+                 "socket_timeout": LOOKUP_TIMEOUT})
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
         if info is None:
-            raise RuntimeError("Video bilgisi alınamadı")
+            raise RuntimeError("Video bilgisini alamadım")
         if info.get("_type") == "playlist":
             entries = [e for e in (info.get("entries") or []) if e]
             if not entries:
-                raise RuntimeError("Oynatma listesi boş")
+                raise RuntimeError("Bu oynatma listesi bomboş")
             info = entries[0]
         for f in (info.get("requested_formats") or [info]):
             try:  # headers + cookies exactly as yt-dlp itself would send them
@@ -121,15 +126,28 @@ def resolve(url, kind, quality, cookies=None) -> dict:
     return info
 
 
+class PlaylistEntries(list):
+    """The entries of a playlist [(url, title, seconds), ...] that also know the playlist's own name
+    (empty for a single video). Slices and copies are plain lists: use `like()` to keep the name."""
+
+    def __init__(self, entries=(), title=""):
+        super().__init__(entries)
+        self.title = title or ""
+
+    def like(self, entries):
+        return PlaylistEntries(entries, self.title)
+
+
 def expand_playlist(url, cookies=None) -> list:
-    """[(entry_url, title, duration_seconds), ...] for a playlist URL; one entry otherwise."""
+    """[(entry_url, title, duration_seconds), ...] for a playlist URL; one entry otherwise.
+    The result is a PlaylistEntries: its .title is the playlist's name ("" for a single video)."""
     yt_dlp = _yt_dlp()
     opts = base_opts(cookies)
     opts.update({"extract_flat": "in_playlist", "skip_download": True, "noplaylist": False})
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if not info or info.get("_type") != "playlist":
-        return [(url, (info or {}).get("title") or "", (info or {}).get("duration") or 0)]
+        return PlaylistEntries([(url, (info or {}).get("title") or "", (info or {}).get("duration") or 0)])
     out = []
     for e in info.get("entries") or []:
         if not e:
@@ -142,7 +160,7 @@ def expand_playlist(url, cookies=None) -> list:
                 continue
         if u:
             out.append((u, e.get("title") or "", e.get("duration") or 0))
-    return out or [(url, "", 0)]
+    return PlaylistEntries(out or [(url, "", 0)], info.get("title") if isinstance(info.get("title"), str) else "")
 
 
 # ---------------------------------------------------------------------------- ffmpeg
@@ -256,6 +274,29 @@ def pick_subtitles(info: dict, choice: str) -> list:
     return []
 
 
+def original_subtitles(info: dict, skip=()) -> list:
+    """When the wanted language cannot be had: the subtitle in the video's own language (the
+    uploader's, else the automatic captions of what is spoken). Languages in `skip` are not taken."""
+    manual = {k: v for k, v in (info.get("subtitles") or {}).items() if k != "live_chat"}
+    auto = info.get("automatic_captions") or {}
+    spoken = (info.get("language") or "").lower()
+    order = []
+    if spoken:
+        order.append((manual, _lang_key(manual, spoken)))
+    order += [(manual, k) for k in manual]
+    order += [(auto, k) for k in auto if k.endswith("-orig")]
+    if spoken:
+        order.append((auto, _lang_key(auto, spoken)))
+    for source, key in order:
+        lang = (key or "").removesuffix("-orig")
+        if not key or lang.split("-")[0].lower() in skip:
+            continue
+        best = _best_subtitle(source.get(key))
+        if best:
+            return [{"lang": lang, "url": best["url"], "ext": best["ext"]}]
+    return []
+
+
 def _download_small(url: str, headers=None, limit: int = 8 * 1024 * 1024) -> bytes:
     r = requests.get(url, headers=build_headers(headers), timeout=TIMEOUT, stream=True,
                      proxies=get_proxies())
@@ -271,20 +312,67 @@ def _download_small(url: str, headers=None, limit: int = 8 * 1024 * 1024) -> byt
         r.close()
 
 
-def download_subtitles(item: Item, subs: list, base_path: str) -> list:
+SUB_RETRY_WAIT = 3.0       # s before asking again when YouTube says "too many requests"
+
+
+def download_subtitles(item: Item, subs: list, base_path: str, sleep=time.sleep) -> list:
     """Save subtitles next to a video as '<video name>.<lang>.<ext>'. A subtitle that cannot
-    be fetched is skipped (never fails the download). Returns the saved paths."""
+    be fetched is skipped (never fails the download); "too many requests" is asked once more.
+    Returns the saved paths."""
     saved = []
     for sub in subs:
         path = f"{base_path}.{sub['lang']}.{sub['ext']}"
-        try:
-            data = _download_small(sub["url"], item.request_headers())
-            with open(path, "wb") as f:
-                f.write(data)
-            saved.append(path)
-        except Exception as e:  # noqa: BLE001 - subtitles are a bonus
-            log.info("subtitle %s skipped: %s", sub["lang"], e)
+        for attempt in range(2):
+            try:
+                data = _download_small(sub["url"], item.request_headers())
+                if not data.strip():
+                    raise ValueError("boş altyazı")
+                with open(path, "wb") as f:
+                    f.write(data)
+                saved.append(path)
+                break
+            except Exception as e:  # noqa: BLE001 - subtitles are a bonus
+                busy = getattr(getattr(e, "response", None), "status_code", None) == 429
+                if busy and attempt == 0:
+                    sleep(SUB_RETRY_WAIT)
+                    continue
+                log.info("subtitle %s skipped: %s", sub["lang"], e)
+                break
     return saved
+
+
+_ISO3 = {"tr": "tur", "en": "eng", "de": "ger", "fr": "fre", "es": "spa", "it": "ita", "ru": "rus", "ar": "ara",
+         "ja": "jpn", "ko": "kor", "pt": "por", "nl": "dut", "zh": "chi"}
+
+
+def embed_subtitles(video: str, subs: list, item: Item) -> bool:
+    """Put the saved subtitles into the MP4 as well (players then offer them by themselves); the
+    files next to it stay. False (and the video untouched) when it cannot be done."""
+    subs = [p for p in subs if p.lower().endswith((".srt", ".vtt"))]
+    if not subs or not video.lower().endswith(".mp4") or not find_ffmpeg():
+        return False
+    tmp = video + ".subs.mp4"
+    args = ["-i", video]
+    for p in subs:
+        args += ["-i", p]
+    args += ["-map", "0:v?", "-map", "0:a?"]
+    for i in range(len(subs)):
+        args += ["-map", f"{i + 1}:0"]
+    args += ["-c", "copy", "-c:s", "mov_text"]
+    for i, p in enumerate(subs):
+        lang = os.path.basename(p).rsplit(".", 2)[-2].split("-")[0].lower()
+        args += [f"-metadata:s:s:{i}", f"language={_ISO3.get(lang, lang)}"]
+    args += ["-movflags", "+faststart", tmp]
+    try:
+        run_ffmpeg(args, item)
+        os.replace(tmp, video)
+        return True
+    except Exception as e:  # noqa: BLE001 - the subtitle files are still there
+        log.info("subtitles not embedded: %s", e)
+        return False
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def pick_thumbnail(info: dict) -> str:
@@ -292,6 +380,10 @@ def pick_thumbnail(info: dict) -> str:
         return info["thumbnail"]
     usable = [t for t in info.get("thumbnails") or [] if t.get("url")]
     return usable[-1]["url"] if usable else ""
+
+
+COVER_MAX_BYTES = 90_000                              # well below the ~128 KB Windows can still read
+COVER_STEPS = ((600, 3), (500, 6), (360, 10))          # (max width, JPEG quality) tried in order
 
 
 def fetch_cover(info: dict, item: Item):
@@ -307,9 +399,16 @@ def fetch_cover(info: dict, item: Item):
         raw = os.path.join(tmp, "cover.raw")
         with open(raw, "wb") as f:
             f.write(_download_small(url, item.request_headers()))
-        # YouTube sends WebP; MP3 players want JPEG
-        run_ffmpeg(["-i", raw, "-frames:v", "1", "-q:v", "2", "-vf", "scale='min(1000,iw)':-2", jpg], item)
-        return jpg
+        # YouTube sends WebP; MP3 players want JPEG. Windows' own MP3 reader cannot open a file whose
+        # cover is bigger than ~128 KB, so the picture is kept small (a smaller, rougher one if needed)
+        for width, quality in COVER_STEPS:
+            run_ffmpeg(["-i", raw, "-frames:v", "1", "-q:v", str(quality), "-vf",
+                        f"scale='min({width},iw)':-2", jpg], item)
+            if os.path.getsize(jpg) <= COVER_MAX_BYTES:
+                return jpg
+        log.info("cover art skipped: still %d bytes", os.path.getsize(jpg))
+        discard_cover(jpg)
+        return None
     except DownloadStopped:
         discard_cover(jpg)
         raise
@@ -377,7 +476,7 @@ def fetch_info(url: str, cookies=None) -> dict:
     with yt_dlp.YoutubeDL(opts) as ydl:
         raw = ydl.extract_info(url, download=False)
     if raw is None:
-        raise RuntimeError("Bilgi alınamadı")
+        raise RuntimeError("Bu link hakkında bilgi alamadım")
     return summarize_info(raw)
 
 
@@ -403,14 +502,9 @@ def ydl_options(item: Item, hook=None) -> dict:
             post += [{"key": "FFmpegThumbnailsConvertor", "format": "jpg", "when": "before_dl"},
                      {"key": "FFmpegMetadata", "add_metadata": True}, {"key": "EmbedThumbnail"}]
     else:
+        # subtitles are fetched by DISO afterwards (jobs.save_subtitles): a subtitle YouTube refuses
+        # must never make yt-dlp fail the whole video
         opts["merge_output_format"] = "mp4"
-        if item.subs != "Yok":
-            opts.update({"writesubtitles": True, "subtitlesformat": "srt/vtt/best"})
-            if item.subs == "Tüm diller":
-                opts["subtitleslangs"] = ["all", "-live_chat"]
-            else:
-                opts["subtitleslangs"] = [SUB_LANGS.get(item.subs, "en") + ".*"]
-                opts["writeautomaticsub"] = True
     if post:
         opts["postprocessors"] = post
     return opts

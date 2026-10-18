@@ -7,7 +7,7 @@ from app import jobs
 from app import video_engine as ve
 from app.models import Item
 from app.segmented_downloader import set_proxy
-from media_support import (fmt, has_attached_picture, needs_ffmpeg, new_item, streams_of)
+from media_support import (fmt, has_attached_picture, needs_ffmpeg, new_item, probe_json, streams_of)
 
 
 @pytest.fixture
@@ -67,7 +67,41 @@ def test_formats_we_cannot_use_are_ignored():
     assert ve.pick_subtitles(info, "Türkçe") == []          # no srt/vtt with a link
 
 
+def test_the_videos_own_language_when_the_wanted_one_cannot_be_had():
+    auto = {"tr": entries("srt", base="http://x/tr"), "en-orig": entries("vtt", base="http://x/orig"),
+            "en": entries("srt", base="http://x/en")}
+    assert ve.original_subtitles({"automatic_captions": auto}, skip={"tr"}) == [
+        {"lang": "en", "url": "http://x/orig.vtt", "ext": "vtt"}]
+    manual = {"subtitles": {"live_chat": entries("json"), "de-DE": entries("srt")}, "automatic_captions": auto,
+              "language": "en"}
+    assert ve.original_subtitles(manual, skip={"tr"})[0]["lang"] == "de-DE"     # the uploader's own one first
+    assert ve.original_subtitles({"automatic_captions": {"tr-orig": entries("srt")}}, skip={"tr"}) == []
+    assert ve.original_subtitles({}) == []
+
+
 # --------------------------------------------------------------------- saving subtitles
+def test_too_many_requests_is_asked_once_more(tmp_path, monkeypatch):
+    calls, waits = [], []
+
+    class Busy(Exception):
+        response = type("R", (), {"status_code": 429})()
+
+    def fake(url, headers=None):
+        calls.append(url)
+        if len(calls) == 1:
+            raise Busy("429")
+        return b"1\n00:00:00,000 --> 00:00:01,000\nTamam\n"
+
+    monkeypatch.setattr(ve, "_download_small", fake)
+    saved = ve.download_subtitles(Item("http://x"), [{"lang": "tr", "url": "u", "ext": "srt"}], str(tmp_path / "V"),
+                                  sleep=waits.append)
+    assert saved == [str(tmp_path / "V") + ".tr.srt"] and len(calls) == 2 and waits == [ve.SUB_RETRY_WAIT]
+
+
+def test_an_empty_subtitle_is_not_kept(tmp_path, monkeypatch):
+    monkeypatch.setattr(ve, "_download_small", lambda url, headers=None: b"  \n")
+    assert ve.download_subtitles(Item("http://x"), [{"lang": "tr", "url": "u", "ext": "srt"}], str(tmp_path / "V")) == []
+    assert not os.path.exists(str(tmp_path / "V") + ".tr.srt")
 def test_subtitles_are_saved_next_to_the_video(server, tmp_path):
     srt = server.add("1\n00:00:00,000 --> 00:00:01,000\nMerhaba\n".encode(), ".srt")
     base = str(tmp_path / "Movie")
@@ -90,7 +124,23 @@ def test_a_video_download_saves_the_chosen_subtitle(server, media, served, stand
     item = new_item("http://page", "video", folder, subs="İngilizce")
     jobs.run_media(item)
     assert sorted(os.listdir(folder)) == ["Movie.en.srt", "Movie.mp4"]
-    assert item.message == "1 altyazı kaydedildi"
+    assert item.message == "1 altyazı kaydedildi (videonun içinde de var)"
+    subs = [s for s in probe_json(os.path.join(folder, "Movie.mp4"))["streams"] if s["codec_type"] == "subtitle"]
+    assert [(s["codec_name"], s.get("tags", {}).get("language")) for s in subs] == [("mov_text", "eng")]
+
+
+@needs_ffmpeg
+def test_a_refused_translation_keeps_the_videos_own_language(server, media, served, stand_in, folder, monkeypatch):
+    """YouTube answers 'too many requests' to its translated captions: the spoken language is kept."""
+    srt = server.add(b"1\n00:00:00,000 --> 00:00:01,000\nHello\n", ".srt")
+    stand_in["info"] = {"title": "Movie", "language": "en", **fmt(server.url("f", served["full"]), "mp4", media["full"]),
+                        "automatic_captions": {"tr": [{"ext": "srt", "url": server.url("f", "refused.srt")}],
+                                               "en-orig": [{"ext": "srt", "url": server.url("f", srt)}]}}
+    monkeypatch.setattr(ve, "SUB_RETRY_WAIT", 0)
+    item = new_item("http://page", "video", folder, subs="Türkçe")
+    jobs.run_media(item)
+    assert sorted(os.listdir(folder)) == ["Movie.en.srt", "Movie.mp4"]
+    assert "Türkçe altyazıyı YouTube vermedi" in item.message and "(en)" in item.message
 
 
 @needs_ffmpeg
@@ -98,7 +148,7 @@ def test_no_subtitle_available_is_reported_not_an_error(server, media, served, s
     stand_in["info"] = {"title": "Movie", **fmt(server.url("f", served["full"]), "mp4", media["full"])}
     item = new_item("http://page", "video", folder, subs="Türkçe")
     jobs.run_media(item)
-    assert os.listdir(folder) == ["Movie.mp4"] and "altyazı bulunamadı" in item.message
+    assert os.listdir(folder) == ["Movie.mp4"] and "altyazı bulamadım" in item.message
 
 
 @needs_ffmpeg
@@ -259,18 +309,12 @@ def test_fetch_info_with_no_answer_is_an_error(monkeypatch):
 
 
 # ------------------------------------------------------------------- yt-dlp options
-def test_fallback_options_for_a_video_with_subtitles(folder):
-    it = new_item("http://x", "video", folder, subs="Türkçe", quality="720p")
-    o = ve.ydl_options(it)
-    assert o["merge_output_format"] == "mp4" and o["writesubtitles"] is True
-    assert o["subtitleslangs"] == ["tr.*"] and o["writeautomaticsub"] is True
-    assert "height<=?720" in o["format"] and "postprocessors" not in o
-
-
-def test_fallback_options_all_languages_and_none(folder):
-    assert ve.ydl_options(new_item("http://x", "video", folder, subs="Tüm diller"))["subtitleslangs"] == \
-           ["all", "-live_chat"]
-    assert "writesubtitles" not in ve.ydl_options(new_item("http://x", "video", folder, subs="Yok"))
+def test_fallback_options_leave_the_subtitles_to_diso(folder):
+    """yt-dlp fails the whole video when YouTube refuses a subtitle: DISO fetches them afterwards."""
+    for subs in ("Türkçe", "Tüm diller", "Yok"):
+        o = ve.ydl_options(new_item("http://x", "video", folder, subs=subs, quality="720p"))
+        assert o["merge_output_format"] == "mp4" and "height<=?720" in o["format"] and "postprocessors" not in o
+        assert not ({"writesubtitles", "writeautomaticsub", "subtitleslangs"} & set(o))
 
 
 def test_fallback_options_for_mp3_with_cover(folder):
@@ -293,3 +337,19 @@ def test_fallback_options_follow_sorting_proxy_and_speed_limit(folder):
     set_proxy("socks5://127.0.0.1:1080")
     o = ve.ydl_options(it)
     assert o["ratelimit"] == 500_000 and o["proxy"] == "socks5://127.0.0.1:1080"
+
+
+# ------------------------------------------------------------------- well-known video sites
+@pytest.mark.parametrize("url, video", [
+    ("https://www.youtube.com/watch?v=x", True), ("https://youtu.be/x", True), ("https://m.youtube.com/x", True),
+    ("https://music.youtube.com/watch?v=x", True), ("https://www.instagram.com/reel/x", True),
+    ("https://vm.tiktok.com/x", True), ("https://x.com/a/status/1", True),
+    ("https://example.com/youtube.com.zip", False), ("https://notyoutube.com/x", False),
+    ("http://127.0.0.1:8000/f/file.bin", False)])
+def test_well_known_video_sites_are_not_asked_first(url, video, monkeypatch):
+    asked = []
+    monkeypatch.setattr(jobs, "probe", lambda *a, **k: asked.append(a) or (_ for _ in ()).throw(OSError("x")))
+    assert jobs.is_video_site(url) is video
+    it = Item(url)
+    jobs.classify(it)
+    assert it.kind == "video" and (asked == []) is video

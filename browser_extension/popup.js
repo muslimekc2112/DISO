@@ -10,7 +10,7 @@ async function refresh() {
   const s = await ask({ type: "status" });
   const on = !!(s && s.app);
   $("dot").className = "dot" + (on ? " on" : "");
-  $("state").textContent = on ? "Uygulama çalışıyor (v" + s.app.version + ")" : "Uygulama kapalı — Hızlı İndirici'yi aç";
+  $("state").textContent = on ? "Uygulama çalışıyor (v" + s.app.version + ")" : "Uygulama kapalı — DISO'yi aç";
   $("page").disabled = $("audio").disabled = !on;
   $("intercept").checked = !!(s && s.intercept);
 }

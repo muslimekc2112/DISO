@@ -151,7 +151,7 @@ def test_pypi_unreachable_is_reported_and_does_not_block_startup(monkeypatch, fa
     u = updater.Updater()
     updater._started = True
     u._startup()
-    assert u.components["yt-dlp"].status == "error" and "ulaşılamadı" in u.components["yt-dlp"].message
+    assert u.components["yt-dlp"].status == "error" and "ulaşamadım" in u.components["yt-dlp"].message
     assert updater.ready.is_set()
 
 
@@ -461,3 +461,33 @@ def test_failed_ffmpeg_update_is_reported(monkeypatch, server, local_ffmpeg):
     u.install_ffmpeg()
     comp = u.components["ffmpeg"]
     assert comp.status == "error" and "SHA-256" in comp.message
+
+
+# ------------------------------------------------------------------ downloads never wait for the check
+def test_starting_the_updater_never_holds_downloads_back(monkeypatch):
+    """The check runs on the network and can be slow: yt-dlp may be imported at once anyway."""
+    gate = threading.Event()
+    monkeypatch.delenv("HIZLI_NO_UPDATE", raising=False)
+    monkeypatch.setattr(updater.Updater, "run", lambda self, install=True: gate.wait(10))
+    updater.Updater().start()
+    try:
+        assert updater.ready.is_set()
+        updater.wait_ready(timeout=0.01)                     # returns at once
+    finally:
+        gate.set()
+
+
+def test_an_update_found_while_yt_dlp_is_in_use_waits_for_the_next_start(fake_pypi, monkeypatch):
+    import types
+    fake_pypi("2.0")
+    monkeypatch.setitem(sys.modules, "fakepkg_x", types.ModuleType("fakepkg_x"))   # a download imported it
+    u = updater.Updater()
+    u.run(install=True)
+    comp = u.components["yt-dlp"]
+    assert comp.status == "available" and "bir dahaki açışında" in comp.message
+    assert not os.path.exists(os.path.join(pkg_dir(), "fakepkg_x"))           # its files were not touched
+    assert updater.ready.is_set()
+    monkeypatch.delitem(sys.modules, "fakepkg_x")
+    forget(monkeypatch, "fakepkg_x")
+    updater.Updater().run(install=True)                                        # the next start installs it
+    assert installed_value() == 2

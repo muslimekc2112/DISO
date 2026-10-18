@@ -25,7 +25,7 @@ def manifest():
 
 def test_the_manifest_is_a_valid_manifest_v3_for_chrome_and_firefox():
     m = manifest()
-    assert m["manifest_version"] == 3 and m["name"] == "Hızlı İndirici"
+    assert m["manifest_version"] == 3 and m["name"] == "DISO"
     assert m["version"] == __version__                       # extension and app move together
     assert set(m["permissions"]) == {"contextMenus", "downloads", "storage", "cookies", "activeTab"}
     assert "http://127.0.0.1/*" in m["host_permissions"]
@@ -228,7 +228,7 @@ def test_the_popup_can_send_links_through_the_background_script(app):
 def test_the_popup_can_ask_whether_the_app_runs(app):
     api, b = app
     out = run(b.port, "status")
-    assert out["answer"]["app"]["app"] == "HizliIndirici" and out["answer"]["app"]["version"] == __version__
+    assert out["answer"]["app"]["app"] == "DISO" and out["answer"]["app"]["version"] == __version__
     assert out["answer"]["port"] == b.port and out["answer"]["intercept"] is False
 
 

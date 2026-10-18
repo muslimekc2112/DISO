@@ -13,27 +13,23 @@ from tkinter import TclError, filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import __version__, notify, schedule, startup, tray, updater
+from . import __version__, about, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
+from . import backup, history, i18n, look, lyrics, music_search, playable, player, playlists
+from .extra_ui import HistoryWindow, ShortcutsWindow
 from . import video_engine as ve
 from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
                      THEMES, Config)
 from .logs import log, setup_logging
 from .manager import DownloadManager
+from .music_ui import MODE_DOWNLOAD, MODE_MUSIC, MusicWindow, SongListDialog, mode_bar
 from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED, PROCESSING,
                      QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
 from .segmented_downloader import LIMITER, check_connection, set_proxy
-from .utils import (default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,
+from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
+from .utils import (app_data_dir, default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,
                     human_size, is_url, normalize_url, open_file, open_in_file_manager,
                     resource_path, urls_from_file)
-
-try:  # drag & drop of links / .txt files needs the optional tkinterdnd2 package
-    from tkinterdnd2 import DND_FILES, DND_TEXT, TkinterDnD
-    _BASES = (ctk.CTk, TkinterDnD.DnDWrapper)
-    HAS_DND = True
-except Exception:  # not installed: everything else still works
-    _BASES = (ctk.CTk,)
-    HAS_DND = False
 
 KIND_LABELS = {
     "Otomatik (dosya / video)": "auto",
@@ -80,20 +76,12 @@ SORT_KEYS = {
 NO_END_ACTION = "Hiçbir şey yapma"
 
 
-def fit_geometry(win, width, height, margin=(40, 120)):
-    """Give a window its size, but never larger than the screen (room is left for the title bar
-    and the taskbar). Sizes are in the app's own units: customtkinter multiplies them by the
-    display scaling, so a 125 % / 150 % laptop screen is taken into account. Returns (w, h)."""
-    try:
-        scale = float(win._get_window_scaling())
-    except Exception:
-        scale = 1.0
-    max_w = int(win.winfo_screenwidth() / scale) - margin[0]
-    max_h = int(win.winfo_screenheight() / scale) - margin[1]
-    w, h = max(360, min(width, max_w)), max(360, min(height, max_h))
-    win.geometry(f"{w}x{h}")
-    return w, h
+STATE_COLOURS = {DONE: look.STATE_DONE, ERROR: look.STATE_ERROR, CANCELLED: look.STATE_IDLE,
+                 PAUSED: look.STATE_PAUSED, DOWNLOADING: look.ACCENT, PROCESSING: look.ACCENT,
+                 RESOLVING: look.ACCENT, WAITING: look.STATE_PAUSED}
 
+
+CLOSE_WAIT = 6              # s: the longest a closing waits for downloads to write down where they are
 
 class DownloadRow(ctk.CTkFrame):
     """One line of the list: checkbox, name, progress bar, status text and buttons.
@@ -105,10 +93,14 @@ class DownloadRow(ctk.CTkFrame):
         self._cache = {}
         self.columnconfigure(1, weight=1)
 
+        self.stripe = None
+        if look.is_new():
+            self.stripe = ctk.CTkFrame(self, width=5, corner_radius=3, fg_color=look.STATE_IDLE)
+            self.stripe.place(x=8, rely=0.5, relheight=0.72, anchor="w")
         self.sel_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(self, text="", width=24, checkbox_width=20, checkbox_height=20,
                         variable=self.sel_var, command=self._on_select).grid(
-            row=0, column=0, rowspan=3, padx=(12, 0))
+            row=0, column=0, rowspan=3, padx=(22 if self.stripe else 12, 0))
         self.name = ctk.CTkLabel(self, text="", anchor="w", font=ctk.CTkFont(weight="bold"))
         self.name.grid(row=0, column=1, sticky="ew", padx=(10, 6), pady=(8, 0))
         self.bar = ctk.CTkProgressBar(self, height=10)
@@ -159,14 +151,14 @@ class DownloadRow(ctk.CTkFrame):
     def _copy_link(self):
         self.app.clipboard_clear()
         self.app.clipboard_append(self.item.url)
-        self.app.notice("Link kopyalandı")
+        self.app.notice("Link kopyalandı, yapıştırmaya hazır")
 
     def _redownload(self):
         self.app.manager.redownload(self.item)
 
     def _delete_with_file(self):
         it = self.item
-        if messagebox.askyesno("Hızlı İndirici", f"{it.display_name}\n\nListeden kaldırılsın ve dosya "
+        if messagebox.askyesno("DISO", f"{it.display_name}\n\nListeden kaldırılsın ve dosya "
                                                  "diskten SİLİNSİN mi?"):
             self.app.manager.delete_with_file(it)
 
@@ -180,6 +172,10 @@ class DownloadRow(ctk.CTkFrame):
         elif it.folder or it.dest:
             cmds.append(("Klasörü aç", self._open))
         cmds.append(("Linki kopyala", self._copy_link))
+        if finished and player.is_audio(it.final_path) and os.path.isfile(it.final_path):
+            names = self.app.playlist_names()
+            cmds.append(("Müzik listesine ekle", [(n, lambda n=n: self.app.add_to_music_list(it, n)) for n in names]
+                         + [("＋ Yeni liste…", self._add_to_new_music_list)]))
         if it.state in (DONE, ERROR, CANCELLED, PAUSED):
             cmds.append(("Baştan indir", self._redownload))
         cmds.append(("Listeden kaldır", self._remove))
@@ -187,10 +183,23 @@ class DownloadRow(ctk.CTkFrame):
             cmds.append(("Dosyayla birlikte sil", self._delete_with_file))
         return cmds
 
+    def _add_to_new_music_list(self):
+        dialog = ctk.CTkInputDialog(text="Yeni çalma listesinin adı:", title="Yeni liste")
+        set_window_icon(dialog)
+        name = dialog.get_input()
+        if name and name.strip():
+            self.app.add_to_music_list(self.item, self.app.new_music_list(name))
+
     def _popup(self, event):
         menu = tk.Menu(self, tearoff=0)
         for label, action in self.menu_commands():
-            menu.add_command(label=label, command=action)
+            if isinstance(action, list):                       # a sub-menu: [(label, action), ...]
+                sub = tk.Menu(menu, tearoff=0)
+                for sub_label, sub_action in action:
+                    sub.add_command(label=sub_label, command=sub_action)
+                menu.add_cascade(label=label, menu=sub)
+            else:
+                menu.add_command(label=label, command=action)
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -213,13 +222,13 @@ class DownloadRow(ctk.CTkFrame):
         sizes = f" • {human_size(it.done)} / {human_size(it.total)}" if it.total else \
             (f" • {human_size(it.done)}" if it.done else "")
         if st == QUEUED:
-            text = "Sırada bekliyor…"
+            text = "Sırada, birazdan başlıyor…"
             if self.app.queue_note:
                 text += f"\n{self.app.queue_note}"
         elif st == WAITING:
             text = f"⏳ {it.message}"
         elif st == RESOLVING:
-            text = it.message or "Bağlanılıyor…"
+            text = it.message or "Sunucuya bağlanıyorum…"
         elif st == DOWNLOADING:
             text = f"{pct}{sizes} • {human_size(it.speed)}/s • Kalan {human_eta(it.eta)}"
             if it.conns:
@@ -229,11 +238,11 @@ class DownloadRow(ctk.CTkFrame):
         elif st == PROCESSING:
             text = it.message or "İşleniyor…"
         elif st == DONE:
-            text = "✅ Tamamlandı" + (f" • {human_size(it.total or it.done)}" if (it.total or it.done) else "")
+            text = "✅ Bitti" + (f" • {human_size(it.total or it.done)}" if (it.total or it.done) else "")
             if it.message:
                 text += f"\n{it.message}"
         elif st == PAUSED:
-            text = f"⏸ Duraklatıldı • {pct}"
+            text = f"⏸ Beklemede • {pct}"
         elif st == ERROR:
             text = f"❌ {it.error}"
         elif st == CANCELLED:
@@ -241,6 +250,11 @@ class DownloadRow(ctk.CTkFrame):
         else:
             text = st
         self._set("info", text, lambda v: self.info.configure(text=v))
+        if self.stripe is not None:
+            colour = STATE_COLOURS.get(st, look.STATE_IDLE)
+            self._set("stripe", colour, lambda v: self.stripe.configure(fg_color=v))
+            self._set("bar_colour", colour if st != DOWNLOADING else look.ACCENT,
+                      lambda v: self.bar.configure(progress_color=v))
 
         icon = "⏸" if st in (QUEUED, WAITING, RESOLVING, DOWNLOADING) else "▶"
         self._set("icon", icon, lambda v: self.toggle_btn.configure(text=v))
@@ -328,6 +342,7 @@ class UpdatePanel(ctk.CTkToplevel):
 
     def __init__(self, app):
         super().__init__(app)
+        set_window_icon(self)
         self.app = app
         self.title("Güncellemeler")
         w, h = fit_geometry(self, 620, 640)
@@ -375,7 +390,7 @@ class UpdatePanel(ctk.CTkToplevel):
             self.all_btn.configure(state=state)
             last = self.app.updates.last_check
             self.last_label.configure(text=f"Son kontrol: {time.strftime('%H:%M:%S', time.localtime(last))}"
-                                      if last else "Henüz kontrol edilmedi")
+                                      if last else "Henüz bakmadım")
             self.after(300, self._refresh)
         except TclError:  # the window was closed
             return
@@ -386,6 +401,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def __init__(self, app):
         super().__init__(app)
+        set_window_icon(self)
         self.app = app
         self.title("Ayarlar")
         w, h = fit_geometry(self, 620, 720)
@@ -406,19 +422,19 @@ class SettingsPanel(ctk.CTkToplevel):
             card, values=MAX_PARALLEL_CHOICES, width=150,
             command=lambda v: app.apply_setting("max_parallel", int(v)))
         self.parallel_menu.set(str(cfg.get("max_parallel")))
-        self._add(card, "Aynı anda indirme", "Fazlası sırada bekler", self.parallel_menu)
+        self._add(card, "Aynı anda indirme", "Fazlası sırada bekler, sıra gelince başlar", self.parallel_menu)
 
         self.speed_menu = ctk.CTkOptionMenu(
             card, values=list(SPEED_LIMITS), width=150,
             command=lambda v: app.apply_setting("speed_limit", v))
         self.speed_menu.set(cfg.get("speed_limit"))
-        self._add(card, "Hız sınırı", "Tüm indirmelerin toplamı", self.speed_menu)
+        self._add(card, "Hız sınırı", "Hepsinin toplamı; internetin başka işlere de kalsın", self.speed_menu)
 
         self.retry_menu = ctk.CTkOptionMenu(
             card, values=list(AUTO_RETRY), width=150,
             command=lambda v: app.apply_setting("auto_retry", AUTO_RETRY[v]))
         self.retry_menu.set(next((k for k, v in AUTO_RETRY.items() if v == cfg.get("auto_retry")), "3 kez"))
-        self._add(card, "Bağlantı kopunca otomatik dene", "İnternet gidip gelirse indirme kendi devam eder",
+        self._add(card, "Bağlantı kopunca otomatik dene", "İnternet kopsa bile pes etmem, gelince kaldığı yerden devam ederim",
                   self.retry_menu)
 
         proxy_box = ctk.CTkFrame(card, fg_color="transparent")
@@ -434,13 +450,20 @@ class SettingsPanel(ctk.CTkToplevel):
         self.dup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "block_duplicates", bool(self.dup_switch.get())))
         self._set_switch(self.dup_switch, cfg.get("block_duplicates"))
-        self._add(card, "Aynı linki tekrar ekleme", "Listede olan link atlanır", self.dup_switch)
+        self._add(card, "Aynı linki tekrar ekleme", "Aynı link listedeyse ikinciyi eklemem", self.dup_switch)
 
         self.playlist_ask_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "playlist_ask", bool(self.playlist_ask_switch.get())))
         self._set_switch(self.playlist_ask_switch, cfg.get("playlist_ask"))
-        self._add(card, "Oynatma listesinde videoları seç", "Kapalıysa listedeki hepsi eklenir",
+        self._add(card, "Oynatma listesinde videoları seç", "Kapalıysa listedeki her şeyi sormadan eklerim",
                   self.playlist_ask_switch)
+
+        self.auto_music_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+            "auto_music", bool(self.auto_music_switch.get())))
+        self._set_switch(self.auto_music_switch, cfg.get("auto_music"))
+        self._add(card, "Biten müzikleri çalma listesine ekle",
+                  "MP3'ler “İndirilenler” listesine, YouTube listeleri kendi adıyla yeni bir listeye gider",
+                  self.auto_music_switch)
 
         # ---- notifications
         card = self._card("Bildirimler")
@@ -459,7 +482,7 @@ class SettingsPanel(ctk.CTkToplevel):
         self.schedule_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "schedule_on", bool(self.schedule_switch.get())))
         self._set_switch(self.schedule_switch, cfg.get("schedule_on"))
-        self._add(card, "Zamanlanmış indirme", "Kapalıyken yeni indirmeler başlamaz, saati bekler",
+        self._add(card, "Zamanlanmış indirme", "Kapalıyken yeni indirmeler başlama saatini bekler",
                   self.schedule_switch)
         times = ctk.CTkFrame(card, fg_color="transparent")
         self.schedule_start_entry = ctk.CTkEntry(times, width=62, justify="center")
@@ -473,7 +496,7 @@ class SettingsPanel(ctk.CTkToplevel):
         for entry in (self.schedule_start_entry, self.schedule_stop_entry):
             entry.bind("<Return>", lambda e: self._save_schedule())
             entry.bind("<FocusOut>", lambda e: self._save_schedule())
-        self._add(card, "Saatler (24 saat, ör. 02:00)", "Bitiş saati boşsa başladıktan sonra hep açık kalır",
+        self._add(card, "Saatler (24 saat, ör. 02:00)", "Bitiş saatini boş bırakırsan başladıktan sonra hep açık kalır",
                   times)
 
         # ---- system
@@ -481,18 +504,18 @@ class SettingsPanel(ctk.CTkToplevel):
         self.tray_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "tray_on_close", bool(self.tray_switch.get())))
         self._set_switch(self.tray_switch, cfg.get("tray_on_close"))
-        hint = "Pencereyi kapatınca simge durumuna iner" if tray.AVAILABLE else "pystray kurulu değil"
+        hint = "Pencereyi kapatınca sağ alttaki simgeye iner" if tray.AVAILABLE else "pystray kurulu değil"
         self._add(card, "Kapatınca arka planda çalış", hint, self.tray_switch)
 
         self.startup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "start_with_windows", bool(self.startup_switch.get())))
         self._set_switch(self.startup_switch, cfg.get("start_with_windows"))
-        self._add(card, "Windows açılışında başlat", "Simge durumunda açılır", self.startup_switch)
+        self._add(card, "Windows açılışında başlat", "Açılışta pencere göstermeden, simge olarak başlar", self.startup_switch)
 
         self.bridge_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "bridge_on", bool(self.bridge_switch.get())))
         self._set_switch(self.bridge_switch, cfg.get("bridge_on"))
-        self._add(card, "Tarayıcı eklentisinden link al", "Yalnızca bu bilgisayardan, yalnızca eklentiden",
+        self._add(card, "Tarayıcı eklentisinden link al", "Sadece bu bilgisayardaki eklentiyi dinlerim; dışarıdan kimse link gönderemez",
                   self.bridge_switch)
 
         port_box = ctk.CTkFrame(card, fg_color="transparent")
@@ -503,28 +526,50 @@ class SettingsPanel(ctk.CTkToplevel):
         self.bridge_port_entry.bind("<FocusOut>", lambda e: self._save_port())
         self.ext_button = ctk.CTkButton(port_box, text="Eklenti klasörü", width=110, command=app.open_extension_folder)
         self.ext_button.pack(side="left", padx=(6, 0))
-        self._add(card, "Eklenti bağlantı noktası", "Eklentinin ayarındaki port ile aynı olmalı", port_box)
+        self._add(card, "Eklenti bağlantı noktası", "Eklentideki port ile aynı olsun, yoksa konuşamayız", port_box)
 
         self.theme_menu = ctk.CTkOptionMenu(card, values=list(THEMES), width=150,
                                             command=lambda v: app.apply_setting("theme", v))
         self.theme_menu.set(cfg.get("theme"))
-        self._add(card, "Görünüm", "Koyu, açık ya da Windows'u izle", self.theme_menu)
+        self._add(card, "Görünüm", "Koyu, açık ya da Windows ne derse o", self.theme_menu)
+        self.look_menu = ctk.CTkOptionMenu(card, values=look.STYLES, width=150,
+                                           command=lambda v: app.apply_setting("look", v))
+        self.look_menu.set(cfg.get("look"))
+        self._add(card, "Görünüm stili", "Renk ve şekil takımı (değişince DISO yeniden açılır)", self.look_menu)
+        self.language_menu = ctk.CTkOptionMenu(card, values=list(i18n.LANGUAGES), width=150,
+                                               command=lambda v: app.apply_setting("language", v))
+        self.language_menu.set(cfg.get("language"))
+        self._add(card, "Dil", "Arayüzün dili (değişince DISO yeniden açılır)", self.language_menu)
+
+        # ---- backup, history, help
+        card = self._card("Yedek ve yardım")
+        self.backup_button = ctk.CTkButton(card, text="💾 Yedek al", width=150, command=app.make_backup)
+        self._add(card, "Yedek al", "Ayarlar, çalma listeleri, indirme listesi ve geçmiş tek bir dosyaya", self.backup_button)
+        self.restore_button = ctk.CTkButton(card, text="📂 Yedeği yükle", width=150, command=app.restore_backup)
+        self._add(card, "Yedeği geri yükle", "Başka bilgisayardan ya da eskiden aldığın yedeği geri getir", self.restore_button)
+        self.history_settings_button = ctk.CTkButton(card, text="📊 Geçmiş", width=150, command=app.open_history)
+        self._add(card, "İndirme geçmişi", "Ne zaman ne indi, ne kadar hızlı", self.history_settings_button)
+        self.shortcuts_button = ctk.CTkButton(card, text="⌨ Kısayollar", width=150, command=app.open_shortcuts)
+        self._add(card, "Klavye kısayolları", "F1 ile her yerden açılır", self.shortcuts_button)
 
         # ---- when everything is finished
         card = self._card("Bitince")
         self.after_menu = ctk.CTkOptionMenu(card, values=list(AFTER_ALL), width=150,
                                             command=app.set_after_all)
         self.after_menu.set(app.after_all)
-        self._add(card, "Tüm indirmeler bitince", "Bir kez uygulanır, kaydedilmez", self.after_menu)
+        self._add(card, "Tüm indirmeler bitince", "Bir kere çalışır, kaydedilmez", self.after_menu)
 
         foot = ctk.CTkFrame(self, fg_color="transparent")
         foot.grid(row=2, column=0, sticky="ew", padx=24, pady=(8, 14))
-        foot.columnconfigure(2, weight=1)
+        foot.columnconfigure(3, weight=1)
         ctk.CTkButton(foot, text="🔔 Bildirimi dene", width=140, command=app.test_notification).grid(row=0, column=0)
         self.log_button = ctk.CTkButton(foot, text="📜 Günlüğü aç", width=120, command=app.open_log)
         self.log_button.grid(row=0, column=1, padx=8)
-        ctk.CTkLabel(foot, text=f"v{__version__}", text_color="gray").grid(row=0, column=2, sticky="e", padx=10)
-        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=3)
+        self.about_button = ctk.CTkButton(foot, text="ℹ Hakkında", width=110, command=app.open_about)
+        self.about_button.grid(row=0, column=2)
+        ctk.CTkLabel(foot, text=f"{brand.NAME} {brand.VERSION_LABEL}", text_color="gray").grid(
+            row=0, column=3, sticky="e", padx=10)
+        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=4)
 
         self._proxy_result = None
         self.after(500, self._sync)
@@ -556,7 +601,7 @@ class SettingsPanel(ctk.CTkToplevel):
     # ---- entries
     def _save_proxy(self):
         ok = self.app.apply_proxy(self.proxy_entry.get())
-        self.proxy_entry.configure(border_color=("#979da2", "#565b5e") if ok else BAD)
+        self.proxy_entry.configure(border_color=look.entry_border() if ok else BAD)
         return ok
 
     def _test_proxy(self):
@@ -573,14 +618,14 @@ class SettingsPanel(ctk.CTkToplevel):
     def _save_schedule(self):
         ok_start = self.app.apply_schedule("schedule_start", self.schedule_start_entry.get())
         ok_stop = self.app.apply_schedule("schedule_stop", self.schedule_stop_entry.get())
-        normal = ("#979da2", "#565b5e")
+        normal = look.entry_border()
         self.schedule_start_entry.configure(border_color=normal if ok_start else BAD)
         self.schedule_stop_entry.configure(border_color=normal if ok_stop else BAD)
         return ok_start and ok_stop
 
     def _save_port(self):
         ok = self.app.apply_bridge_port(self.bridge_port_entry.get())
-        self.bridge_port_entry.configure(border_color=("#979da2", "#565b5e") if ok else BAD)
+        self.bridge_port_entry.configure(border_color=look.entry_border() if ok else BAD)
         return ok
 
     def _sync(self):
@@ -603,7 +648,8 @@ class CountdownDialog(ctk.CTkToplevel):
 
     def __init__(self, app, text, seconds, on_done):
         super().__init__(app)
-        self.title("Hızlı İndirici")
+        set_window_icon(self)
+        self.title("DISO")
         self.geometry("420x190")
         self.resizable(False, False)
         self.transient(app)
@@ -643,6 +689,7 @@ class PlaylistDialog(ctk.CTkToplevel):
 
     def __init__(self, app, entries, settings):
         super().__init__(app)
+        set_window_icon(self)
         self.app, self.entries, self.settings = app, entries, settings
         self.vars = [ctk.BooleanVar(value=True) for _ in entries]
         self.title("Oynatma listesi")
@@ -697,7 +744,9 @@ class PlaylistDialog(ctk.CTkToplevel):
         self._count()
 
     def chosen(self):
-        return [e for e, v in zip(self.entries, self.vars) if v.get()]
+        picked = [e for e, v in zip(self.entries, self.vars) if v.get()]
+        like = getattr(self.entries, "like", None)          # keeps the playlist's name
+        return like(picked) if like else picked
 
     def confirm(self):
         chosen = self.chosen()
@@ -711,6 +760,7 @@ class InfoDialog(ctk.CTkToplevel):
 
     def __init__(self, app, url):
         super().__init__(app)
+        set_window_icon(self)
         self.app, self.url = app, url
         self.title("Bağlantı bilgisi")
         w, h = fit_geometry(self, 560, 560)
@@ -720,7 +770,7 @@ class InfoDialog(ctk.CTkToplevel):
         self.rowconfigure(0, weight=1)
         self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.body.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
-        self.status = ctk.CTkLabel(self.body, text="Bilgi alınıyor…", text_color="gray")
+        self.status = ctk.CTkLabel(self.body, text="Bilgi alıyorum…", text_color="gray")
         self.status.pack(pady=40)
         self.result = None   # ("ok", info) / ("error", text), set by the loading thread
         threading.Thread(target=self._load, daemon=True).start()
@@ -744,7 +794,7 @@ class InfoDialog(ctk.CTkToplevel):
             return
 
     def _fail(self, text):
-        ctk.CTkLabel(self.body, text="Bilgi alınamadı", font=ctk.CTkFont(size=16, weight="bold")).pack(
+        ctk.CTkLabel(self.body, text="Bu link hakkında bilgi alamadım", font=ctk.CTkFont(size=16, weight="bold")).pack(
             anchor="w", padx=8, pady=(8, 4))
         ctk.CTkLabel(self.body, text=text, text_color=BAD, wraplength=480, justify="left").pack(anchor="w", padx=8)
 
@@ -764,7 +814,7 @@ class InfoDialog(ctk.CTkToplevel):
         for q in info["qualities"][:14]:
             self._row(self._quality_text(q), "İndir", lambda q=q: self._download(ve.quality_for_height(q["height"]), "video"))
         if not info["qualities"]:
-            ctk.CTkLabel(self.body, text="Kalite listesi alınamadı (en iyi kalite indirilir).",
+            ctk.CTkLabel(self.body, text="Kalite listesini çıkaramadım, en iyi kaliteyle indiririm.",
                          text_color="gray").pack(anchor="w", padx=8)
             self._row("En iyi kalite", "İndir", lambda: self._download("En iyi", "video"))
         size = f" • ~{human_size(info['audio_size'])}" if info["audio_size"] else ""
@@ -798,6 +848,92 @@ class InfoDialog(ctk.CTkToplevel):
         self.app.download_quality(self.url, quality, kind)
 
 
+class AboutDialog(ctk.CTkToplevel):
+    """Which version this is, where everything lives, and one button that copies the details
+    to send when something does not work. The facts are looked up away from the window (starting
+    deno to ask for its version takes a moment)."""
+
+    def __init__(self, app, provider=about.facts):
+        super().__init__(app)
+        set_window_icon(self)
+        self.app = app
+        self.title(f"{brand.NAME} hakkında")
+        w, h = fit_geometry(self, 580, 660)
+        self.minsize(min(500, w), min(460, h))
+        self.transient(app)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(2, weight=1)
+        self.rows = None
+        self._events = queue.Queue()
+
+        head = ctk.CTkFrame(self, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=26, pady=(22, 8))
+        self._logo = logo_image(88)
+        ctk.CTkLabel(head, text="", image=self._logo).grid(row=0, column=0, rowspan=3, padx=(0, 18))
+        ctk.CTkLabel(head, text=brand.NAME, font=ctk.CTkFont(size=32, weight="bold")).grid(row=0, column=1, sticky="sw")
+        ctk.CTkLabel(head, text=f"Sürüm {brand.VERSION_LABEL}", font=ctk.CTkFont(size=14)).grid(row=1, column=1, sticky="w")
+        ctk.CTkLabel(head, text="Dosya, video ve müzik indirme yöneticisi", text_color="gray").grid(
+            row=2, column=1, sticky="nw")
+        ctk.CTkLabel(self, text="Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse "
+                                "aşağıdaki “Detayları kopyala”ya bas, çıkan metni bana yolla; ne olduğunu hemen anlarım.",
+                     wraplength=520, justify="left", anchor="w", text_color="gray").grid(
+            row=1, column=0, sticky="ew", padx=28, pady=(0, 8))
+        self.body = ctk.CTkScrollableFrame(self)
+        self.body.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 6))
+        self.body.columnconfigure(1, weight=1)
+        self.waiting = ctk.CTkLabel(self.body, text="Bilgileri topluyorum…", text_color="gray")
+        self.waiting.grid(row=0, column=0, columnspan=2, pady=20)
+
+        foot = ctk.CTkFrame(self, fg_color="transparent")
+        foot.grid(row=3, column=0, sticky="ew", padx=24, pady=(6, 18))
+        foot.columnconfigure(3, weight=1)
+        self.copy_btn = ctk.CTkButton(foot, text="📋 Detayları kopyala", width=160, state="disabled", command=self.copy_details)
+        self.copy_btn.grid(row=0, column=0)
+        ctk.CTkButton(foot, text="📂 Veri klasörü", width=130, command=self.open_data).grid(row=0, column=1, padx=8)
+        ctk.CTkButton(foot, text="📜 Günlük", width=100, command=app.open_log).grid(row=0, column=2)
+        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=4)
+
+        threading.Thread(target=self._collect, args=(provider,), daemon=True, name="about-facts").start()
+        self.after(100, self._poll)
+
+    def _collect(self, provider):
+        try:
+            self._events.put(provider())
+        except Exception:  # noqa: BLE001 - the window must not wait for ever
+            log.exception("could not collect the details")
+            self._events.put([("Sürüm", brand.VERSION_LABEL), ("Hata", "bilgiler toplanamadı, ayrıntı günlükte")])
+
+    def _poll(self):
+        try:
+            self.rows = self._events.get_nowait()
+        except queue.Empty:
+            try:
+                self.after(100, self._poll)
+            except TclError:
+                pass
+            return
+        try:
+            self.waiting.destroy()
+            for i, (key, value) in enumerate(self.rows):
+                ctk.CTkLabel(self.body, text=key, text_color="gray", anchor="nw", width=120).grid(
+                    row=i, column=0, sticky="nw", padx=(8, 10), pady=4)
+                ctk.CTkLabel(self.body, text=value, anchor="w", justify="left", wraplength=340).grid(
+                    row=i, column=1, sticky="ew", pady=4)
+            self.copy_btn.configure(state="normal")
+        except TclError:                                    # closed while the facts were coming
+            return
+
+    def copy_details(self):
+        if self.rows is None:
+            return
+        self.clipboard_clear()
+        self.clipboard_append(about.as_text(self.rows))
+        self.app.notice("Detaylar panoya kopyalandı, mesaja yapıştırabilirsin")
+
+    def open_data(self):
+        open_in_file_manager(app_data_dir())
+
+
 class BridgeApi:
     """What the browser bridge (another thread) may do. Never touches widgets directly."""
 
@@ -818,7 +954,7 @@ class BridgeApi:
         self.app._ui_calls.put(self.app._show_window)
 
 
-class App(*_BASES):
+class App(ctk.CTk):
     def __init__(self, minimized=False):
         self.cfg = Config()
         ctk.set_appearance_mode(THEMES.get(self.cfg.get("theme"), "dark"))
@@ -829,13 +965,8 @@ class App(*_BASES):
         # So automatic collection is off and _tick() collects every few seconds instead.
         gc.disable()
         setup_logging()
-        log.info("Hızlı İndirici %s started", __version__)
-        if HAS_DND:
-            try:
-                self.TkdndVersion = TkinterDnD._require(self)
-            except Exception:
-                pass
-        self.title("Hızlı İndirici")
+        log.info("DISO %s started", __version__)
+        self.title("DISO")
         w, h = fit_geometry(self, 1000, 820)
         self.minsize(min(900, w), min(560, h))
         self._set_icon()
@@ -843,7 +974,8 @@ class App(*_BASES):
         self.cfg.sanitize({
             "kind": list(KIND_LABELS), "quality": ve.QUALITIES, "bitrate": ve.BITRATES,
             "connections": CONNECTIONS, "cookies": ve.BROWSERS, "speed_limit": list(SPEED_LIMITS),
-            "sort": SORTS, "filter": FILTERS, "subs": SUBTITLE_CHOICES, "theme": list(THEMES),
+            "sort": SORTS, "filter": FILTERS, "subs": SUBTITLE_CHOICES, "theme": list(THEMES), "look": look.STYLES,
+            "language": list(i18n.LANGUAGES),
             "auto_retry": list(AUTO_RETRY.values()),
         })
         if not 1 <= self.cfg.get("max_parallel") <= 8:
@@ -861,6 +993,7 @@ class App(*_BASES):
         self.updates.ffmpeg_busy = lambda: any(i.state == PROCESSING for i in self.manager.items)
         self.update_panel = None
         self.settings_panel = None
+        self.about_dialog = None
         self.bridge = None
         self.tray = None
         self.rows = {}
@@ -879,8 +1012,17 @@ class App(*_BASES):
         self._tick_no = 0
         self._ffmpeg_ok = bool(find_ffmpeg())
         self._closing = False
+        self.restart_requested = False   # main() starts the program again after it has closed
         self._hidden_hint_shown = False
         self._btn_text = ""
+        self.mode = MODE_DOWNLOAD
+        self.music = None                # the music player window, made the first time it is wanted
+        self.playlist_store = None       # the saved playlists, loaded the first time they are needed
+        self.song_dialog = None          # 'Hangi listeye ekleyeyim?' while it is open
+        self.lyrics_fetcher = lyrics.Fetcher()   # lyrics of found songs, looked up in the background
+        self.history = history.History()         # every finished download, also after it leaves the list
+        self.history_window = None
+        self.shortcuts_window = None
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(5, weight=1)
@@ -893,19 +1035,16 @@ class App(*_BASES):
         self.empty_label = ctk.CTkLabel(self.list_frame, text="", text_color="gray")
         self._build_update_bar()
         self.status = ctk.CTkLabel(self, text="", anchor="w", text_color="gray")
-        self.status.grid(row=7, column=0, sticky="ew", padx=20, pady=(0, 10))
+        self.status.grid(row=7, column=0, sticky="ew", padx=20, pady=(0, 4))
+        self.mode_bar = mode_bar(self, MODE_DOWNLOAD, self._switch_mode)
+        self.mode_bar.grid(row=8, column=0, sticky="ew", padx=16, pady=(0, 12))
 
         self._on_kind(self.kind_menu.get())
         self.clip_var.set(bool(self.cfg.get("clip_watch")))
         self._last_clip = self._clipboard_text()  # what is in the clipboard now is not "new"
         self.protocol("WM_DELETE_WINDOW", self._on_window_x)
         self._bind_shortcuts()
-        if HAS_DND:
-            try:
-                self.drop_target_register(DND_TEXT, DND_FILES)
-                self.dnd_bind("<<Drop>>", self._on_drop)
-            except Exception:
-                pass
+        self._announce_version()         # before anything that can fail: a warning must be the last word
         self._start_bridge()
         if self.cfg.get("tray_on_close") or minimized:
             self._ensure_tray()
@@ -927,18 +1066,26 @@ class App(*_BASES):
     def _build_top(self):
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 4))
-        head.columnconfigure(0, weight=1)
-        ctk.CTkLabel(head, text="⚡ Hızlı İndirici", font=ctk.CTkFont(size=24, weight="bold")).grid(
-            row=0, column=0, sticky="w")
-        ctk.CTkLabel(head, text="Dosya (IDM gibi parçalı) • YouTube/Instagram/TikTok/X… videoları • MP3",
-                     text_color="gray").grid(row=1, column=0, sticky="w")
+        head.columnconfigure(1, weight=1)
+        self._logo = logo_image(54)                          # kept on self: a picture nobody holds disappears
+        ctk.CTkLabel(head, text="" if self._logo else "⚡", image=self._logo, width=58, height=58).grid(
+            row=0, column=0, rowspan=2, padx=(0, 14))
+        titlebox = ctk.CTkFrame(head, fg_color="transparent")
+        titlebox.grid(row=0, column=1, sticky="sw")
+        ctk.CTkLabel(titlebox, text=brand.NAME, font=ctk.CTkFont(size=26, weight="bold")).pack(side="left")
+        self.beta_badge = ctk.CTkLabel(
+            titlebox, text=brand.CHANNEL.upper(), width=48, height=22, corner_radius=8,
+            fg_color=look.ACCENT_SOFT if look.is_new() else ("gray78", "gray28"),
+            text_color=look.ACCENT if look.is_new() else ("gray20", "gray85"), font=ctk.CTkFont(size=11, weight="bold"))
+        self.beta_badge.pack(side="left", padx=(10, 0), pady=(8, 0))
+        self.beta_badge.bind("<Button-1>", lambda e: self.open_about())
+        ctk.CTkLabel(head, text="Linki yapıştır, gerisini bana bırak • Dosya, video, MP3 • YouTube, Instagram, TikTok, X…",
+                     text_color="gray").grid(row=1, column=1, sticky="nw")
 
         row = ctk.CTkFrame(self, fg_color="transparent")
         row.grid(row=1, column=0, sticky="ew", padx=16, pady=(6, 0))
         row.columnconfigure(0, weight=1)
-        hint = "Bağlantıyı yapıştır (birden fazla link boşlukla ayrılabilir)…"
-        if HAS_DND:
-            hint = "Bağlantıyı yapıştır veya sürükle-bırak (birden fazla link olabilir)…"
+        hint = "Linki buraya yapıştır (birden fazlaysa araya boşluk koy)…"
         self.url_entry = ctk.CTkEntry(row, height=44, placeholder_text=hint)
         self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         self.url_entry.bind("<Return>", lambda e: self.add_from_entry())
@@ -946,8 +1093,10 @@ class App(*_BASES):
         ctk.CTkButton(row, text="📄", width=48, height=44, command=self._import_file).grid(
             row=0, column=2, padx=(0, 8))
         ctk.CTkButton(row, text="ℹ", width=48, height=44, command=self._show_info).grid(row=0, column=3, padx=(0, 8))
+        self.history_button = ctk.CTkButton(row, text="📊", width=48, height=44, command=self.open_history)
+        self.history_button.grid(row=0, column=4, padx=(0, 8))
         ctk.CTkButton(row, text="⬇  İndir", height=44, width=130, font=ctk.CTkFont(size=16, weight="bold"),
-                      command=self.add_from_entry).grid(row=0, column=4)
+                      command=self.add_from_entry).grid(row=0, column=5)
 
     def _build_options(self):
         opt = ctk.CTkFrame(self)
@@ -1087,6 +1236,7 @@ class App(*_BASES):
         self.bind("<Control-a>", self._on_ctrl_a)
         self.bind("<Delete>", self._on_delete_key)
         self.bind("<Control-f>", lambda e: self.search_entry.focus_set())
+        self.bind("<F1>", lambda e: self.open_shortcuts())
 
     def _typing(self) -> bool:
         """True while the cursor is in a text box: its own shortcuts must work there."""
@@ -1113,7 +1263,7 @@ class App(*_BASES):
         # links that are already in the clipboard are NOT added, only new ones
         self._last_clip = self._clipboard_text()
         self.cfg.set("clip_watch", bool(self.clip_var.get()))
-        self.notice("Pano izleme açık: kopyaladığın her yeni link otomatik eklenir"
+        self.notice("Pano izleme açık: kopyaladığın her yeni linki kendim eklerim"
                     if self.clip_var.get() else "Pano izleme kapalı")
 
     def _watch_clipboard(self):
@@ -1135,7 +1285,7 @@ class App(*_BASES):
         if urls:
             self.add_urls(urls)
         else:
-            self.notice("Panoda bağlantı yok")
+            self.notice("Panoda link göremedim")
         return "break"
 
     def _on_ctrl_a(self, event=None):
@@ -1228,9 +1378,9 @@ class App(*_BASES):
         if added and duplicates:
             self.notice(f"{added} bağlantı eklendi, {duplicates} tanesi zaten listedeydi")
         elif duplicates:
-            self.notice(f"{duplicates} link zaten listede, atlandı")
+            self.notice(f"{duplicates} link zaten listedeydi, atladım")
         elif bad:
-            self.notice(f"{bad} geçersiz bağlantı atlandı (http/https ile başlamalı)")
+            self.notice(f"{bad} geçersiz linki atladım (http ya da https ile başlamalı)")
         elif added > 1:
             self.notice(f"{added} bağlantı eklendi")
         return added
@@ -1238,7 +1388,7 @@ class App(*_BASES):
     def add_from_entry(self):
         urls = [u for u in re.split(r"\s+", self.url_entry.get().strip()) if u]
         if not urls:
-            self.notice("Lütfen bir bağlantı yapıştır.")
+            self.notice("Önce bir link yapıştır bakalım.")
             return
         if self.add_urls(urls):
             self.url_entry.delete(0, "end")
@@ -1252,7 +1402,7 @@ class App(*_BASES):
             try:
                 entries = ve.expand_playlist(url, s.cookies)
             except Exception as e:  # noqa: BLE001
-                self.notice(f"Liste okunamadı: {ve.pretty_error(e)}", 10)
+                self.notice(f"Listeyi okuyamadım: {ve.pretty_error(e)}", 10)
                 entries = [(url, "", 0)]
             self._ui_calls.put(lambda: self._playlist_ready(entries, s))
 
@@ -1275,7 +1425,7 @@ class App(*_BASES):
     def _show_info(self):
         urls = extract_urls(self.url_entry.get())
         if not urls:
-            self.notice("Bilgi için önce bir bağlantı yapıştır.")
+            self.notice("Önce bir link yapıştır, sonra bakarım.")
             return
         InfoDialog(self, urls[0])
 
@@ -1286,32 +1436,21 @@ class App(*_BASES):
         if quality:
             s = dataclasses.replace(s, quality=quality)
         if self.cfg.get("block_duplicates") and self.manager.find_duplicate(url):
-            self.notice("Bu link zaten listede")
+            self.notice("Bu link zaten listede, ikinciyi eklemedim")
         else:
             self.manager.add_url(url, s)
             self.notice("Eklendi: " + (f"{quality}" if quality else "MP3"))
 
-    # ----------------------------------------------------------------- drag and drop
+    # ----------------------------------------------------------------- text files
     def _add_from_paths(self, paths):
-        """Links from text files (the 📄 button and dropped files)."""
+        """Links from text files (the 📄 button)."""
         urls = []
         for p in paths:
             urls += urls_from_file(p)
         if not urls:
-            self.notice("Dosyada bağlantı bulunamadı")
+            self.notice("O dosyada tek bir link bile bulamadım")
             return 0
         return self.add_urls(urls)
-
-    def _on_drop(self, event):
-        """A link (text) or text files with links were dropped on the window."""
-        urls = []
-        for part in self.tk.splitlist(event.data):
-            urls += urls_from_file(part) if os.path.isfile(part) else extract_urls(part)
-        if urls:
-            self.add_urls(urls)
-        else:
-            self.notice("Bırakılan şeyde bağlantı bulunamadı")
-        return getattr(event, "action", None)
 
     # ------------------------------------------------------ list: filter / sort / select
     def _on_filter(self, value):
@@ -1360,7 +1499,7 @@ class App(*_BASES):
     def _sel_remove(self):
         sel = self._selected_items()
         if len(sel) > 1 and not messagebox.askyesno(
-                "Hızlı İndirici", f"{len(sel)} indirme listeden silinsin mi?\n"
+                "DISO", f"{len(sel)} indirme listeden silinsin mi?\n"
                                   "(Yarım kalan geçici dosyalar da silinir.)"):
             return
         for it in sel:
@@ -1370,12 +1509,14 @@ class App(*_BASES):
 
     def _update_selection_ui(self):
         n = len(self.selected)
-        self.sel_label.configure(text=f"{n} seçili" if n else "")
+        set_if_changed(self.sel_label, text=f"{n} seçili" if n else "")
         state = "normal" if n else "disabled"
         for b in self.sel_buttons:
-            b.configure(state=state)
+            set_if_changed(b, state=state)
         visible = set(self._order or [])
-        self.select_all_var.set(bool(visible) and visible <= self.selected)
+        all_selected = bool(visible) and visible <= self.selected
+        if bool(self.select_all_var.get()) != all_selected:
+            self.select_all_var.set(all_selected)
 
     def _sync_rows(self):
         items = list(self.manager.items)
@@ -1396,8 +1537,8 @@ class App(*_BASES):
                 self.rows[iid].pack(fill="x", padx=4, pady=4)
             if not order:
                 self.empty_label.configure(
-                    text="Henüz indirme yok. Bir link yapıştır veya buraya sürükle." if not items
-                    else "Aramaya / filtreye uyan indirme yok.")
+                    text="Burası şimdilik bomboş. Bir link yapıştır, gerisini bana bırak." if not items
+                    else "Aramana uyan bir şey çıkmadı.")
                 self.empty_label.pack(pady=40)
             self._order = order
         for iid in order:
@@ -1405,10 +1546,29 @@ class App(*_BASES):
         self._update_selection_ui()
 
     # ------------------------------------------------------------------ settings window
+    def open_about(self):
+        try:
+            if self.about_dialog is not None and self.about_dialog.winfo_exists():
+                self._bring_to_front(self.about_dialog)
+                return
+        except TclError:
+            pass
+        self.about_dialog = AboutDialog(self)
+
+    def _announce_version(self):
+        """Said once per version: welcome the first time, a short note after an update."""
+        label = brand.VERSION_LABEL
+        last = self.cfg.get("last_version")
+        if last == label:
+            return
+        self.cfg.set("last_version", label)
+        self.notice(f"{brand.NAME}'ya hoş geldin! Linki yapıştır, gerisini bana bırak." if not last
+                    else f"{brand.NAME} {label} sürümüne güncellendi 🎉", 9)
+
     def _open_settings(self):
         try:
             if self.settings_panel is not None and self.settings_panel.winfo_exists():
-                self.settings_panel.lift()
+                self._bring_to_front(self.settings_panel)
                 return
         except TclError:
             pass
@@ -1418,7 +1578,7 @@ class App(*_BASES):
         """Settings window changed something: save it and apply it at once."""
         if key == "start_with_windows":
             if not startup.set_enabled(bool(value)):
-                self.notice("Windows başlangıç kaydı yazılamadı", 8)
+                self.notice("Windows açılışına ekleyemedim", 8)
                 return
         self.cfg.set(key, value)
         if key == "max_parallel":
@@ -1427,11 +1587,128 @@ class App(*_BASES):
             self.manager.set_max_retries(int(value))
         elif key == "speed_limit":
             LIMITER.set_rate(SPEED_LIMITS[value] * 1024)
-            self.notice("Hız sınırı kaldırıldı" if SPEED_LIMITS[value] == 0 else f"Hız sınırı: {value}")
+            self.notice("Hız sınırı kalktı, tam gaz" if SPEED_LIMITS[value] == 0 else f"Hız sınırı: {value}")
         elif key == "theme":
-            ctk.set_appearance_mode(THEMES.get(value, "dark"))
+            # Not inside the dropdown's own callback: on Windows that still runs inside the native
+            # menu loop, and re-coloring every widget there can leave the buttons without clicks.
+            self.after(80, self._apply_theme, value)
+        elif key == "look":
+            self.after(150, self._offer_restart)
+        elif key == "language":
+            self.after(150, lambda: self._offer_restart(
+                "Dil programı yeniden açınca değişir.\n\nŞimdi yeniden açılsın mı?",
+                "Tamam, dil bir sonraki açılışta değişecek"))
         elif key == "tray_on_close" and value:
             self._ensure_tray()
+
+    @staticmethod
+    def _bring_to_front(win):
+        """Bring a window to the front, also when it is hidden or minimized."""
+        if win.state() in ("withdrawn", "iconic"):
+            win.deiconify()
+        win.lift()
+        win.focus_force()
+
+    # ------------------------------------------------------------------ history, shortcuts, backup
+    def _single(self, attr, make):
+        win = getattr(self, attr)
+        try:
+            if win is not None and win.winfo_exists():
+                self._bring_to_front(win)
+                return win
+        except TclError:
+            pass
+        win = make()
+        setattr(self, attr, win)
+        return win
+
+    def open_history(self):
+        win = self._single("history_window", lambda: HistoryWindow(self, self.history))
+        win.refresh()
+        return win
+
+    def open_shortcuts(self):
+        return self._single("shortcuts_window", lambda: ShortcutsWindow(self))
+
+    def _dialog_parent(self):
+        panel = self.settings_panel
+        return panel if panel is not None and panel.winfo_exists() else self
+
+    def make_backup(self, target=None):
+        """'💾 Yedek al': one .disoyedek file with the settings, lists and history."""
+        self._store().save()                     # the settings are written as they change; these are saved now
+        self.manager.save()
+        target = target or filedialog.asksaveasfilename(
+            parent=self._dialog_parent(), title="Yedeği nereye kaydedeyim?", initialfile=backup.default_name(),
+            defaultextension=backup.EXTENSION, filetypes=[("DISO yedeği", "*" + backup.EXTENSION)])
+        if not target:
+            return None
+        try:
+            saved = backup.make_backup(target)
+        except (OSError, backup.BackupError) as e:
+            messagebox.showerror("DISO", f"Yedeği alamadım:\n{e}", parent=self._dialog_parent())
+            return None
+        self.notice(f"💾 Yedek hazır: {os.path.basename(target)} ({len(saved)} dosya)", 10)
+        return target
+
+    def restore_backup(self, path=None, ask=True):
+        """'📂 Yedeği yükle': checked now, put in place at the next start (DISO restarts if the user wants)."""
+        path = path or filedialog.askopenfilename(
+            parent=self._dialog_parent(), title="Hangi yedeği yükleyeyim?",
+            filetypes=[("DISO yedeği", "*" + backup.EXTENSION), ("Hepsi", "*.*")])
+        if not path:
+            return False
+        try:
+            content = backup.prepare_restore(path)
+        except backup.BackupError as e:
+            messagebox.showerror("DISO", str(e), parent=self._dialog_parent())
+            return False
+        when = time.strftime("%d.%m.%Y %H:%M", time.localtime(content["made"])) if content.get("made") else "?"
+        text = (f"Yedek hazır ({when}, DISO {content['version'] or '?'}).\n\nŞu anki ayarların, çalma listelerin "
+                "ve geçmişin bu yedektekilerle değişecek. Bunun için DISO yeniden açılmalı.\n\nŞimdi yeniden açılsın mı?")
+        if not ask or messagebox.askyesno("DISO", text, parent=self._dialog_parent()):
+            self.restart_requested = True
+            self._on_close()
+        else:
+            self.notice("Tamam, yedek DISO'yu bir dahaki açışında yüklenecek", 10)
+        return True
+
+    def _offer_restart(self, text=None, later="Tamam, yeni görünüm bir sonraki açılışta gelecek"):
+        """The look and the language are chosen when the program starts, so a change needs a new start."""
+        if self._closing:
+            return
+        parent = self.settings_panel if self.settings_panel is not None and self.settings_panel.winfo_exists() else self
+        text = text or ("Yeni görünüm programı yeniden açınca uygulanır.\n\nŞimdi yeniden açılsın mı?\n"
+                        "(İndirmeler duraklatılır ve açılışta kaldığı yerden devam eder; çalan müzik durur.)")
+        if messagebox.askyesno("DISO", text, parent=parent):
+            self.restart_requested = True
+            self._on_close()
+        else:
+            self.notice(later, 8)
+
+    def _apply_theme(self, value):
+        if self._closing:
+            return
+        try:
+            # customtkinter hides a window for a moment to recolor its title bar, and a window that
+            # is open then (the settings panel) can stay hidden: remember them and show them again.
+            open_windows = [w for w in self.winfo_children()
+                            if isinstance(w, ctk.CTkToplevel) and w.state() == "normal"]
+            ctk.set_appearance_mode(THEMES.get(value, "dark"))
+            if self.music is not None:
+                self.music.recolor()
+            self.update_idletasks()
+            self.after(400, self._restore_windows, open_windows)
+        except TclError:
+            pass
+
+    def _restore_windows(self, windows):
+        for w in windows:
+            try:
+                if w.winfo_exists() and w.state() != "normal":
+                    w.deiconify()
+            except TclError:
+                pass
 
     def apply_proxy(self, text) -> bool:
         """Validate and apply the proxy address; '' = the system's own settings."""
@@ -1451,7 +1728,7 @@ class App(*_BASES):
             self.cfg.set(key, "")
             return True
         if schedule.parse_hhmm(text) is None:
-            self.notice("Saat 24 saatlik düzende olmalı, örneğin 02:00", 8)
+            self.notice("Saati 24 saatlik yaz, mesela 02:00", 8)
             return False
         self.cfg.set(key, schedule.format_hhmm(schedule.parse_hhmm(text)))
         return True
@@ -1462,7 +1739,7 @@ class App(*_BASES):
         except ValueError:
             port = 0
         if not 1024 <= port <= 65535:
-            self.notice("Port 1024 ile 65535 arasında olmalı", 8)
+            self.notice("Port 1024 ile 65535 arasında bir sayı olsun", 8)
             return False
         if port != self.cfg.get("bridge_port"):
             self.cfg.set("bridge_port", port)
@@ -1476,7 +1753,7 @@ class App(*_BASES):
             self.notice(f"Tüm indirmeler bitince: {label.lower()}", 8)
 
     def test_notification(self):
-        self._notify("done", "Bildirimler çalışıyor ✔")
+        self._notify("done", "Bildirim geldiyse çalışıyor demektir ✔")
 
     def open_log(self):
         path = setup_logging()
@@ -1489,7 +1766,7 @@ class App(*_BASES):
         if os.path.isdir(folder):
             open_in_file_manager(folder)
         else:
-            self.notice("Eklenti klasörü bulunamadı", 8)
+            self.notice("Eklenti klasörünü bulamadım", 8)
 
     # ------------------------------------------------------------------ notifications
     def _notify(self, kind, text):
@@ -1508,6 +1785,11 @@ class App(*_BASES):
             (dones if kind == "done" else errors).append(item)
         self._phase_done += len(dones)
         if dones:
+            try:
+                self.history.record(dones)
+            except Exception:  # noqa: BLE001 - the history must never stop the downloads
+                log.exception("could not write the download history")
+            self._music_collect(dones)
             self._notify("done", dones[0].display_name if len(dones) == 1
                          else f"{len(dones)} indirme tamamlandı")
         if errors:
@@ -1529,11 +1811,11 @@ class App(*_BASES):
         if action == "none" or not done or any(i.state == PAUSED for i in items):
             return
         self.after_all = NO_END_ACTION
-        text, seconds = {"close": ("Uygulama kapanacak", 10),
+        text, seconds = {"close": ("DISO kapanacak", 10),
                          "sleep": ("Bilgisayar uykuya geçecek", 30),
                          "shutdown": ("Bilgisayar kapanacak", 30)}[action]
         notify.play_sound("done")
-        CountdownDialog(self, f"Tüm indirmeler bitti.\n{text}", seconds, lambda: self._do_power(action))
+        CountdownDialog(self, f"Tüm indirmeler bitti 🎉\n{text}", seconds, lambda: self._do_power(action))
 
     def _do_power(self, action):
         if action == "close":
@@ -1575,7 +1857,7 @@ class App(*_BASES):
     def _ensure_tray(self):
         if self.tray is None and tray.AVAILABLE:
             try:
-                self.tray = tray.TrayIcon("Hızlı İndirici",
+                self.tray = tray.TrayIcon("DISO",
                                           lambda name: self._ui_calls.put(lambda: self._tray_event(name)))
                 self.tray.start()
             except Exception:
@@ -1596,18 +1878,255 @@ class App(*_BASES):
         self._ensure_tray()
         if self.tray is not None:
             self.withdraw()
+            if self.music is not None:
+                self.music.withdraw()
+        elif self.mode == MODE_MUSIC and self.music is not None:
+            self.music.iconify()
         else:
             self.iconify()
 
     def _show_window(self):
+        """Bring up the window of the mode we are in (tray icon, second launch)."""
+        win = self.music if self.mode == MODE_MUSIC and self.music is not None else self
         try:
-            self.deiconify()
-            self.lift()
-            self.attributes("-topmost", True)
-            self.after(300, lambda: self.attributes("-topmost", False))
-            self.focus_force()
+            win.deiconify()
+            win.lift()
+            win.attributes("-topmost", True)
+            win.after(300, lambda: win.attributes("-topmost", False))
+            win.focus_force()
         except TclError:
             pass
+
+    # ------------------------------------------------------------------ music player mode
+    def _store(self):
+        if self.playlist_store is None:
+            self.playlist_store = playlists.PlaylistStore()
+        return self.playlist_store
+
+    def playlist_names(self):
+        return self._store().names()
+
+    def new_music_list(self, name) -> str:
+        name = self._store().create(name)
+        if self.music is not None:
+            self.music.reload()
+        return name
+
+    def add_to_music_list(self, item, name) -> bool:
+        """The row menu: put a finished song into a playlist (a chosen one, so any audio file goes)."""
+        path = item.final_path
+        if not (path and player.is_audio(path) and os.path.isfile(path)):
+            self.notice("Dosyayı bulamadım, müzik listesine ekleyemedim", 8)
+            return False
+        store = self._store()
+        name = store.ensure(name)
+        if store.has_path(name, path):
+            self.notice(f"Bu parça “{name}” listesinde zaten var")
+            return False
+        store.add(name, [path])
+        if self.music is not None:
+            self.music.reload()
+        self.notice(f"“{name}” çalma listesine eklendi")
+        return True
+
+    def _music_collect(self, items):
+        """Finished music downloads go into a playlist by themselves: the playlist they were taken
+        from (named like it), else 'İndirilenler'. Switched off in the settings. Songs found in the
+        music player are not put anywhere by themselves: the user is asked which list they go to."""
+        found = [it for it in items if getattr(it, "origin", "") == "music"]
+        if found:
+            self.ask_song_list(found)
+            self._find_song_lyrics(found)
+        listed = [it for it in items if getattr(it, "origin", "") == "music-list"]
+        if listed:
+            self._songs_into_their_list(listed)
+        items = [it for it in items if it not in found and it not in listed]
+        if not self.cfg.get("auto_music"):
+            return
+        added = {}
+        store = None
+        for it in sorted(items, key=lambda i: i.added):
+            path = it.final_path
+            if not (path and player.is_music(path) and os.path.isfile(path)):
+                continue
+            store = store or self._store()
+            name = store.ensure(it.group)
+            if store.add_download(name, path, it.added):
+                added[name] = added.get(name, 0) + 1
+        if not added:
+            return
+        if self.music is not None:
+            self.music.reload()
+        total, names = sum(added.values()), list(added)
+        self.notice(f"{total} müzik “{names[0]}” çalma listesine eklendi" if len(names) == 1
+                    else f"{total} müzik çalma listelerine eklendi")
+
+    # ------------------------------------------------------------------ songs found in the music player
+    def song_items(self):
+        """The downloads that were started from '🔍 Şarkı bul'."""
+        return [it for it in list(self.manager.items)
+                if getattr(it, "origin", "").startswith("music") and not it.removed]
+
+    def song_settings(self) -> Settings:
+        """A found song: always MP3 (the chosen bitrate) with its cover, into %LOCALAPPDATA%/DISO/Müzik."""
+        c = self.cfg
+        return Settings(kind="audio", bitrate=c.get("bitrate"), connections=int(c.get("connections")),
+                        folder=music_search.music_dir(), playlist=False, cookies=c.get("cookies"),
+                        subs="Yok", cover=True, sort_folders=False)
+
+    def download_song(self, result) -> str:
+        """'⬇ İndir' in the music window. Returns "added", "running" (already downloading),
+        "restarted" (a stopped / failed one goes on) or "done" (it is here already: ask for a list)."""
+        old = self.manager.find_duplicate(result["url"])
+        if old is not None and old.origin == "music":
+            if old.state in ACTIVE_STATES:
+                return "running"
+            if old.state == DONE and old.final_path and os.path.isfile(old.final_path):
+                self.ask_song_list([old])
+                return "done"
+            if old.state != DONE:
+                self.manager.start(old)
+                return "restarted"
+        self.manager.add_song(result["url"], result.get("title", ""), self.song_settings())
+        return "added"
+
+    def _songs_into_their_list(self, items):
+        """Songs of a playlist downloaded with '⬇ Hepsini indir' go into that list by themselves, in order."""
+        store = self._store()
+        added = {}
+        for it in sorted(items, key=lambda i: i.added):
+            if it.final_path and player.is_audio(it.final_path) and os.path.isfile(it.final_path):
+                name = store.ensure(it.group)
+                if store.add_download(name, it.final_path, it.added):
+                    added[name] = added.get(name, 0) + 1
+        self._find_song_lyrics(items)
+        if added and self.music is not None:
+            self.music.reload()
+            name, n = next(iter(added.items()))
+            self.music.note(f"✓ {n} şarkı “{name}” listesine girdi")
+
+    def video_id_for(self, path) -> str:
+        """The YouTube video a song file was downloaded from (download list, then history), or ""."""
+        target = os.path.normcase(os.path.abspath(path))
+        sources = [(it.final_path, it.url) for it in list(self.manager.items)]
+        sources += [(e["path"], e["url"]) for e in self.history.entries]
+        for file, url in sources:
+            if file and os.path.normcase(os.path.abspath(file)) == target:
+                video = lyrics.video_id_of(url)
+                if video:
+                    return video
+        return ""
+
+    def _find_song_lyrics(self, items):
+        """A found song brings its lyrics along: looked up on the internet, kept as '<song>.lrc'."""
+        for it in items:
+            path = it.final_path
+            if path and os.path.isfile(path) and not lyrics.has_lyrics(path):
+                artist, title = player.artist_and_title({"title": it.title or os.path.splitext(os.path.basename(path))[0]})
+                self.lyrics_fetcher.find(path, artist, title, video_id=lyrics.video_id_of(it.url))
+
+    def download_playlist(self, results, title):
+        """'⬇ Hepsini indir' in the music window: every song of a (YouTube Music) playlist or album, as MP3,
+        into a playlist with its name, in its order. Songs already there or downloading are skipped.
+        Returns (how many started, the list's name)."""
+        store = self._store()
+        name = store.ensure(title)
+        if self.music is not None:
+            self.music.reload()
+        settings = self.song_settings()
+        base = time.time()
+        added = 0
+        for i, r in enumerate(results):
+            old = self.manager.find_duplicate(r["url"])
+            if old is not None and getattr(old, "origin", "").startswith("music"):
+                if old.state == DONE and old.final_path and os.path.isfile(old.final_path):
+                    store.add_download(name, old.final_path, base + i / 1000)
+                elif old.state not in ACTIVE_STATES:
+                    old.origin, old.group, old.added = "music-list", name, base + i / 1000
+                    self.manager.start(old)
+                continue
+            it = self.manager.add_song(r["url"], r.get("title", ""), settings, origin="music-list")
+            it.group, it.added = name, base + i / 1000            # the list keeps the playlist's order
+            added += 1
+        self.manager.save()
+        if self.music is not None:
+            self.music.reload()
+        return added, name
+
+    def ask_song_list(self, items):
+        """'🎉 İndi! Hangi listeye ekleyeyim?' (one question for songs that finish together)."""
+        songs = [(it.display_name, it.final_path) for it in items
+                 if it.final_path and player.is_audio(it.final_path) and os.path.isfile(it.final_path)]
+        if not songs:
+            return
+        if self.song_dialog is not None:
+            try:
+                if self.song_dialog.winfo_exists():
+                    self.song_dialog.add(songs)
+                    return
+            except TclError:
+                pass
+        store = self._store()
+        default = store.state.get("ask_list") or (self.music.viewed if self.music is not None else "")
+        parent = self.music if (self.mode == MODE_MUSIC and self.music is not None) else self
+        self.song_dialog = SongListDialog(parent, store.names(), default, songs, self.songs_to_list)
+
+    def songs_to_list(self, paths, name):
+        """The answer: name = a list, ("new", wanted name), or None (not now)."""
+        self.song_dialog = None
+        if name is None:
+            if self.music is not None:
+                self.music.note("Tamam, eklemedim. Şarkılar “📂 İnenler” klasöründe duruyor.")
+            return 0
+        store = self._store()
+        name = store.create(name[1]) if isinstance(name, tuple) else store.ensure(name)
+        added = sum(1 for p in paths if not store.has_path(name, p) and store.add(name, [p]))
+        store.set_state(ask_list=name)
+        if self.music is not None:
+            self.music.show_list(name)
+            self.music.note(f"✓ {added} şarkı “{name}” listesine eklendi" if added
+                            else f"Bu şarkılar “{name}” listesinde zaten var")
+        self.notice(f"{added} şarkı “{name}” çalma listesine eklendi" if added
+                    else f"Bu şarkılar “{name}” listesinde zaten var")
+        return added
+
+    def _ensure_music(self):
+        if self.music is not None:
+            return True
+        try:
+            backend = player.MciBackend()
+        except (OSError, AttributeError) as e:
+            log.error("music player unavailable: %s", e)
+            self.notice("Müzik çaları bu bilgisayarda başlatamadım", 8)
+            return False
+        try:
+            spare = player.MciBackend(alias="hizli_music_b")      # the second voice of a cross-fade
+        except (OSError, AttributeError):
+            spare = None
+        self.music = MusicWindow(self, self._store(),
+                                 player.Controller(backend, spare=spare, prepare=playable.Preparer()),
+                                 on_close=self._on_window_x, on_mode=self._switch_mode)
+        self.music.withdraw()
+        return True
+
+    def _switch_mode(self, mode):
+        """Download window <-> music player window. Downloads and music both keep going."""
+        if mode == MODE_MUSIC:
+            if not self._ensure_music():
+                self.mode_bar.set(MODE_DOWNLOAD)
+                return
+            self.mode = MODE_MUSIC
+            self.withdraw()
+            self.music.mode_bar.set(MODE_MUSIC)
+            self.music.deiconify()
+            self.music.lift()
+        else:
+            self.mode = MODE_DOWNLOAD
+            if self.music is not None:
+                self.music.withdraw()
+            self.mode_bar.set(MODE_DOWNLOAD)
+            self.deiconify()
+            self.lift()
 
     def _on_window_x(self):
         """The window's own close button: go to the tray if the user wants that, else quit."""
@@ -1615,7 +2134,7 @@ class App(*_BASES):
             self._hide_to_tray()
             if self.tray is not None and not self._hidden_hint_shown and self.cfg.get("notify_toast"):
                 self._hidden_hint_shown = True
-                notify.toast("Hızlı İndirici", "Arka planda çalışıyor. Simgeye tıklayarak açabilirsin.")
+                notify.toast("DISO", "DISO arka planda çalışmaya devam ediyor. Geri çağırmak için simgesine tıkla.")
         else:
             self._on_close()
 
@@ -1624,7 +2143,7 @@ class App(*_BASES):
         self.bridge = bridge_module.Bridge(BridgeApi(self), port=self.cfg.get("bridge_port"))
         if not self.bridge.start():
             self.bridge = None
-            self.notice("Tarayıcı köprüsü başlatılamadı (port dolu); eklenti çalışmaz", 10)
+            self.notice("Tarayıcı eklentisiyle konuşamıyorum: port başka bir programda kullanımda. Ayarlardan değiştirebilirsin.", 10)
 
     def restart_bridge(self):
         old, self.bridge = self.bridge, None
@@ -1684,7 +2203,7 @@ class App(*_BASES):
             self.update_progress.grid()
             self.update_bar.grid()
         elif self.updates.running:
-            self.update_label.configure(text="Bileşenler kontrol ediliyor…")
+            self.update_label.configure(text="Parçalara bakıyorum…")
             self.update_progress.grid_remove()
             self.update_bar.grid()
         else:
@@ -1705,14 +2224,29 @@ class App(*_BASES):
         if self._closing:
             return
         self._closing = True
+        self._hide_all()         # the windows go at once; what is left to save happens out of sight
         self._save_folder()
         self.manager.shutdown()  # asks running downloads to pause; returns at once
-        self._finish_close(time.time() + 15)
+        if self.music is not None:
+            self.music.shutdown()
+        self._finish_close(time.time() + CLOSE_WAIT)
+
+    def _hide_all(self):
+        for win in [self, *self.winfo_children()]:
+            try:
+                if isinstance(win, tk.Toplevel) or win is self:
+                    win.withdraw()
+            except TclError:
+                pass
+        try:
+            self.update_idletasks()
+        except TclError:
+            pass
 
     def _finish_close(self, deadline):
         """Wait, without freezing the window, until downloads have saved their state."""
         if (self.manager.busy() or self.updates.writing) and time.time() < deadline:
-            self.status.configure(text="Kapatılıyor… indirmeler kaydediliyor")
+            self.status.configure(text="Kapanıyorum… indirmeleri kaydediyorum")
             self.after(100, lambda: self._finish_close(deadline))
             return
         self.manager.save()
@@ -1747,7 +2281,7 @@ class App(*_BASES):
     def report_callback_exception(self, exc, val, tb):
         """A button / timer callback crashed: write it to the log, keep the window alive."""
         log.error("callback failed", exc_info=(exc, val, tb))
-        self.notice("Beklenmeyen bir hata oldu (ayrıntı günlükte: Ayarlar → Günlüğü aç)", 10)
+        self.notice("Hoppala, beklenmedik bir şey oldu. Ayrıntısı günlükte: Ayarlar → Günlüğü aç", 10)
 
     def _tick(self):
         self._tick_no += 1
@@ -1775,7 +2309,7 @@ class App(*_BASES):
             items = self.manager.items
             active = sum(i.state in (DOWNLOADING, PROCESSING, RESOLVING) for i in items)
             speed = sum(i.speed for i in items if i.state == DOWNLOADING)
-            self.tray.set_title(f"Hızlı İndirici • {active} aktif • {human_size(speed)}/s")
+            self.tray.set_title(f"DISO • {active} aktif • {human_size(speed)}/s")
 
     def _update_status(self):
         items = self.manager.items
@@ -1787,7 +2321,7 @@ class App(*_BASES):
         limit = self.cfg.get("speed_limit")
         if SPEED_LIMITS.get(limit):
             parts.append(f"Sınır: {limit}")
-        parts.append("FFmpeg: hazır" if self._ffmpeg_ok else "FFmpeg: yok (gerekince otomatik indirilir)")
+        parts.append("FFmpeg: hazır" if self._ffmpeg_ok else "FFmpeg: yok (lazım olunca kendim indiririm)")
         text = "  •  ".join(parts)
         if self.queue_note:
             text += f"  •  {self.queue_note}"

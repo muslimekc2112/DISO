@@ -92,10 +92,10 @@ def test_urls_from_file_missing_file_gives_empty_list(tmp_path):
 
 
 # ------------------------------------------------------------------------------ paths
-def test_app_data_dir_lives_in_the_home_folder(isolated_home):
+def test_app_data_dir_lives_in_local_appdata(isolated_home):
     d = utils.app_data_dir()
     assert os.path.isdir(d)
-    assert os.path.dirname(d) == str(isolated_home)
+    assert d == str(isolated_home / "AppData" / "Local" / "DISO")
     assert utils.user_tools_dir().startswith(d)
 
 

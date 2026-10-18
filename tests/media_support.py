@@ -27,7 +27,8 @@ def ffmpeg(*args):
 
 def probe_json(path):
     out = subprocess.run([FFPROBE, "-v", "error", "-show_entries",
-                          "stream=codec_type,codec_name:stream_disposition=attached_pic:format=bit_rate:format_tags=title,artist",
+                          "stream=codec_type,codec_name:stream_disposition=attached_pic:stream_tags=language"
+                          ":format=bit_rate:format_tags=title,artist",
                           "-of", "json", path], capture_output=True, text=True, check=True).stdout
     return json.loads(out)
 

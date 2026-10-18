@@ -3,7 +3,7 @@ import os
 import sys
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-APP_NAME = "HizliIndirici"
+APP_NAME = "DISO"
 
 
 def command(minimized: bool = True) -> str:

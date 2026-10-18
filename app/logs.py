@@ -1,4 +1,4 @@
-"""Log file (~/.hizli_indirici/hizli_indirici.log) so a problem can be looked at afterwards."""
+"""Log file (%LOCALAPPDATA%\\DISO/diso.log) so a problem can be looked at afterwards."""
 import logging
 import logging.handlers
 import os
@@ -10,7 +10,7 @@ log.addHandler(logging.NullHandler())  # silent until setup_logging() is called 
 
 
 def log_path() -> str:
-    return os.path.join(app_data_dir(), "hizli_indirici.log")
+    return os.path.join(app_data_dir(), "diso.log")
 
 
 def setup_logging(level=logging.INFO) -> str:

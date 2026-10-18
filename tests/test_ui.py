@@ -20,7 +20,7 @@ MB = 1024 * 1024
 # ------------------------------------------------------------------------------ list
 def test_an_empty_list_shows_a_hint(app):
     app._sync_rows()
-    assert "Henüz indirme yok" in app.empty_label.cget("text")
+    assert "şimdilik bomboş" in app.empty_label.cget("text")
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def test_filters(four, flt, expected):
     assert shown(four) == expected
     assert four.cfg.get("filter") == flt                 # remembered
     if not expected:
-        assert "uyan indirme yok" in four.empty_label.cget("text")
+        assert "Aramana uyan" in four.empty_label.cget("text")
 
 
 def test_search_matches_names_and_links(four):
@@ -180,8 +180,8 @@ def test_row_buttons_talk_to_the_manager(four, monkeypatch):
 def test_a_rows_text_follows_the_items_state(four):
     shown(four)
     rows = {r.item.title: r for r in four.rows.values()}
-    assert "Tamamlandı" in rows["Alpha"].info.cget("text")
-    assert "Duraklatıldı" in rows["Beta"].info.cget("text")
+    assert "Bitti" in rows["Alpha"].info.cget("text")
+    assert "Beklemede" in rows["Beta"].info.cget("text")
     assert "❌" in rows["Gamma"].info.cget("text")
     assert rows["Alpha"].open_btn.cget("state") == "normal"
     assert rows["Beta"].open_btn.cget("state") == "disabled"
@@ -193,10 +193,10 @@ def test_settings_apply_immediately_and_are_saved(app, isolated_home):
     app.apply_setting("max_parallel", 5)
     app.apply_setting("speed_limit", "1 MB/s")
     assert app.manager.max_parallel == 5 and LIMITER.rate == MB
-    saved = json.load(open(isolated_home / ".hizli_indirici" / "settings.json", encoding="utf-8"))
+    saved = json.load(open(isolated_home / "AppData" / "Local" / "DISO" / "settings.json", encoding="utf-8"))
     assert saved["max_parallel"] == 5 and saved["speed_limit"] == "1 MB/s"
     app.apply_setting("speed_limit", "Sınırsız")
-    assert LIMITER.rate == 0 and "kaldırıldı" in notice(app)
+    assert LIMITER.rate == 0 and "kalktı" in notice(app)
 
 
 def test_the_option_bar_choices_are_saved(app):
@@ -215,7 +215,7 @@ def test_the_option_bar_choices_are_saved(app):
 
 def test_saved_settings_come_back_at_the_next_start(make_app, isolated_home, tmp_path):
     folder = str(tmp_path / "my downloads")
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({
         "quality": "720p", "connections": "32", "bitrate": "128", "cookies": "firefox",
@@ -231,7 +231,7 @@ def test_saved_settings_come_back_at_the_next_start(make_app, isolated_home, tmp
 
 
 def test_saved_values_that_no_longer_exist_fall_back_to_defaults(make_app, isolated_home):
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"quality": "9999p", "max_parallel": 99,
                                                  "speed_limit": "1 GB/s"}), encoding="utf-8")
@@ -240,7 +240,7 @@ def test_saved_values_that_no_longer_exist_fall_back_to_defaults(make_app, isola
 
 
 def test_the_end_action_is_never_restored_from_a_previous_session(make_app, isolated_home):
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"after_all": "Bilgisayarı kapat"}), encoding="utf-8")
     assert make_app().after_all == "Hiçbir şey yapma"
@@ -282,7 +282,7 @@ def test_settings_window_is_wired_to_the_app(app):
 
 def test_test_notification_button(app):
     app.test_notification()
-    assert app.notes["sound"] == ["done"] and app.notes["toast"][0][1].startswith("Bildirimler")
+    assert app.notes["sound"] == ["done"] and app.notes["toast"][0][1].startswith("Bildirim geldiyse")
 
 
 # ------------------------------------------------------------------------------ adding
@@ -317,29 +317,7 @@ def test_an_added_link_is_downloaded_into_the_chosen_folder(app, server, tmp_pat
 
 def test_an_empty_box_asks_for_a_link(app):
     app.add_from_entry()
-    assert "bağlantı yapıştır" in notice(app)
-
-
-def test_dropped_links_and_text_files_are_added(app, server, tmp_path):
-    app.folder_entry.delete(0, "end")
-    app.folder_entry.insert(0, str(tmp_path / "dl"))
-    urls = local_urls(server, 3)
-    listing = tmp_path / "link list.txt"                  # a space in the path: tkdnd wraps it in {}
-    listing.write_text(f"{urls[0]}\nnot a link\n{urls[1]}\n", encoding="utf-8")
-    event = types.SimpleNamespace(data="{%s} %s" % (str(listing).replace("\\", "/"), urls[2]), action="copy")
-    app._on_drop(event)
-    assert len(app.manager.items) == 3 and "3 bağlantı eklendi" in notice(app)
-    app._on_drop(event)                                   # dropping the same things again
-    assert len(app.manager.items) == 3 and "zaten listede" in notice(app)
-
-
-def test_a_drop_without_links_says_so(app, tmp_path):
-    empty = tmp_path / "empty.txt"
-    empty.write_text("nothing here", encoding="utf-8")
-    app._on_drop(types.SimpleNamespace(data=str(empty).replace("\\", "/"), action="copy"))
-    assert "bulunamadı" in notice(app) and app.manager.items == []
-    app._on_drop(types.SimpleNamespace(data="just words", action="copy"))
-    assert "bulunamadı" in notice(app)
+    assert "link yapıştır" in notice(app)
 
 
 def test_the_import_file_button_adds_every_link_of_a_file(app, server, tmp_path):
@@ -350,7 +328,7 @@ def test_the_import_file_button_adds_every_link_of_a_file(app, server, tmp_path)
     assert app._add_from_paths([str(f)]) == 2
     f2 = tmp_path / "none.txt"
     f2.write_text("no links", encoding="utf-8")
-    assert app._add_from_paths([str(f2)]) == 0 and "Dosyada bağlantı bulunamadı" in notice(app)
+    assert app._add_from_paths([str(f2)]) == 0 and "O dosyada tek bir link bile bulamadım" in notice(app)
 
 
 # --------------------------------------------------------------------- notifications
@@ -524,6 +502,19 @@ def test_closing_returns_at_once_and_closes_the_window(app):
     assert wait_for(lambda: destroyed(app), 5)
 
 
+def test_closing_hides_every_window_at_once_even_while_downloads_still_save(app, monkeypatch):
+    """What is left to do after the X button happens out of sight: the window never looks stuck."""
+    from app import ui
+    app.deiconify()
+    other = ui.ctk.CTkToplevel(app)
+    app.update()
+    monkeypatch.setattr(app.manager, "busy", lambda: True)          # a download still writing its state
+    monkeypatch.setattr(ui, "CLOSE_WAIT", 0.5)
+    app._on_close()
+    assert app.state() == "withdrawn" and other.state() == "withdrawn"
+    assert wait_for(lambda: destroyed(app), 5)                      # and it does end, after the short wait
+
+
 def test_closing_remembers_the_folder_and_pauses_running_downloads(app, server, isolated_home, tmp_path):
     out = tmp_path / "dl"
     app.folder_entry.delete(0, "end")
@@ -536,9 +527,9 @@ def test_closing_remembers_the_folder_and_pauses_running_downloads(app, server, 
     app._on_close()
     assert time.time() - t0 < 0.5                          # the window does not wait for the workers
     assert wait_for(lambda: destroyed(app), 10), dump_threads()
-    data = json.load(open(isolated_home / ".hizli_indirici" / "downloads.json", encoding="utf-8"))
+    data = json.load(open(isolated_home / "AppData" / "Local" / "DISO" / "downloads.json", encoding="utf-8"))
     assert [i["state"] for i in data["items"]] == [PAUSED]
-    settings = json.load(open(isolated_home / ".hizli_indirici" / "settings.json", encoding="utf-8"))
+    settings = json.load(open(isolated_home / "AppData" / "Local" / "DISO" / "settings.json", encoding="utf-8"))
     assert settings["folder"] == str(out)
     assert os.path.exists(str(out / name) + ".part")        # the partial file is kept for resume
 

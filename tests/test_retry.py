@@ -77,7 +77,7 @@ def test_a_download_that_hits_a_network_problem_recovers_by_itself(manager, serv
     manager.add_url(server.url("f", name), settings)
     item = manager.items[0]
     assert wait_for(lambda: item.state == WAITING, 10)
-    assert "tekrar denenecek" in item.message and "1/3" in item.message
+    assert "tekrar deneyeceğim" in item.message and "1/3" in item.message
     assert wait_for(lambda: item.state == DONE, 15)
     assert open(item.final_path, "rb").read() == data
     assert item.retries == 0                             # reset after the success

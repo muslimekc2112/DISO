@@ -40,11 +40,12 @@ def make_app(monkeypatch, isolated_home):
     """Returns make(minimized=False) -> a hidden App. Everything that would touch the real
     machine (tray icon, registry, sounds, toasts, shutdown, network update) is replaced."""
     pytest.importorskip("customtkinter")
-    from app import config, ui
+    from app import brand, config, ui
     FakeCountdown.log = []
     FakeTray.instances = []
     notes = {"sound": [], "toast": [], "power": [], "startup": []}
     monkeypatch.setitem(config.DEFAULTS, "bridge_port", 0)                    # any free port
+    monkeypatch.setitem(config.DEFAULTS, "last_version", brand.VERSION_LABEL)  # not a first run: no welcome note in the way
     monkeypatch.setattr(ui.tray, "TrayIcon", FakeTray)
     monkeypatch.setattr(ui.startup, "set_enabled", lambda on, *a, **k: notes["startup"].append(on) or True)
     monkeypatch.setattr(updater.Updater, "start", lambda self: None)          # no network
@@ -52,6 +53,17 @@ def make_app(monkeypatch, isolated_home):
     monkeypatch.setattr(notify, "toast", lambda title, body: notes["toast"].append((title, body)))
     monkeypatch.setattr(notify, "power_action", lambda kind: notes["power"].append(kind) or True)
     monkeypatch.setattr(ui, "CountdownDialog", FakeCountdown)
+    from music_support import FakeKeys, FakeSearcher
+    from app import mediakeys, music_search
+    monkeypatch.setattr(mediakeys, "MediaKeys", FakeKeys)                     # never the user's real keyboard keys
+    monkeypatch.setattr(music_search, "Searcher", FakeSearcher)               # no internet
+    from app import lyrics
+    monkeypatch.setattr(lyrics, "fetch", lambda *a, **k: None)                 # no internet for lyrics either
+    from music_support import FakeOverlay, FakeThumbBar
+    from app import smtc
+    from app import taskbar as taskbar_module
+    monkeypatch.setattr(smtc, "MediaOverlay", FakeOverlay)                    # not Windows' real media panel
+    monkeypatch.setattr(taskbar_module, "ThumbBar", FakeThumbBar)             # nor the real taskbar
     made = []
 
     def make(minimized=False):

@@ -18,10 +18,40 @@ def resource_path(relative: str) -> str:
     return os.path.join(base, relative)
 
 
+def local_appdata() -> Path:
+    base = os.environ.get("LOCALAPPDATA")
+    return Path(base) if base else Path.home() / "AppData" / "Local"
+
+
+def migrate_legacy_data(legacy: Path, new: Path) -> str:
+    """Earlier versions kept their data in %LOCALAPPDATA%\\DISO. Bring it to the new place once.
+    Returns the folder to use: the new one, or (if it could not be brought over) the old one,
+    so that nothing the user had is ever lost or hidden."""
+    try:
+        new.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(legacy), str(new))                 # one rename on the same drive
+        return str(new)
+    except OSError:
+        pass
+    try:                                                   # a file is in use (the old program is still open): copy instead
+        shutil.copytree(legacy, new, dirs_exist_ok=True)
+        return str(new)
+    except (OSError, shutil.Error):
+        shutil.rmtree(new, ignore_errors=True)             # a half copy must not pass for the real thing
+        return str(legacy)
+
+
 def app_data_dir() -> str:
-    d = Path.home() / ".hizli_indirici"
-    d.mkdir(parents=True, exist_ok=True)
-    return str(d)
+    """%LOCALAPPDATA%\\DISO (settings, playlists, the download list, downloaded tools)."""
+    from . import brand
+    new = local_appdata() / brand.DATA_DIR_NAME
+    if not new.exists():
+        for name in brand.LEGACY_DATA_DIR_NAMES:
+            legacy = Path.home() / name
+            if legacy.is_dir():
+                return migrate_legacy_data(legacy, new)
+    new.mkdir(parents=True, exist_ok=True)
+    return str(new)
 
 
 def user_tools_dir() -> str:
@@ -34,7 +64,9 @@ def user_tools_dir() -> str:
 def tool_dirs() -> list:
     dirs = [resource_path("ffmpeg")]
     if getattr(sys, "frozen", False):
-        dirs.append(os.path.join(os.path.dirname(sys.executable), "ffmpeg"))
+        beside = os.path.dirname(sys.executable)
+        dirs.append(os.path.join(beside, "ffmpeg"))
+        dirs.append(os.path.join(beside, "deno"))      # put there by the installer: YouTube needs a JavaScript runtime
     dirs.append(user_tools_dir())
     return dirs
 

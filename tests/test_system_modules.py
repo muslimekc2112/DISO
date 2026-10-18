@@ -62,13 +62,13 @@ def test_the_startup_command_for_a_source_install_and_an_exe(monkeypatch):
     assert cmd.endswith('main.py" --minimized') and cmd.startswith('"')
     assert startup.command(minimized=False).endswith('main.py"')
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", r"C:\Apps\HizliIndirici.exe")
-    assert startup.command() == r'"C:\Apps\HizliIndirici.exe" --minimized'
+    monkeypatch.setattr(sys, "executable", r"C:\Apps\DISO.exe")
+    assert startup.command() == r'"C:\Apps\DISO.exe" --minimized'
 
 
 @pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows registry")
 def test_start_with_windows_writes_and_removes_the_registry_value():
-    name = f"HizliIndiriciTest_{uuid.uuid4().hex[:8]}"
+    name = f"DISOTest_{uuid.uuid4().hex[:8]}"
     try:
         assert startup.is_enabled(name) is False
         assert startup.set_enabled(True, name) is True
@@ -93,7 +93,7 @@ def test_startup_does_nothing_off_windows(monkeypatch):
 @pytest.mark.skipif(not tray.AVAILABLE, reason="pystray is not installed")
 def test_tray_icon_starts_changes_its_tooltip_and_stops():
     events = []
-    icon = tray.TrayIcon("Hızlı İndirici", events.append)
+    icon = tray.TrayIcon("DISO", events.append)
     try:
         icon.start()
         assert icon.running
@@ -176,7 +176,7 @@ def get(base, path, headers=None):
 def test_ping_identifies_the_app(running):
     api, b, base = running
     data = get(base, "/ping").json()
-    assert data == {"app": "HizliIndirici", "version": __version__, "add": True}
+    assert data == {"app": "DISO", "version": __version__, "add": True}
     assert get(base, "/status").json() == {"active": 1, "queued": 2, "speed": 1234}
     assert get(base, "/nothing").status_code == 404
 

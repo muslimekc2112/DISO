@@ -3,6 +3,7 @@ scheduler, tray, browser bridge, settings window, theme and log."""
 import datetime
 import json
 import os
+import time
 import types
 
 import pytest
@@ -72,7 +73,7 @@ def test_settings_from_the_saved_config_match_the_widgets(app, tmp_path):
 
 
 def test_the_old_settings_file_without_the_new_keys_still_loads(make_app, isolated_home):
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"quality": "720p"}), encoding="utf-8")
     a = make_app()
@@ -281,7 +282,7 @@ def test_the_info_button_needs_a_link(app, monkeypatch):
     opened = []
     monkeypatch.setattr(ui, "InfoDialog", lambda a, url: opened.append(url))
     app._show_info()
-    assert opened == [] and "bağlantı yapıştır" in notice(app)
+    assert opened == [] and "link yapıştır" in notice(app)
     app.url_entry.insert(0, "see https://x.com/watch?v=1 please")
     app._show_info()
     assert opened == ["https://x.com/watch?v=1"]
@@ -375,7 +376,7 @@ def test_the_menu_can_be_posted(app, monkeypatch):
 
 # ------------------------------------------------------------------------- row texts
 def test_a_waiting_download_shows_the_retry_message(app):
-    it = add_item(app, "W", WAITING, message="Bağlantı sorunu: 10 sn sonra tekrar denenecek (1/3)")
+    it = add_item(app, "W", WAITING, message="Bağlantı sorunu: 10 sn sonra tekrar deneyeceğim (1/3)")
     row = row_for(app, "W")
     assert row.info.cget("text").startswith("⏳ Bağlantı sorunu") and row.toggle_btn.cget("text") == "⏸"
     assert it.state == WAITING
@@ -397,7 +398,7 @@ def test_queued_rows_explain_why_they_wait(app):
     assert "02:00'de başlayacak" in row_for(app, "Q").info.cget("text")
     app.queue_note = ""
     app._sync_rows()
-    assert row_for(app, "Q").info.cget("text") == "Sırada bekliyor…"
+    assert row_for(app, "Q").info.cget("text") == "Sırada, birazdan başlıyor…"
 
 
 # ----------------------------------------------------------------------- shortcuts
@@ -410,7 +411,7 @@ def test_ctrl_v_adds_the_links_in_the_clipboard(app, monkeypatch, server, tmp_pa
     assert len(app.manager.items) == 2
     monkeypatch.setattr(app, "_clipboard_text", lambda: "no links here")
     app._on_ctrl_v()
-    assert "Panoda bağlantı yok" in notice(app)
+    assert "Panoda link göremedim" in notice(app)
 
 
 def test_shortcuts_leave_text_boxes_alone(app, monkeypatch):
@@ -570,9 +571,9 @@ def test_closing_goes_to_the_tray_when_wanted(app, monkeypatch):
     app._on_window_x()
     app.update()
     assert app.state() == "withdrawn"
-    assert app.notes["toast"][-1][1].startswith("Arka planda çalışıyor")
+    assert app.notes["toast"][-1][1].startswith("DISO arka planda")
     app._on_window_x()
-    assert len([t for t in app.notes["toast"] if t[1].startswith("Arka planda")]) == 1   # told only once
+    assert len([t for t in app.notes["toast"] if t[1].startswith("DISO arka planda")]) == 1   # told only once
 
 
 def test_the_tray_menu_controls_the_app(app, monkeypatch):
@@ -598,7 +599,7 @@ def test_the_tray_tooltip_shows_the_activity(app):
     app.apply_setting("tray_on_close", True)
     add_item(app, "Run", DOWNLOADING, speed=2 * 1024 * 1024)
     app._update_tray_tooltip()
-    assert FakeTray.instances[0].title == "Hızlı İndirici • 1 aktif • 2.0 MB/s"
+    assert FakeTray.instances[0].title == "DISO • 1 aktif • 2.0 MB/s"
 
 
 def test_starting_minimized_hides_the_window_in_the_tray(make_app):
@@ -640,7 +641,7 @@ def base(app):
 def test_the_window_runs_a_bridge_for_the_extension(app):
     assert app.bridge is not None and app.bridge.port > 0
     info = requests.get(base(app) + "/ping", proxies=NO_PROXY).json()
-    assert info["app"] == "HizliIndirici" and info["add"] is True
+    assert info["app"] == "DISO" and info["add"] is True
 
 
 def test_links_and_session_from_the_extension_become_downloads(app, server, tmp_path):
@@ -722,12 +723,12 @@ def test_a_taken_port_is_reported_and_the_app_still_works(make_app, isolated_hom
     blocker.bind(("127.0.0.1", 0))
     blocker.listen(1)
     port = blocker.getsockname()[1]
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"bridge_port": port}), encoding="utf-8")
     try:
         a = make_app()
-        assert a.bridge is None and "port dolu" in notice(a)
+        assert a.bridge is None and "port başka bir programda" in notice(a)
     finally:
         blocker.close()
 
@@ -757,7 +758,27 @@ def test_every_new_setting_is_wired(app, monkeypatch):
            (False, True, False)
     p.theme_menu._command("Açık")
     import customtkinter
+    time.sleep(0.2)
+    app.update()                                       # the theme is applied after the menu has closed
     assert customtkinter.get_appearance_mode() == "Light" and app.cfg.get("theme") == "Açık"
+
+
+def test_the_settings_window_stays_visible_when_the_theme_changes(app):
+    """Changing the theme used to hide the open settings window; the Ayarlar button then only
+    lifted the invisible window, so it looked as if the button did nothing."""
+    app._open_settings()
+    app.update()
+    panel = app.settings_panel
+    for theme in ("Açık", "Koyu", "Açık"):
+        panel.theme_menu._command(theme)
+        time.sleep(0.6)
+        app.update()
+        assert panel.state() == "normal" and panel.winfo_viewable(), theme
+    panel.withdraw()                                   # whatever hid it: the button must show it again
+    app.update()
+    app._open_settings()
+    app.update()
+    assert app.settings_panel is panel and panel.state() == "normal" and panel.winfo_viewable()
 
 
 def test_the_proxy_entry_applies_validates_and_marks_mistakes(app):
@@ -796,7 +817,7 @@ def test_the_proxy_test_does_not_run_for_an_invalid_address(app, monkeypatch):
 
 
 def test_a_saved_proxy_is_active_at_the_next_start(make_app, isolated_home):
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"proxy": "http://127.0.0.1:3128"}), encoding="utf-8")
     make_app()
@@ -804,7 +825,7 @@ def test_a_saved_proxy_is_active_at_the_next_start(make_app, isolated_home):
 
 
 def test_a_broken_saved_proxy_is_dropped_instead_of_blocking_the_app(make_app, isolated_home):
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"proxy": "javascript:alert(1)"}), encoding="utf-8")
     a = make_app()
@@ -848,11 +869,11 @@ def test_a_failed_registry_write_keeps_the_setting_off_and_tells_the_user(app, m
     from app import ui
     monkeypatch.setattr(ui.startup, "set_enabled", lambda *a, **k: False)
     app.apply_setting("start_with_windows", True)
-    assert app.cfg.get("start_with_windows") is False and "yazılamadı" in notice(app)
+    assert app.cfg.get("start_with_windows") is False and "ekleyemedim" in notice(app)
 
 
 def test_the_startup_entry_is_refreshed_when_the_app_starts_with_the_setting_on(make_app, isolated_home):
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"start_with_windows": True}), encoding="utf-8")
     a = make_app()
@@ -866,7 +887,7 @@ def test_the_tray_switch_creates_the_tray_icon(app):
 
 
 def test_the_settings_window_shows_the_saved_values(make_app, isolated_home):
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({
         "auto_retry": 5, "proxy": "http://p:1", "schedule_start": "01:30", "schedule_stop": "",
@@ -881,7 +902,7 @@ def test_the_settings_window_shows_the_saved_values(make_app, isolated_home):
 
 def test_theme_is_restored_at_startup(make_app, isolated_home):
     import customtkinter
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"theme": "Açık"}), encoding="utf-8")
     make_app()
@@ -890,7 +911,7 @@ def test_theme_is_restored_at_startup(make_app, isolated_home):
 
 def test_an_unknown_saved_theme_falls_back_to_dark(make_app, isolated_home):
     import customtkinter
-    d = isolated_home / ".hizli_indirici"
+    d = isolated_home / "AppData" / "Local" / "DISO"
     d.mkdir()
     (d / "settings.json").write_text(json.dumps({"theme": "Neon"}), encoding="utf-8")
     a = make_app()
@@ -902,7 +923,7 @@ def test_the_log_button_opens_the_log_file(app, monkeypatch):
     opened = []
     monkeypatch.setattr(ui, "open_file", opened.append)
     app.open_log()
-    assert len(opened) == 1 and os.path.exists(opened[0]) and opened[0].endswith("hizli_indirici.log")
+    assert len(opened) == 1 and os.path.exists(opened[0]) and opened[0].endswith("diso.log")
 
 
 def test_the_extension_folder_button(app, monkeypatch):
@@ -918,8 +939,8 @@ def test_a_crashing_callback_is_logged_and_the_window_survives(app, isolated_hom
         raise ValueError("boom in a button")
     except ValueError as e:
         app.report_callback_exception(type(e), e, e.__traceback__)
-    assert "Beklenmeyen bir hata" in notice(app)
-    text = (isolated_home / ".hizli_indirici" / "hizli_indirici.log").read_text(encoding="utf-8")
+    assert "Hoppala, beklenmedik" in notice(app)
+    text = (isolated_home / "AppData" / "Local" / "DISO" / "diso.log").read_text(encoding="utf-8")
     assert "callback failed" in text and "boom in a button" in text
     app.update()
 
@@ -949,7 +970,7 @@ def test_the_log_keeps_working_after_the_window_is_destroyed(app):
 
 
 def test_downloading_state_helper_constants():
-    assert DOWNLOADING != QUEUED and startup.APP_NAME == "HizliIndirici" and LIMITER is not None
+    assert DOWNLOADING != QUEUED and startup.APP_NAME == "DISO" and LIMITER is not None
 
 
 # --------------------------------------------------------------- fit to the screen

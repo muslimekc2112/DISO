@@ -2,9 +2,9 @@ HIZLI İNDİRİCİ — TARAYICI EKLENTİSİ
 ====================================
 
 Ne yapar?
-  * Bağlantıya sağ tık -> "Hızlı İndirici ile indir"
+  * Bağlantıya sağ tık -> "DISO ile indir"
   * Videonun / sesin / resmin üstüne sağ tık -> aynı menü
-  * Sayfaya sağ tık -> "Bu sayfayı Hızlı İndirici ile indir (video)"
+  * Sayfaya sağ tık -> "Bu sayfayı DISO ile indir (video)"
   * Metin seçip sağ tık -> seçilen bağlantıların hepsi
   * İstersen tarayıcının kendi indirmelerini yakalar ve uygulamaya yönlendirir
     (Ayarlar'dan açılır; uygulama kapalıysa tarayıcı normal indirir).
@@ -22,7 +22,7 @@ Kurulum — Firefox
      (Firefox geçici eklentileri kapanınca siler; kalıcı kurulum için eklenti imzalanmalıdır.)
 
 Kullanım
-  * Hızlı İndirici uygulaması AÇIK olmalı.
+  * DISO uygulaması AÇIK olmalı.
   * Bağlantı noktası uygulamadaki Ayarlar -> "Eklenti bağlantı noktası" ile aynı olmalı (varsayılan 17653).
     Eklentinin ayar sayfasındaki "Bağlantıyı dene" düğmesiyle kontrol et.
 

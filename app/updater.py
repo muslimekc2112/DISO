@@ -2,7 +2,7 @@
 Keeps the tools the app depends on up to date.
 
   yt-dlp, yt-dlp-ejs  PyPI wheels. A newer copy is unpacked into
-                      ~/.hizli_indirici/packages and imported in front of the bundled
+                      %LOCALAPPDATA%\\DISO/packages and imported in front of the bundled
                       one. That works for the source run and for the .exe (which has
                       yt-dlp inside it), without needing pip.
   FFmpeg              the build this app installed itself, when its mirror offers a
@@ -246,6 +246,11 @@ def _download_verified(url, sha256, dest, on_progress) -> None:
         raise DownloadError("SHA-256 eşleşmedi, dosya kullanılmadı")
 
 
+def _in_use(module: str) -> bool:
+    """yt_dlp (or yt_dlp_ejs) was imported in this run: its files must not change under it."""
+    return module in sys.modules or any(m.startswith(module + ".") for m in list(sys.modules))
+
+
 def _unpack(wheel: str, module: str) -> bool:
     """Replace packages/<module> with the one inside the wheel. The copy that was there is
     kept as .previous-<module> (for rollback). Returns True if there was one."""
@@ -306,6 +311,9 @@ class Updater:
         """Check and update in the background, once per launch."""
         global _started
         _started = True
+        ready.set()                             # downloads never wait for the check (see _swap)
+        if os.environ.get("HIZLI_NO_UPDATE"):   # for tests and offline use: skip the network check
+            return
         threading.Thread(target=self._startup, daemon=True).start()
 
     def _startup(self):
@@ -313,6 +321,10 @@ class Updater:
             self.run(install=True)
         finally:
             ready.set()
+        try:
+            load_yt_dlp()        # warm up now (after any update): the first download does not wait for it
+        except Exception:  # noqa: BLE001 - the download will say what is wrong
+            pass
 
     def install_ffmpeg(self) -> bool:
         """Install FFmpeg now (the 'Kur' button). Returns False if another check is running."""
@@ -335,14 +347,11 @@ class Updater:
         try:
             outdated = self._check_packages()
             if install and outdated:
-                ready.clear()  # no yt_dlp import while its files are being replaced
-                try:
-                    for pkg, info in outdated.items():
-                        self._install_package(pkg, info)
-                finally:
-                    ready.set()
+                for pkg, info in outdated.items():
+                    self._install_package(pkg, info)
             self._check_ffmpeg(install)
         finally:
+            ready.set()                         # whatever happened, yt-dlp is never left blocked
             self.running = False
             self.last_check = time.time()
             self._lock.release()
@@ -369,7 +378,7 @@ class Updater:
             try:
                 info = fetch_release(pkg)
             except Exception as e:
-                comp.status, comp.message = "error", f"Sunucuya ulaşılamadı: {_short(e)}"
+                comp.status, comp.message = "error", f"Sunucuya ulaşamadım: {_short(e)}"
                 continue
             comp.latest = info["version"]
             comp.checked_at = time.time()
@@ -398,23 +407,33 @@ class Updater:
             wheel = os.path.join(tmp, info["filename"])
             _download_verified(info["url"], info["sha256"], wheel, on_progress)
             comp.progress, comp.message = 1.0, "Kuruluyor…"
-            self.writing = True  # the window waits for this short step if it is closed now
-            try:
-                had_old = _unpack(wheel, module)
-                manifest = _read_manifest()
-                previous = dict(manifest.get("_previous", {}))
-                if had_old and manifest.get(pkg):
-                    previous[pkg] = manifest[pkg]   # rollback target
-                else:
-                    previous.pop(pkg, None)
-                manifest[pkg] = info["version"]
-                manifest["_previous"] = previous
-                _write_manifest(manifest)
-            finally:
-                self.writing = False
+            # The files are swapped only while nobody imports yt-dlp (the import holds the same lock).
+            # If a download already uses it, the files of a running yt-dlp are not touched: the new
+            # version is installed at the next start, before the first download.
+            with _ytdlp_lock:
+                if _in_use(module):
+                    comp.status = "available"
+                    comp.message = f"{info['version']} hazır: DISO'yu bir dahaki açışında kurulacak"
+                    return
+                ready.clear()
+                self.writing = True  # the window waits for this short step if it is closed now
+                try:
+                    had_old = _unpack(wheel, module)
+                    manifest = _read_manifest()
+                    previous = dict(manifest.get("_previous", {}))
+                    if had_old and manifest.get(pkg):
+                        previous[pkg] = manifest[pkg]   # rollback target
+                    else:
+                        previous.pop(pkg, None)
+                    manifest[pkg] = info["version"]
+                    manifest["_previous"] = previous
+                    _write_manifest(manifest)
+                finally:
+                    self.writing = False
+                    ready.set()
             _register(pkg, info["version"])
         except Exception as e:
-            comp.status, comp.message = "error", f"Güncelleme başarısız: {_short(e)}"
+            comp.status, comp.message = "error", f"Güncelleyemedim: {_short(e)}"
             return
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -430,11 +449,11 @@ class Updater:
         path = find_ffmpeg()
         if not path:
             comp.status, comp.installed = "missing", ""
-            comp.message = "Kurulu değil; MP3 veya video birleştirmede otomatik kurulur"
+            comp.message = "Kurulu değil; MP3 ya da video birleştirirken kendim kurarım"
             return
         if not ffmpeg_setup.is_managed(path):
             comp.status, comp.installed = "manual", ffmpeg_setup.ffmpeg_version(path)
-            comp.message = "Kendi kurulumun; uygulama bunu güncellemez"
+            comp.message = "Senin kendi kurulumun; ona dokunmam"
             return
         info = ffmpeg_setup.read_info()
         comp.installed = info.get("version") or ffmpeg_setup.ffmpeg_version(path)
@@ -442,7 +461,7 @@ class Updater:
         try:
             sha, _ = ffmpeg_setup.latest_release()
         except Exception as e:
-            comp.status, comp.message = "error", f"Sunucuya ulaşılamadı: {_short(e)}"
+            comp.status, comp.message = "error", f"Sunucuya ulaşamadım: {_short(e)}"
             return
         comp.checked_at = time.time()
         if sha == info.get("sha256"):
@@ -464,7 +483,7 @@ class Updater:
 
         ffmpeg_setup.ensure_ffmpeg(progress=on_progress, force=True)
         if ffmpeg_setup.last_error:
-            comp.status, comp.message = "error", f"Güncelleme başarısız: {_short(ffmpeg_setup.last_error)}"
+            comp.status, comp.message = "error", f"Güncelleyemedim: {_short(ffmpeg_setup.last_error)}"
             return
         comp.installed = ffmpeg_setup.read_info().get("version", "")
         comp.status, comp.progress, comp.message = "done", 1.0, "Güncellendi"

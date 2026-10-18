@@ -8,6 +8,7 @@ The actual work for one list item:
 """
 import os
 import threading
+from urllib.parse import urlsplit
 
 from . import video_engine as ve
 from .ffmpeg_setup import ensure_ffmpeg
@@ -43,9 +44,23 @@ def release_path(path: str) -> None:
 
 
 # ------------------------------------------------------------------------ auto detect
+VIDEO_SITES = ("youtube.com", "youtu.be", "youtube-nocookie.com", "instagram.com", "tiktok.com", "x.com",
+               "twitter.com", "facebook.com", "fb.watch", "vimeo.com", "dailymotion.com", "twitch.tv",
+               "soundcloud.com", "reddit.com", "pinterest.com", "bilibili.com", "kick.com", "music.youtube.com")
+
+
+def is_video_site(url: str) -> bool:
+    host = urlsplit(url).hostname or ""
+    return any(host == d or host.endswith("." + d) for d in VIDEO_SITES)
+
+
 def classify(item: Item):
-    """Sets item.kind to 'file' or 'video' by looking at the server's answer."""
-    item.message = "Bağlantı türü algılanıyor…"
+    """Sets item.kind to 'file' or 'video' by looking at the server's answer. Links of well-known
+    video sites are not asked (a request to their page only costs time)."""
+    if is_video_site(item.url):
+        item.kind = "video"
+        return
+    item.message = "Bu linkin ne olduğuna bakıyorum…"
     try:
         pr = probe(item.url, item.request_headers(), timeout=12)
     except Exception:
@@ -82,7 +97,7 @@ def run_file(item: Item):
     item.message = ""
     item.final_path = fd.run()
     if not fd.resumable:
-        item.message = "Sunucu parçalı indirmeyi desteklemiyor (tek bağlantı)"
+        item.message = "Sunucu parçalı indirmeye izin vermiyor, tek bağlantıyla devam"
 
 
 # ------------------------------------------------------------------------------ media
@@ -184,7 +199,7 @@ def _finish_media_body(item: Item, info: dict, fmts: list, parts: list, stem: st
         _get_ffmpeg(item, required=True)
         out = _reserve(reserved, folder, stem + ".mp3")
         tmp_out = out + ".tmp.mp3"
-        item.message = "MP3'e dönüştürülüyor…"
+        item.message = "MP3'e çeviriyorum…"
         meta = {"title": info.get("track") or info.get("title"),
                 "artist": info.get("artist") or info.get("uploader") or info.get("channel")}
         cover = ve.fetch_cover(info, item) if item.cover else None
@@ -202,7 +217,7 @@ def _finish_media_body(item: Item, info: dict, fmts: list, parts: list, stem: st
         if _get_ffmpeg(item, required=False):
             out = _reserve(reserved, folder, stem + ".mp4")
             tmp_out = out + ".tmp.mp4"
-            item.message = "MP4'e dönüştürülüyor…"
+            item.message = "MP4'e çeviriyorum…"
             try:
                 ve.remux_to_mp4(parts[0], tmp_out, item)
                 os.replace(tmp_out, out)
@@ -212,14 +227,14 @@ def _finish_media_body(item: Item, info: dict, fmts: list, parts: list, stem: st
         else:  # no ffmpeg: keep the file as it is
             out = _reserve(reserved, folder, f"{stem}.{ext_of(parts[0])}")
             os.replace(parts[0], out)
-            item.message = "FFmpeg yok: dosya orijinal biçiminde kaydedildi"
+            item.message = "FFmpeg yok, dosyayı olduğu gibi kaydettim"
             _remove_parts(parts)
             return out
     else:
         _get_ffmpeg(item, required=True)
         out = _reserve(reserved, folder, stem + ".mp4")
         tmp_out = out + ".tmp.mp4"
-        item.message = "Video + ses birleştiriliyor…"
+        item.message = "Video ile sesi birleştiriyorum…"
         try:
             ve.merge_to_mp4(parts[0], parts[1], tmp_out, fmts[1].get("acodec"), item)
             os.replace(tmp_out, out)
@@ -240,10 +255,38 @@ def _ydl_fallback(item: Item) -> str:
     return path
 
 
+def save_subtitles(item: Item, info: dict, path: str) -> list:
+    """The chosen subtitles next to the video (and inside it). When YouTube refuses the wanted
+    language (its translations are often 'too many requests'), the video's own language is kept
+    instead and the message says so. Never fails the download."""
+    item.state, item.message = PROCESSING, "Altyazılar indiriliyor…"
+    base = os.path.splitext(path)[0]
+    subs = ve.pick_subtitles(info, item.subs)
+    saved = ve.download_subtitles(item, subs, base) if subs else []
+    note = ""
+    want = ve.SUB_LANGS.get(item.subs)
+    if not saved and want:
+        other = ve.original_subtitles(info, skip={want})
+        saved = ve.download_subtitles(item, other, base) if other else []
+        if saved:
+            note = (f"{item.subs} altyazıyı YouTube vermedi; videonun kendi dilindeki "
+                    f"({other[0]['lang']}) altyazıyı kaydettim")
+    if saved:
+        item.message = "Altyazı videoya ekleniyor…"
+        ve.embed_subtitles(path, saved, item)
+    if note:
+        item.message = note
+    elif saved:
+        item.message = f"{len(saved)} altyazı kaydedildi" + (" (videonun içinde de var)" if path.lower().endswith(".mp4") else "")
+    else:
+        item.message = "Bu videoda istediğin dilde altyazı bulamadım"
+    return saved
+
+
 def run_media(item: Item):
     os.makedirs(item.folder, exist_ok=True)
     item.state = RESOLVING
-    item.message = "Video bilgisi alınıyor…"
+    item.message = "Video bilgisini alıyorum…"
     try:
         info = ve.resolve(item.url, item.kind, item.quality, item.cookies)
     except Exception as e:
@@ -256,23 +299,19 @@ def run_media(item: Item):
     stem = sanitize_filename(title, 120)
     fmts = info.get("requested_formats") or [info]
 
-    own_engine = False   # True: our engine did the download, so we also fetch the subtitles
     if all(ve.is_fast(f) for f in fmts):
         try:
             item.state = DOWNLOADING
             item.message = ""
             path = _fast_media(item, info, fmts, stem)
-            own_engine = True
         except (DownloadStopped, ve.MissingFFmpeg):
             raise
         except Exception as e:
             _check_stop(item)
-            item.message = f"Hızlı motor başarısız ({str(e)[:80]}), yt-dlp ile devam ediliyor…"
+            item.message = f"Hızlı motor takıldı ({str(e)[:80]}), yt-dlp devralıyor…"
             path = _ydl_fallback(item)
     else:
         path = _ydl_fallback(item)
     item.final_path = path or ""
-    if own_engine and item.kind == "video" and item.subs != "Yok" and path and os.path.exists(path):
-        subs = ve.pick_subtitles(info, item.subs)
-        saved = ve.download_subtitles(item, subs, os.path.splitext(path)[0]) if subs else []
-        item.message = f"{len(saved)} altyazı kaydedildi" if saved else "Bu video için altyazı bulunamadı"
+    if item.kind == "video" and item.subs != "Yok" and path and os.path.exists(path):
+        save_subtitles(item, info, path)

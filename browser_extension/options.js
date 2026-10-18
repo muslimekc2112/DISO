@@ -13,7 +13,7 @@ async function load() {
 
 async function save() {
   const port = Number($("port").value);
-  if (!(port >= 1024 && port <= 65535)) { $("msg").textContent = "Port 1024 ile 65535 arasında olmalı."; return false; }
+  if (!(port >= 1024 && port <= 65535)) { $("msg").textContent = "Port 1024 ile 65535 arasında bir sayı olsun."; return false; }
   await api.storage.local.set({
     port,
     intercept: $("intercept").checked,
@@ -32,7 +32,7 @@ async function test() {
     const d = await r.json();
     $("msg").textContent = d.app === HI.APP_ID ? "✓ Uygulamaya bağlanıldı (v" + d.version + ")" : "Bu portta başka bir şey çalışıyor.";
   } catch (e) {
-    $("msg").textContent = "Uygulamaya ulaşılamadı. Hızlı İndirici açık mı, port doğru mu?";
+    $("msg").textContent = "Uygulamaya ulaşılamadı. DISO açık mı, port doğru mu?";
   }
 }
 

@@ -1,6 +1,13 @@
 customtkinter>=5.2.2
 yt-dlp[default]>=2025.11.12
 requests[socks]>=2.31.0
-tkinterdnd2>=0.4.2
 pystray>=0.19.5
 Pillow>=10.0
+ytmusicapi>=1.8        # song lyrics from YouTube Music
+# Windows' media panel (song, cover, buttons); DISO works without them
+winrt-runtime>=3.2; sys_platform == "win32"
+winrt-Windows.Media>=3.2; sys_platform == "win32"
+winrt-Windows.Media.Playback>=3.2; sys_platform == "win32"
+winrt-Windows.Storage>=3.2; sys_platform == "win32"
+winrt-Windows.Storage.Streams>=3.2; sys_platform == "win32"
+winrt-Windows.Foundation>=3.2; sys_platform == "win32"

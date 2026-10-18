@@ -40,11 +40,11 @@ class Item:
 
     PERSISTED = ("id", "url", "kind", "quality", "bitrate", "connections", "folder",
                  "cookies", "title", "state", "dest", "final_path", "error", "added",
-                 "subs", "cover", "sort_folders", "referer", "user_agent")
+                 "subs", "cover", "sort_folders", "referer", "user_agent", "group", "origin")
 
     def __init__(self, url, kind="auto", quality="En iyi", bitrate="320", connections=16,
                  folder="", cookies="Yok", title="", *, subs="Yok", cover=True,
-                 sort_folders=False, referer="", user_agent="", cookie_header=""):
+                 sort_folders=False, referer="", user_agent="", cookie_header="", group="", origin=""):
         self.id = uuid.uuid4().hex[:10]
         self.url = url
         self.kind = kind
@@ -59,6 +59,8 @@ class Item:
         self.sort_folders = sort_folders
         self.referer = referer          # sent as the Referer header (browser extension)
         self.user_agent = user_agent    # ... and as User-Agent
+        self.group = group              # name of the playlist it was taken from ("" = a single link)
+        self.origin = origin            # "music": found in the music player (asks for a list when done)
         self.state = QUEUED
         self.dest = ""             # final path of a plain file download (kept for resume)
         self.final_path = ""
@@ -78,6 +80,7 @@ class Item:
         self.temp_files = []
         self.removed = False
         self.retries = 0           # automatic retries after connection problems
+        self.started = 0.0         # when it last started working (for the speed in the history)
         self._timer = None         # pending automatic retry
         self._fd = None
         self._proc = None

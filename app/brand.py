@@ -1,0 +1,15 @@
+"""The name, the publisher and the version of the program: the one place they are written down.
+Everything else (window titles, the installer, the registry entries, the about window) reads them from here."""
+
+NAME = "DISO"                         # what the user sees
+PUBLISHER = "ISO"                     # the folder it installs under: C:\\Program Files\\ISO\\DISO
+APP_ID = "DISO"                       # in file names, the registry, locks; the browser extension looks for it
+EXE_NAME = APP_ID + ".exe"
+
+VERSION = "0.10.0"                    # numbers only (Windows and Chrome want that)
+CHANNEL = "beta"
+VERSION_LABEL = f"{VERSION} {CHANNEL}"          # what the user sees: 0.10.0 beta
+
+DATA_DIR_NAME = APP_ID                          # %LOCALAPPDATA%\\DISO: settings, playlists, downloads list, tools
+LEGACY_DATA_DIR_NAMES = (".hizli_indirici",)    # where earlier versions kept them (in the user's home folder)
+LEGACY_APP_IDS = ("HizliIndirici",)             # earlier names of the program in the registry and in shortcuts

@@ -6,7 +6,7 @@
 })(typeof self !== "undefined" ? self : globalThis, function () {
   "use strict";
 
-  const APP_ID = "HizliIndirici";
+  const APP_ID = "DISO";
 
   const DEFAULTS = {
     port: 17653,           // must be the same as "Eklenti bağlantı noktası" in the app's settings

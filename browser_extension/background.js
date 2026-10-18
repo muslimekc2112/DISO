@@ -1,5 +1,5 @@
 // Background script: context menu entries and (optionally) taking over the browser's downloads.
-// It only ever talks to the Hızlı İndirici app on 127.0.0.1. (lib.js is loaded before this file.)
+// It only ever talks to the DISO app on 127.0.0.1. (lib.js is loaded before this file.)
 "use strict";
 
 const api = typeof browser !== "undefined" ? browser : chrome;
@@ -10,7 +10,7 @@ async function getOptions() {
   return Object.assign({}, HI.DEFAULTS, stored);
 }
 
-// The app answers /ping with {"app": "HizliIndirici", ...}. null = not running / something else.
+// The app answers /ping with {"app": "DISO", ...}. null = not running / something else.
 async function ping(port) {
   try {
     const r = await fetch(HI.appBase(port) + "/ping", { cache: "no-store" });
@@ -66,17 +66,17 @@ async function sendAndShow(urls, extra) {
     await flash("!", false);
     // a fetch that cannot connect throws a TypeError in every browser (the wording differs)
     const unreachable = e && e.name === "TypeError";
-    return { ok: false, text: unreachable ? "Uygulamaya ulaşılamadı: Hızlı İndirici açık mı?" : String(e && e.message || e) };
+    return { ok: false, text: unreachable ? "Uygulamaya ulaşılamadı: DISO açık mı?" : String(e && e.message || e) };
   }
 }
 
 // ------------------------------------------------------------------------ context menu
 function createMenus() {
   api.contextMenus.removeAll(() => {
-    api.contextMenus.create({ id: "hi-link", title: "Hızlı İndirici ile indir", contexts: ["link"] });
-    api.contextMenus.create({ id: "hi-media", title: "Hızlı İndirici ile indir", contexts: ["video", "audio", "image"] });
-    api.contextMenus.create({ id: "hi-page", title: "Bu sayfayı Hızlı İndirici ile indir (video)", contexts: ["page"] });
-    api.contextMenus.create({ id: "hi-selection", title: "Seçilen bağlantıları Hızlı İndirici ile indir", contexts: ["selection"] });
+    api.contextMenus.create({ id: "hi-link", title: "DISO ile indir", contexts: ["link"] });
+    api.contextMenus.create({ id: "hi-media", title: "DISO ile indir", contexts: ["video", "audio", "image"] });
+    api.contextMenus.create({ id: "hi-page", title: "Bu sayfayı DISO ile indir (video)", contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-selection", title: "Seçilen bağlantıları DISO ile indir", contexts: ["selection"] });
   });
 }
 api.runtime.onInstalled.addListener(createMenus);

@@ -1,5 +1,5 @@
 """
-User settings, saved in ~/.hizli_indirici/settings.json so they survive a restart.
+User settings, saved in %LOCALAPPDATA%\\DISO/settings.json so they survive a restart.
 
 Two kinds live here: what the option bar of the main window shows (folder, quality,
 connections ...) and the global switches of the settings window (parallel downloads,
@@ -57,6 +57,7 @@ DEFAULTS = {
     "auto_retry": 3,
     "proxy": "",
     "playlist_ask": True,
+    "auto_music": True,
     "schedule_on": False,
     "schedule_start": "02:00",
     "schedule_stop": "07:00",
@@ -65,6 +66,9 @@ DEFAULTS = {
     "bridge_on": True,
     "bridge_port": 17653,
     "theme": "Koyu",
+    "look": "Yeni",
+    "language": "Türkçe",                # the interface language (app/i18n.py)
+    "last_version": "",                 # the version that last ran: a new one is announced once
     # list
     "sort": "Yeni üstte",
     "filter": "Hepsi",
