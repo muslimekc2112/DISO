@@ -1,24 +1,31 @@
 """Main window (customtkinter): link bar, options, the live download list, the settings
-window and the update panel."""
+window, the update panel, the info / playlist windows, the tray icon and the browser bridge."""
+import dataclasses
+import datetime
 import gc
 import os
 import queue
 import re
 import threading
 import time
+import tkinter as tk
 from tkinter import TclError, filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import notify, updater
+from . import __version__, notify, schedule, startup, tray, updater
+from . import bridge as bridge_module
 from . import video_engine as ve
-from .config import (AFTER_ALL, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS, Config)
+from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
+                     THEMES, Config)
+from .logs import log, setup_logging
 from .manager import DownloadManager
 from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED, PROCESSING,
-                     QUEUED, RESOLVING, Settings)
-from .segmented_downloader import LIMITER
-from .utils import (default_download_dir, extract_urls, find_ffmpeg, human_eta, human_size, is_url,
-                    normalize_url, open_in_file_manager, urls_from_file)
+                     QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
+from .segmented_downloader import LIMITER, check_connection, set_proxy
+from .utils import (default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,
+                    human_size, is_url, normalize_url, open_file, open_in_file_manager,
+                    resource_path, urls_from_file)
 
 try:  # drag & drop of links / .txt files needs the optional tkinterdnd2 package
     from tkinterdnd2 import DND_FILES, DND_TEXT, TkinterDnD
@@ -56,12 +63,12 @@ STATUS_STYLE = {  # updater status -> (text, colour)
 FILTER_STATES = {
     "Hepsi": None,
     "Aktif": (RESOLVING, DOWNLOADING, PROCESSING),
-    "Sırada": (QUEUED,),
+    "Sırada": (QUEUED, WAITING),
     "Duraklatılmış": (PAUSED,),
     "Tamamlanan": (DONE,),
     "Hatalı": (ERROR,),
 }
-_STATE_RANK = {DOWNLOADING: 0, PROCESSING: 0, RESOLVING: 0, QUEUED: 1, PAUSED: 2,
+_STATE_RANK = {DOWNLOADING: 0, PROCESSING: 0, RESOLVING: 0, QUEUED: 1, WAITING: 1, PAUSED: 2,
                ERROR: 3, DONE: 4, CANCELLED: 5}
 SORT_KEYS = {
     "Yeni üstte": lambda it: -it.added,
@@ -70,10 +77,27 @@ SORT_KEYS = {
     "Boyut (büyük üstte)": lambda it: -(it.total or it.done),
     "Duruma göre": lambda it: (_STATE_RANK.get(it.state, 9), -it.added),
 }
+NO_END_ACTION = "Hiçbir şey yapma"
+
+
+def fit_geometry(win, width, height, margin=(40, 120)):
+    """Give a window its size, but never larger than the screen (room is left for the title bar
+    and the taskbar). Sizes are in the app's own units: customtkinter multiplies them by the
+    display scaling, so a 125 % / 150 % laptop screen is taken into account. Returns (w, h)."""
+    try:
+        scale = float(win._get_window_scaling())
+    except Exception:
+        scale = 1.0
+    max_w = int(win.winfo_screenwidth() / scale) - margin[0]
+    max_h = int(win.winfo_screenheight() / scale) - margin[1]
+    w, h = max(360, min(width, max_w)), max(360, min(height, max_h))
+    win.geometry(f"{w}x{h}")
+    return w, h
 
 
 class DownloadRow(ctk.CTkFrame):
-    """One line of the list: checkbox, name, progress bar, status text and buttons."""
+    """One line of the list: checkbox, name, progress bar, status text and buttons.
+    Right click opens a menu, double click opens the finished file."""
 
     def __init__(self, master, item, app):
         super().__init__(master, corner_radius=10)
@@ -104,6 +128,11 @@ class DownloadRow(ctk.CTkFrame):
                                      command=self._remove)
         self.del_btn.pack(side="left", padx=2)
 
+        for w in (self, self.name, self.bar, self.info):
+            w.bind("<Button-3>", self._popup)
+        for w in (self.name, self.info):
+            w.bind("<Double-Button-1>", lambda e: self._open_file())
+
     # ---- buttons
     def _on_select(self):
         self.app.set_selected(self.item.id, bool(self.sel_var.get()))
@@ -119,8 +148,53 @@ class DownloadRow(ctk.CTkFrame):
         it = self.item
         open_in_file_manager(it.final_path or it.dest or it.folder)
 
+    def _open_file(self):
+        it = self.item
+        if it.state == DONE and it.final_path and os.path.exists(it.final_path):
+            open_file(it.final_path)
+
     def _remove(self):
         self.app.manager.remove(self.item)
+
+    def _copy_link(self):
+        self.app.clipboard_clear()
+        self.app.clipboard_append(self.item.url)
+        self.app.notice("Link kopyalandı")
+
+    def _redownload(self):
+        self.app.manager.redownload(self.item)
+
+    def _delete_with_file(self):
+        it = self.item
+        if messagebox.askyesno("Hızlı İndirici", f"{it.display_name}\n\nListeden kaldırılsın ve dosya "
+                                                 "diskten SİLİNSİN mi?"):
+            self.app.manager.delete_with_file(it)
+
+    def menu_commands(self):
+        """The entries of the right-click menu for the item's current state: [(label, action)]."""
+        it = self.item
+        finished = it.state == DONE and bool(it.final_path)
+        cmds = []
+        if finished:
+            cmds += [("Dosyayı aç", self._open_file), ("Klasörde göster", self._open)]
+        elif it.folder or it.dest:
+            cmds.append(("Klasörü aç", self._open))
+        cmds.append(("Linki kopyala", self._copy_link))
+        if it.state in (DONE, ERROR, CANCELLED, PAUSED):
+            cmds.append(("Baştan indir", self._redownload))
+        cmds.append(("Listeden kaldır", self._remove))
+        if finished:
+            cmds.append(("Dosyayla birlikte sil", self._delete_with_file))
+        return cmds
+
+    def _popup(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        for label, action in self.menu_commands():
+            menu.add_command(label=label, command=action)
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
 
     # ---- helpers
     def _set(self, key, value, apply):
@@ -140,6 +214,10 @@ class DownloadRow(ctk.CTkFrame):
             (f" • {human_size(it.done)}" if it.done else "")
         if st == QUEUED:
             text = "Sırada bekliyor…"
+            if self.app.queue_note:
+                text += f"\n{self.app.queue_note}"
+        elif st == WAITING:
+            text = f"⏳ {it.message}"
         elif st == RESOLVING:
             text = it.message or "Bağlanılıyor…"
         elif st == DOWNLOADING:
@@ -164,7 +242,7 @@ class DownloadRow(ctk.CTkFrame):
             text = st
         self._set("info", text, lambda v: self.info.configure(text=v))
 
-        icon = "⏸" if st in (QUEUED, RESOLVING, DOWNLOADING) else "▶"
+        icon = "⏸" if st in (QUEUED, WAITING, RESOLVING, DOWNLOADING) else "▶"
         self._set("icon", icon, lambda v: self.toggle_btn.configure(text=v))
         can_toggle = st not in (DONE, PROCESSING)
         self._set("can_toggle", can_toggle,
@@ -252,8 +330,8 @@ class UpdatePanel(ctk.CTkToplevel):
         super().__init__(app)
         self.app = app
         self.title("Güncellemeler")
-        self.geometry("620x640")
-        self.minsize(560, 480)
+        w, h = fit_geometry(self, 620, 640)
+        self.minsize(min(560, w), min(420, h))
         self.transient(app)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
@@ -304,26 +382,26 @@ class UpdatePanel(ctk.CTkToplevel):
 
 
 class SettingsPanel(ctk.CTkToplevel):
-    """Global switches: parallel downloads, speed limit, notifications, what to do at the end."""
+    """Everything that is not in the option bar, in groups. Changes apply at once."""
 
     def __init__(self, app):
         super().__init__(app)
         self.app = app
         self.title("Ayarlar")
-        self.geometry("520x550")
-        self.resizable(False, False)
+        w, h = fit_geometry(self, 620, 720)
+        self.minsize(min(560, w), min(420, h))
         self.transient(app)
         self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
         cfg = app.cfg
 
         ctk.CTkLabel(self, text="⚙ Ayarlar", font=ctk.CTkFont(size=22, weight="bold")).grid(
             row=0, column=0, sticky="w", padx=24, pady=(14, 4))
+        self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        self.body.grid(row=1, column=0, sticky="nsew", padx=14, pady=4)
 
-        card = ctk.CTkFrame(self, corner_radius=12)
-        card.grid(row=1, column=0, sticky="ew", padx=20, pady=4)
-        card.columnconfigure(0, weight=1)
-        self._row = 0
-
+        # ---- general
+        card = self._card("İndirme")
         self.parallel_menu = ctk.CTkOptionMenu(
             card, values=MAX_PARALLEL_CHOICES, width=150,
             command=lambda v: app.apply_setting("max_parallel", int(v)))
@@ -336,48 +414,185 @@ class SettingsPanel(ctk.CTkToplevel):
         self.speed_menu.set(cfg.get("speed_limit"))
         self._add(card, "Hız sınırı", "Tüm indirmelerin toplamı", self.speed_menu)
 
+        self.retry_menu = ctk.CTkOptionMenu(
+            card, values=list(AUTO_RETRY), width=150,
+            command=lambda v: app.apply_setting("auto_retry", AUTO_RETRY[v]))
+        self.retry_menu.set(next((k for k, v in AUTO_RETRY.items() if v == cfg.get("auto_retry")), "3 kez"))
+        self._add(card, "Bağlantı kopunca otomatik dene", "İnternet gidip gelirse indirme kendi devam eder",
+                  self.retry_menu)
+
+        proxy_box = ctk.CTkFrame(card, fg_color="transparent")
+        self.proxy_entry = ctk.CTkEntry(proxy_box, width=200, placeholder_text="boş = sistem ayarı")
+        self.proxy_entry.insert(0, cfg.get("proxy"))
+        self.proxy_entry.pack(side="left")
+        self.proxy_entry.bind("<Return>", lambda e: self._save_proxy())
+        self.proxy_entry.bind("<FocusOut>", lambda e: self._save_proxy())
+        self.proxy_test_btn = ctk.CTkButton(proxy_box, text="Dene", width=50, command=self._test_proxy)
+        self.proxy_test_btn.pack(side="left", padx=(6, 0))
+        _, self.proxy_hint = self._add(card, "Proxy", "http://adres:port veya socks5://adres:port", proxy_box)
+
+        self.dup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+            "block_duplicates", bool(self.dup_switch.get())))
+        self._set_switch(self.dup_switch, cfg.get("block_duplicates"))
+        self._add(card, "Aynı linki tekrar ekleme", "Listede olan link atlanır", self.dup_switch)
+
+        self.playlist_ask_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+            "playlist_ask", bool(self.playlist_ask_switch.get())))
+        self._set_switch(self.playlist_ask_switch, cfg.get("playlist_ask"))
+        self._add(card, "Oynatma listesinde videoları seç", "Kapalıysa listedeki hepsi eklenir",
+                  self.playlist_ask_switch)
+
+        # ---- notifications
+        card = self._card("Bildirimler")
         self.sound_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "notify_sound", bool(self.sound_switch.get())))
-        self.sound_switch.select() if cfg.get("notify_sound") else self.sound_switch.deselect()
+        self._set_switch(self.sound_switch, cfg.get("notify_sound"))
         self._add(card, "Bildirim sesi", "İndirme bitince veya hata verince", self.sound_switch)
 
         self.toast_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "notify_toast", bool(self.toast_switch.get())))
-        self.toast_switch.select() if cfg.get("notify_toast") else self.toast_switch.deselect()
+        self._set_switch(self.toast_switch, cfg.get("notify_toast"))
         self._add(card, "Windows bildirimi", "Sağ alttaki bildirim balonu", self.toast_switch)
 
-        self.dup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
-            "block_duplicates", bool(self.dup_switch.get())))
-        self.dup_switch.select() if cfg.get("block_duplicates") else self.dup_switch.deselect()
-        self._add(card, "Aynı linki tekrar ekleme", "Listede olan link atlanır", self.dup_switch)
+        # ---- scheduler
+        card = self._card("Zamanlayıcı")
+        self.schedule_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+            "schedule_on", bool(self.schedule_switch.get())))
+        self._set_switch(self.schedule_switch, cfg.get("schedule_on"))
+        self._add(card, "Zamanlanmış indirme", "Kapalıyken yeni indirmeler başlamaz, saati bekler",
+                  self.schedule_switch)
+        times = ctk.CTkFrame(card, fg_color="transparent")
+        self.schedule_start_entry = ctk.CTkEntry(times, width=62, justify="center")
+        self.schedule_start_entry.insert(0, cfg.get("schedule_start"))
+        self.schedule_stop_entry = ctk.CTkEntry(times, width=62, justify="center", placeholder_text="--:--")
+        self.schedule_stop_entry.insert(0, cfg.get("schedule_stop"))
+        ctk.CTkLabel(times, text="Başlangıç").pack(side="left", padx=(0, 4))
+        self.schedule_start_entry.pack(side="left")
+        ctk.CTkLabel(times, text="Bitiş").pack(side="left", padx=(10, 4))
+        self.schedule_stop_entry.pack(side="left")
+        for entry in (self.schedule_start_entry, self.schedule_stop_entry):
+            entry.bind("<Return>", lambda e: self._save_schedule())
+            entry.bind("<FocusOut>", lambda e: self._save_schedule())
+        self._add(card, "Saatler (24 saat, ör. 02:00)", "Bitiş saati boşsa başladıktan sonra hep açık kalır",
+                  times)
 
+        # ---- system
+        card = self._card("Sistem")
+        self.tray_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+            "tray_on_close", bool(self.tray_switch.get())))
+        self._set_switch(self.tray_switch, cfg.get("tray_on_close"))
+        hint = "Pencereyi kapatınca simge durumuna iner" if tray.AVAILABLE else "pystray kurulu değil"
+        self._add(card, "Kapatınca arka planda çalış", hint, self.tray_switch)
+
+        self.startup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+            "start_with_windows", bool(self.startup_switch.get())))
+        self._set_switch(self.startup_switch, cfg.get("start_with_windows"))
+        self._add(card, "Windows açılışında başlat", "Simge durumunda açılır", self.startup_switch)
+
+        self.bridge_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+            "bridge_on", bool(self.bridge_switch.get())))
+        self._set_switch(self.bridge_switch, cfg.get("bridge_on"))
+        self._add(card, "Tarayıcı eklentisinden link al", "Yalnızca bu bilgisayardan, yalnızca eklentiden",
+                  self.bridge_switch)
+
+        port_box = ctk.CTkFrame(card, fg_color="transparent")
+        self.bridge_port_entry = ctk.CTkEntry(port_box, width=70, justify="center")
+        self.bridge_port_entry.insert(0, str(cfg.get("bridge_port")))
+        self.bridge_port_entry.pack(side="left")
+        self.bridge_port_entry.bind("<Return>", lambda e: self._save_port())
+        self.bridge_port_entry.bind("<FocusOut>", lambda e: self._save_port())
+        self.ext_button = ctk.CTkButton(port_box, text="Eklenti klasörü", width=110, command=app.open_extension_folder)
+        self.ext_button.pack(side="left", padx=(6, 0))
+        self._add(card, "Eklenti bağlantı noktası", "Eklentinin ayarındaki port ile aynı olmalı", port_box)
+
+        self.theme_menu = ctk.CTkOptionMenu(card, values=list(THEMES), width=150,
+                                            command=lambda v: app.apply_setting("theme", v))
+        self.theme_menu.set(cfg.get("theme"))
+        self._add(card, "Görünüm", "Koyu, açık ya da Windows'u izle", self.theme_menu)
+
+        # ---- when everything is finished
+        card = self._card("Bitince")
         self.after_menu = ctk.CTkOptionMenu(card, values=list(AFTER_ALL), width=150,
                                             command=app.set_after_all)
         self.after_menu.set(app.after_all)
         self._add(card, "Tüm indirmeler bitince", "Bir kez uygulanır, kaydedilmez", self.after_menu)
 
         foot = ctk.CTkFrame(self, fg_color="transparent")
-        foot.grid(row=2, column=0, sticky="ew", padx=24, pady=(10, 14))
-        foot.columnconfigure(0, weight=1)
-        ctk.CTkButton(foot, text="🔔 Bildirimi dene", width=150, command=app.test_notification).grid(
-            row=0, column=0, sticky="w")
-        ctk.CTkButton(foot, text="Kapat", width=110, command=self.destroy).grid(row=0, column=1)
+        foot.grid(row=2, column=0, sticky="ew", padx=24, pady=(8, 14))
+        foot.columnconfigure(2, weight=1)
+        ctk.CTkButton(foot, text="🔔 Bildirimi dene", width=140, command=app.test_notification).grid(row=0, column=0)
+        self.log_button = ctk.CTkButton(foot, text="📜 Günlüğü aç", width=120, command=app.open_log)
+        self.log_button.grid(row=0, column=1, padx=8)
+        ctk.CTkLabel(foot, text=f"v{__version__}", text_color="gray").grid(row=0, column=2, sticky="e", padx=10)
+        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=3)
 
+        self._proxy_result = None
         self.after(500, self._sync)
 
+    # ---- layout helpers
+    def _card(self, title):
+        ctk.CTkLabel(self.body, text=title, font=ctk.CTkFont(size=14, weight="bold"), text_color="gray",
+                     anchor="w").pack(fill="x", padx=8, pady=(10, 2))
+        card = ctk.CTkFrame(self.body, corner_radius=12)
+        card.pack(fill="x", padx=4, pady=2)
+        card.columnconfigure(0, weight=1)
+        card._row = 0
+        return card
+
     def _add(self, card, title, hint, widget):
-        ctk.CTkLabel(card, text=title, anchor="w", font=ctk.CTkFont(weight="bold")).grid(
-            row=self._row, column=0, sticky="w", padx=16, pady=(8, 0))
-        ctk.CTkLabel(card, text=hint, anchor="w", text_color="gray", font=ctk.CTkFont(size=11)).grid(
-            row=self._row + 1, column=0, sticky="w", padx=16, pady=(0, 6))
-        widget.grid(row=self._row, column=1, rowspan=2, padx=16, sticky="e")
-        self._row += 2
+        t = ctk.CTkLabel(card, text=title, anchor="w", font=ctk.CTkFont(weight="bold"))
+        t.grid(row=card._row, column=0, sticky="w", padx=16, pady=(8, 0))
+        h = ctk.CTkLabel(card, text=hint, anchor="w", text_color="gray", font=ctk.CTkFont(size=11),
+                         wraplength=300, justify="left")
+        h.grid(row=card._row + 1, column=0, sticky="w", padx=16, pady=(0, 6))
+        widget.grid(row=card._row, column=1, rowspan=2, padx=16, sticky="e")
+        card._row += 2
+        return t, h
+
+    @staticmethod
+    def _set_switch(switch, on):
+        switch.select() if on else switch.deselect()
+
+    # ---- entries
+    def _save_proxy(self):
+        ok = self.app.apply_proxy(self.proxy_entry.get())
+        self.proxy_entry.configure(border_color=("#979da2", "#565b5e") if ok else BAD)
+        return ok
+
+    def _test_proxy(self):
+        if not self._save_proxy():
+            return
+        self.proxy_hint.configure(text="Deneniyor…", text_color=BUSY)
+        proxy = self.proxy_entry.get().strip()
+
+        def work():
+            self._proxy_result = check_connection(proxy=proxy)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _save_schedule(self):
+        ok_start = self.app.apply_schedule("schedule_start", self.schedule_start_entry.get())
+        ok_stop = self.app.apply_schedule("schedule_stop", self.schedule_stop_entry.get())
+        normal = ("#979da2", "#565b5e")
+        self.schedule_start_entry.configure(border_color=normal if ok_start else BAD)
+        self.schedule_stop_entry.configure(border_color=normal if ok_stop else BAD)
+        return ok_start and ok_stop
+
+    def _save_port(self):
+        ok = self.app.apply_bridge_port(self.bridge_port_entry.get())
+        self.bridge_port_entry.configure(border_color=("#979da2", "#565b5e") if ok else BAD)
+        return ok
 
     def _sync(self):
-        """The end action is one-shot: when it fires the menu goes back to 'do nothing'."""
+        """The end action is one-shot (the menu goes back to 'do nothing' when it fires) and the
+        proxy test answers from another thread."""
         try:
             if self.after_menu.get() != self.app.after_all:
                 self.after_menu.set(self.app.after_all)
+            if self._proxy_result is not None:
+                ok, text = self._proxy_result
+                self._proxy_result = None
+                self.proxy_hint.configure(text=("✓ " if ok else "✖ ") + text, text_color=GOOD if ok else BAD)
             self.after(500, self._sync)
         except TclError:
             return
@@ -421,40 +636,240 @@ class CountdownDialog(ctk.CTkToplevel):
             return
 
 
+class PlaylistDialog(ctk.CTkToplevel):
+    """A playlist was found: tick the videos you want."""
+
+    CHUNK = 25   # rows are created a few at a time so a 500-video list does not freeze the window
+
+    def __init__(self, app, entries, settings):
+        super().__init__(app)
+        self.app, self.entries, self.settings = app, entries, settings
+        self.vars = [ctk.BooleanVar(value=True) for _ in entries]
+        self.title("Oynatma listesi")
+        w, h = fit_geometry(self, 660, 640)
+        self.minsize(min(520, w), min(400, h))
+        self.transient(app)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(2, weight=1)
+
+        ctk.CTkLabel(self, text=f"{len(entries)} video bulundu", font=ctk.CTkFont(size=18, weight="bold")).grid(
+            row=0, column=0, sticky="w", padx=20, pady=(16, 0))
+        bar = ctk.CTkFrame(self, fg_color="transparent")
+        bar.grid(row=1, column=0, sticky="ew", padx=20, pady=8)
+        ctk.CTkButton(bar, text="Hepsini seç", width=110, height=28,
+                      command=lambda: self.select_all(True)).pack(side="left")
+        ctk.CTkButton(bar, text="Hiçbirini seçme", width=120, height=28,
+                      command=lambda: self.select_all(False)).pack(side="left", padx=6)
+        self.count_label = ctk.CTkLabel(bar, text="", text_color="gray")
+        self.count_label.pack(side="left", padx=10)
+        self.list_frame = ctk.CTkScrollableFrame(self)
+        self.list_frame.grid(row=2, column=0, sticky="nsew", padx=16, pady=(0, 6))
+        foot = ctk.CTkFrame(self, fg_color="transparent")
+        foot.grid(row=3, column=0, sticky="ew", padx=20, pady=(6, 16))
+        foot.columnconfigure(0, weight=1)
+        ctk.CTkButton(foot, text="İptal", width=100, fg_color="gray40", command=self.destroy).grid(row=0, column=1, padx=6)
+        self.go_btn = ctk.CTkButton(foot, text="", width=150, command=self.confirm)
+        self.go_btn.grid(row=0, column=2)
+        self._count()
+        self._fill(0)
+
+    def _fill(self, start):
+        try:
+            for i in range(start, min(start + self.CHUNK, len(self.entries))):
+                title = (self.entries[i][1] or self.entries[i][0])[:80]
+                length = human_duration(self.entries[i][2] if len(self.entries[i]) > 2 else 0)
+                text = f"{i + 1}. {title}" + (f"   ({length})" if length else "")
+                ctk.CTkCheckBox(self.list_frame, text=text, variable=self.vars[i],
+                                command=self._count).pack(anchor="w", padx=8, pady=3)
+            if start + self.CHUNK < len(self.entries):
+                self.after(15, lambda: self._fill(start + self.CHUNK))
+        except TclError:  # closed while filling
+            return
+
+    def _count(self):
+        n = sum(1 for v in self.vars if v.get())
+        self.count_label.configure(text=f"{n} seçili")
+        self.go_btn.configure(text=f"⬇ İndir ({n})", state="normal" if n else "disabled")
+
+    def select_all(self, flag):
+        for v in self.vars:
+            v.set(flag)
+        self._count()
+
+    def chosen(self):
+        return [e for e, v in zip(self.entries, self.vars) if v.get()]
+
+    def confirm(self):
+        chosen = self.chosen()
+        self.destroy()
+        if chosen:
+            self.app.add_playlist_selection(chosen, self.settings)
+
+
+class InfoDialog(ctk.CTkToplevel):
+    """What yt-dlp knows about a link: qualities with sizes, subtitles. Pick one to download it."""
+
+    def __init__(self, app, url):
+        super().__init__(app)
+        self.app, self.url = app, url
+        self.title("Bağlantı bilgisi")
+        w, h = fit_geometry(self, 560, 560)
+        self.minsize(min(480, w), min(360, h))
+        self.transient(app)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        self.body.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self.status = ctk.CTkLabel(self.body, text="Bilgi alınıyor…", text_color="gray")
+        self.status.pack(pady=40)
+        self.result = None   # ("ok", info) / ("error", text), set by the loading thread
+        threading.Thread(target=self._load, daemon=True).start()
+        self.after(150, self._poll)
+
+    def _load(self):
+        try:
+            self.result = ("ok", ve.fetch_info(self.url, self.app.cookie_menu.get()))
+        except Exception as e:  # noqa: BLE001
+            self.result = ("error", ve.pretty_error(e))
+
+    def _poll(self):
+        try:
+            if self.result is None:
+                self.after(150, self._poll)
+                return
+            kind, data = self.result
+            self.status.destroy()
+            self._render(data) if kind == "ok" else self._fail(data)
+        except TclError:
+            return
+
+    def _fail(self, text):
+        ctk.CTkLabel(self.body, text="Bilgi alınamadı", font=ctk.CTkFont(size=16, weight="bold")).pack(
+            anchor="w", padx=8, pady=(8, 4))
+        ctk.CTkLabel(self.body, text=text, text_color=BAD, wraplength=480, justify="left").pack(anchor="w", padx=8)
+
+    def _render(self, info):
+        ctk.CTkLabel(self.body, text=info["title"] or self.url, font=ctk.CTkFont(size=17, weight="bold"),
+                     wraplength=490, justify="left").pack(anchor="w", padx=8, pady=(4, 2))
+        meta = " • ".join(x for x in (info["uploader"], human_duration(info["duration"])) if x)
+        if meta:
+            ctk.CTkLabel(self.body, text=meta, text_color="gray").pack(anchor="w", padx=8)
+        if info["is_playlist"]:
+            ctk.CTkLabel(self.body, text=f"Bu bir oynatma listesi ({info['entries']} video). "
+                                         "İndirmek için 'Oynatma listesi' kutusunu işaretleyip ekle.",
+                         wraplength=490, justify="left", text_color=WARN).pack(anchor="w", padx=8, pady=8)
+            return
+        ctk.CTkLabel(self.body, text="Video kaliteleri", font=ctk.CTkFont(weight="bold")).pack(
+            anchor="w", padx=8, pady=(14, 4))
+        for q in info["qualities"][:14]:
+            self._row(self._quality_text(q), "İndir", lambda q=q: self._download(ve.quality_for_height(q["height"]), "video"))
+        if not info["qualities"]:
+            ctk.CTkLabel(self.body, text="Kalite listesi alınamadı (en iyi kalite indirilir).",
+                         text_color="gray").pack(anchor="w", padx=8)
+            self._row("En iyi kalite", "İndir", lambda: self._download("En iyi", "video"))
+        size = f" • ~{human_size(info['audio_size'])}" if info["audio_size"] else ""
+        self._row(f"Sadece ses (MP3){size}", "MP3 indir", lambda: self._download(None, "audio"))
+        if info["subtitles"] or info["auto_subtitles"]:
+            text = "Altyazı: " + (", ".join(info["subtitles"]) or "yok")
+            if info["auto_subtitles"]:
+                text += f"  (+{info['auto_subtitles']} otomatik dil)"
+            ctk.CTkLabel(self.body, text=text, text_color="gray", wraplength=490, justify="left").pack(
+                anchor="w", padx=8, pady=(12, 0))
+
+    @staticmethod
+    def _quality_text(q):
+        parts = [f"{q['height']}p"]
+        if q["fps"] > 30:
+            parts.append(f"{q['fps']} fps")
+        if q["codec"]:
+            parts.append(q["codec"])
+        if q["size"]:
+            parts.append(f"~{human_size(q['size'])}")
+        return " • ".join(parts)
+
+    def _row(self, text, button, command):
+        row = ctk.CTkFrame(self.body)
+        row.pack(fill="x", padx=8, pady=3)
+        ctk.CTkLabel(row, text=text, anchor="w").pack(side="left", padx=12, pady=8)
+        ctk.CTkButton(row, text=button, width=90, height=28, command=command).pack(side="right", padx=8)
+
+    def _download(self, quality, kind):
+        self.destroy()
+        self.app.download_quality(self.url, quality, kind)
+
+
+class BridgeApi:
+    """What the browser bridge (another thread) may do. Never touches widgets directly."""
+
+    def __init__(self, app):
+        self.app = app
+
+    @property
+    def add_enabled(self):
+        return bool(self.app.cfg.get("bridge_on"))
+
+    def add(self, urls, extra, kind):
+        return self.app.bridge_add(urls, extra, kind)
+
+    def status(self):
+        return self.app.bridge_status()
+
+    def show(self):
+        self.app._ui_calls.put(self.app._show_window)
+
+
 class App(*_BASES):
-    def __init__(self):
+    def __init__(self, minimized=False):
+        self.cfg = Config()
+        ctk.set_appearance_mode(THEMES.get(self.cfg.get("theme"), "dark"))
         super().__init__()
         # Garbage collection must run on this (the window's) thread only. Collected Tk objects
         # (fonts ...) call into Tcl from their finalizer; on a download thread that call waits for
         # this thread, and if the download thread holds a lock this thread needs, both freeze.
         # So automatic collection is off and _tick() collects every few seconds instead.
         gc.disable()
+        setup_logging()
+        log.info("Hızlı İndirici %s started", __version__)
         if HAS_DND:
             try:
                 self.TkdndVersion = TkinterDnD._require(self)
             except Exception:
                 pass
         self.title("Hızlı İndirici")
-        self.geometry("1000x760")
-        self.minsize(900, 620)
+        w, h = fit_geometry(self, 1000, 820)
+        self.minsize(min(900, w), min(560, h))
+        self._set_icon()
 
-        self.cfg = Config()
         self.cfg.sanitize({
             "kind": list(KIND_LABELS), "quality": ve.QUALITIES, "bitrate": ve.BITRATES,
             "connections": CONNECTIONS, "cookies": ve.BROWSERS, "speed_limit": list(SPEED_LIMITS),
-            "sort": SORTS, "filter": FILTERS,
+            "sort": SORTS, "filter": FILTERS, "subs": SUBTITLE_CHOICES, "theme": list(THEMES),
+            "auto_retry": list(AUTO_RETRY.values()),
         })
         if not 1 <= self.cfg.get("max_parallel") <= 8:
             self.cfg.data["max_parallel"] = 3
-        self.manager = DownloadManager(max_parallel=self.cfg.get("max_parallel"))
+        self.manager = DownloadManager(max_parallel=self.cfg.get("max_parallel"),
+                                       max_retries=self.cfg.get("auto_retry"))
         LIMITER.set_rate(SPEED_LIMITS[self.cfg.get("speed_limit")] * 1024)
+        try:
+            set_proxy(self.cfg.get("proxy"))
+        except ValueError:
+            self.cfg.data["proxy"] = ""
+        if self.cfg.get("start_with_windows"):
+            startup.set_enabled(True)   # keeps the registry entry pointing at this copy of the app
         self.updates = updater.Updater()
         self.updates.ffmpeg_busy = lambda: any(i.state == PROCESSING for i in self.manager.items)
         self.update_panel = None
         self.settings_panel = None
+        self.bridge = None
+        self.tray = None
         self.rows = {}
         self.selected = set()
-        self.after_all = "Hiçbir şey yapma"   # one-shot, not saved
+        self.after_all = NO_END_ACTION   # one-shot, not saved
+        self.queue_note = ""             # shown on queued rows while the scheduler holds the queue
+        self._ui_calls = queue.Queue()   # functions other threads want run on this thread
+        self._sched_paused = []          # items the scheduler paused at the stop time
+        self._now = datetime.datetime.now
         self._order = None   # None: the list was never laid out yet
         self._had_work = False
         self._phase_done = 0
@@ -464,6 +879,7 @@ class App(*_BASES):
         self._tick_no = 0
         self._ffmpeg_ok = bool(find_ffmpeg())
         self._closing = False
+        self._hidden_hint_shown = False
         self._btn_text = ""
 
         self.columnconfigure(0, weight=1)
@@ -482,17 +898,32 @@ class App(*_BASES):
         self._on_kind(self.kind_menu.get())
         self.clip_var.set(bool(self.cfg.get("clip_watch")))
         self._last_clip = self._clipboard_text()  # what is in the clipboard now is not "new"
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.protocol("WM_DELETE_WINDOW", self._on_window_x)
+        self._bind_shortcuts()
         if HAS_DND:
             try:
                 self.drop_target_register(DND_TEXT, DND_FILES)
                 self.dnd_bind("<<Drop>>", self._on_drop)
             except Exception:
                 pass
+        self._start_bridge()
+        if self.cfg.get("tray_on_close") or minimized:
+            self._ensure_tray()
+        if minimized:
+            self.after(50, self._hide_to_tray)
         self.after(300, self._tick)
         self.updates.start()  # checks and updates yt-dlp / FFmpeg in the background
 
     # ------------------------------------------------------------------------ layout
+    def _set_icon(self):
+        ico = resource_path(os.path.join("assets", "icon.ico"))
+        if os.path.exists(ico) and os.name == "nt":
+            try:
+                self.iconbitmap(ico)
+                self.after(250, lambda: self.iconbitmap(ico))  # customtkinter puts its own icon back
+            except Exception:
+                pass
+
     def _build_top(self):
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 4))
@@ -514,8 +945,9 @@ class App(*_BASES):
         ctk.CTkButton(row, text="📋", width=48, height=44, command=self._paste).grid(row=0, column=1, padx=(0, 8))
         ctk.CTkButton(row, text="📄", width=48, height=44, command=self._import_file).grid(
             row=0, column=2, padx=(0, 8))
+        ctk.CTkButton(row, text="ℹ", width=48, height=44, command=self._show_info).grid(row=0, column=3, padx=(0, 8))
         ctk.CTkButton(row, text="⬇  İndir", height=44, width=130, font=ctk.CTkFont(size=16, weight="bold"),
-                      command=self.add_from_entry).grid(row=0, column=3)
+                      command=self.add_from_entry).grid(row=0, column=4)
 
     def _build_options(self):
         opt = ctk.CTkFrame(self)
@@ -556,13 +988,27 @@ class App(*_BASES):
         self.cookie_menu.set(cfg.get("cookies"))
         self.cookie_menu.grid(row=1, column=4, padx=10, pady=(0, 6), sticky="ew")
 
+        label("Altyazı (video)", 5)
+        self.subs_menu = ctk.CTkOptionMenu(opt, values=SUBTITLE_CHOICES, command=lambda v: cfg.set("subs", v))
+        self.subs_menu.set(cfg.get("subs"))
+        self.subs_menu.grid(row=1, column=5, padx=10, pady=(0, 6), sticky="ew")
+
+        checks = ctk.CTkFrame(opt, fg_color="transparent")
+        checks.grid(row=2, column=0, columnspan=6, sticky="w", padx=6, pady=(0, 4))
         self.playlist_var = ctk.BooleanVar(value=bool(cfg.get("playlist")))
-        ctk.CTkCheckBox(opt, text="Oynatma listesi", variable=self.playlist_var,
-                        command=lambda: cfg.set("playlist", bool(self.playlist_var.get()))).grid(
-            row=1, column=5, padx=10, pady=(0, 6), sticky="w")
+        ctk.CTkCheckBox(checks, text="Oynatma listesi", variable=self.playlist_var,
+                        command=lambda: cfg.set("playlist", bool(self.playlist_var.get()))).pack(
+            side="left", padx=6)
+        self.folders_var = ctk.BooleanVar(value=bool(cfg.get("sort_folders")))
+        ctk.CTkCheckBox(checks, text="Türe göre klasör (Video, Müzik, Arşiv…)", variable=self.folders_var,
+                        command=lambda: cfg.set("sort_folders", bool(self.folders_var.get()))).pack(
+            side="left", padx=14)
+        self.cover_var = ctk.BooleanVar(value=bool(cfg.get("cover")))
+        ctk.CTkCheckBox(checks, text="MP3'e kapak resmi", variable=self.cover_var,
+                        command=lambda: cfg.set("cover", bool(self.cover_var.get()))).pack(side="left", padx=6)
 
         folder = ctk.CTkFrame(opt, fg_color="transparent")
-        folder.grid(row=2, column=0, columnspan=6, sticky="ew", padx=10, pady=(0, 10))
+        folder.grid(row=3, column=0, columnspan=6, sticky="ew", padx=10, pady=(0, 10))
         folder.columnconfigure(0, weight=1)
         self.folder_entry = ctk.CTkEntry(folder, height=34)
         self.folder_entry.insert(0, cfg.get("folder") or default_download_dir())
@@ -599,6 +1045,7 @@ class App(*_BASES):
         self.search_entry = ctk.CTkEntry(bar, height=30, placeholder_text="🔍 Listede ara…")
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
         self.search_entry.bind("<KeyRelease>", lambda e: self._sync_rows())
+        self.search_entry.bind("<Escape>", lambda e: self._clear_search())
         self.filter_menu = ctk.CTkOptionMenu(bar, values=FILTERS, width=130, height=30,
                                              command=self._on_filter)
         self.filter_menu.set(self.cfg.get("filter"))
@@ -635,12 +1082,26 @@ class App(*_BASES):
         self.update_bar.grid(row=6, column=0, sticky="ew", padx=20, pady=(0, 2))
         self.update_bar.grid_remove()
 
+    def _bind_shortcuts(self):
+        self.bind("<Control-v>", self._on_ctrl_v)
+        self.bind("<Control-a>", self._on_ctrl_a)
+        self.bind("<Delete>", self._on_delete_key)
+        self.bind("<Control-f>", lambda e: self.search_entry.focus_set())
+
+    def _typing(self) -> bool:
+        """True while the cursor is in a text box: its own shortcuts must work there."""
+        try:
+            return isinstance(self.focus_get(), (tk.Entry, tk.Text))
+        except (KeyError, TclError):
+            return False
+
     # ----------------------------------------------------------------------- actions
     def _on_kind(self, label):
         kind = KIND_LABELS.get(label, "auto")
         self.cfg.set("kind", label)
         self.quality_menu.configure(state="normal" if kind in ("auto", "video") else "disabled")
         self.bitrate_menu.configure(state="normal" if kind == "audio" else "disabled")
+        self.subs_menu.configure(state="normal" if kind in ("auto", "video") else "disabled")
 
     def _clipboard_text(self):
         try:
@@ -665,6 +1126,34 @@ class App(*_BASES):
             if urls and len(urls) == len(text.split()):
                 self.add_urls(urls)
                 self.notice(f"Panodan eklendi: {urls[0][:60]}")
+
+    def _on_ctrl_v(self, event=None):
+        """Ctrl+V on the list (not in a text box) adds the links in the clipboard."""
+        if self._typing():
+            return
+        urls = extract_urls(self._clipboard_text())
+        if urls:
+            self.add_urls(urls)
+        else:
+            self.notice("Panoda bağlantı yok")
+        return "break"
+
+    def _on_ctrl_a(self, event=None):
+        if self._typing():
+            return
+        self.select_all_var.set(True)
+        self._on_select_all()
+        return "break"
+
+    def _on_delete_key(self, event=None):
+        if self._typing() or not self.selected:
+            return
+        self._sel_remove()
+        return "break"
+
+    def _clear_search(self):
+        self.search_entry.delete(0, "end")
+        self._sync_rows()
 
     def _save_folder(self):
         self.cfg.set("folder", self.folder_entry.get().strip())
@@ -701,23 +1190,40 @@ class App(*_BASES):
             folder=self.folder_entry.get().strip() or default_download_dir(),
             playlist=bool(self.playlist_var.get()),
             cookies=self.cookie_menu.get(),
+            subs=self.subs_menu.get(),
+            cover=bool(self.cover_var.get()),
+            sort_folders=bool(self.folders_var.get()),
         )
+
+    def settings_from_config(self) -> Settings:
+        """The same choices read from the saved settings, not from the widgets: safe to call
+        from another thread (the browser bridge). Playlists are not expanded."""
+        c = self.cfg
+        return Settings(
+            kind=KIND_LABELS.get(c.get("kind"), "auto"), quality=c.get("quality"), bitrate=c.get("bitrate"),
+            connections=int(c.get("connections")), folder=c.get("folder") or default_download_dir(),
+            playlist=False, cookies=c.get("cookies"), subs=c.get("subs"), cover=bool(c.get("cover")),
+            sort_folders=bool(c.get("sort_folders")))
 
     def notice(self, text, seconds=6):
         self._notice, self._notice_until = text, time.time() + seconds
 
     def add_urls(self, urls):
-        """Add links; returns how many were added. Links already in the list are skipped
-        (unless that is switched off in the settings)."""
+        """Add links; returns how many were accepted. Links already in the list are skipped
+        (unless that is switched off in the settings). With 'Oynatma listesi' ticked the link is
+        opened as a playlist first (see _playlist_ready)."""
         s = self._settings()
         skip = bool(self.cfg.get("block_duplicates"))
         good = [normalize_url(u) for u in urls if is_url(u)]
         added = duplicates = 0
         for u in good:
-            if self.manager.add_url(u, s, skip_duplicates=skip):
-                added += 1
-            else:
+            if skip and self.manager.find_duplicate(u):
                 duplicates += 1
+            elif s.playlist and s.kind in ("auto", "video", "audio"):
+                self._expand_async(u, s)
+                added += 1
+            elif self.manager.add_url(u, s, skip_duplicates=False):
+                added += 1
         bad = len(urls) - len(good)
         if added and duplicates:
             self.notice(f"{added} bağlantı eklendi, {duplicates} tanesi zaten listedeydi")
@@ -736,6 +1242,54 @@ class App(*_BASES):
             return
         if self.add_urls(urls):
             self.url_entry.delete(0, "end")
+
+    # ---------------------------------------------------------------------- playlists
+    def _expand_async(self, url, s):
+        """Read the playlist on another thread, then continue on this one."""
+        self.notice("Oynatma listesi okunuyor…", 30)
+
+        def work():
+            try:
+                entries = ve.expand_playlist(url, s.cookies)
+            except Exception as e:  # noqa: BLE001
+                self.notice(f"Liste okunamadı: {ve.pretty_error(e)}", 10)
+                entries = [(url, "", 0)]
+            self._ui_calls.put(lambda: self._playlist_ready(entries, s))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _playlist_ready(self, entries, s):
+        if len(entries) > 1 and self.cfg.get("playlist_ask"):
+            PlaylistDialog(self, entries, s)
+        else:
+            self.add_playlist_selection(entries, s)
+
+    def add_playlist_selection(self, entries, s):
+        added, skipped = self.manager.add_entries(entries, s, True, bool(self.cfg.get("block_duplicates")))
+        text = f"{added} video listeye eklendi" if len(entries) > 1 else "Bağlantı eklendi"
+        if skipped:
+            text += f" ({skipped} tanesi zaten listedeydi)"
+        self.notice(text)
+
+    # ------------------------------------------------------------------------- info
+    def _show_info(self):
+        urls = extract_urls(self.url_entry.get())
+        if not urls:
+            self.notice("Bilgi için önce bir bağlantı yapıştır.")
+            return
+        InfoDialog(self, urls[0])
+
+    def download_quality(self, url, quality, kind):
+        """A button of the info window: download this link with that quality (None: keep the
+        quality of the option bar)."""
+        s = dataclasses.replace(self._settings(), kind=kind, playlist=False)
+        if quality:
+            s = dataclasses.replace(s, quality=quality)
+        if self.cfg.get("block_duplicates") and self.manager.find_duplicate(url):
+            self.notice("Bu link zaten listede")
+        else:
+            self.manager.add_url(url, s)
+            self.notice("Eklendi: " + (f"{quality}" if quality else "MP3"))
 
     # ----------------------------------------------------------------- drag and drop
     def _add_from_paths(self, paths):
@@ -862,12 +1416,58 @@ class App(*_BASES):
 
     def apply_setting(self, key, value):
         """Settings window changed something: save it and apply it at once."""
+        if key == "start_with_windows":
+            if not startup.set_enabled(bool(value)):
+                self.notice("Windows başlangıç kaydı yazılamadı", 8)
+                return
         self.cfg.set(key, value)
         if key == "max_parallel":
             self.manager.set_max_parallel(int(value))
+        elif key == "auto_retry":
+            self.manager.set_max_retries(int(value))
         elif key == "speed_limit":
             LIMITER.set_rate(SPEED_LIMITS[value] * 1024)
             self.notice("Hız sınırı kaldırıldı" if SPEED_LIMITS[value] == 0 else f"Hız sınırı: {value}")
+        elif key == "theme":
+            ctk.set_appearance_mode(THEMES.get(value, "dark"))
+        elif key == "tray_on_close" and value:
+            self._ensure_tray()
+
+    def apply_proxy(self, text) -> bool:
+        """Validate and apply the proxy address; '' = the system's own settings."""
+        try:
+            set_proxy(text)
+        except ValueError as e:
+            self.notice(str(e), 10)
+            return False
+        self.cfg.set("proxy", (text or "").strip())
+        self.notice("Proxy: " + (text.strip() if (text or "").strip() else "sistem ayarı kullanılıyor"))
+        return True
+
+    def apply_schedule(self, key, text) -> bool:
+        """key is schedule_start or schedule_stop. The stop time may be empty."""
+        text = (text or "").strip()
+        if key == "schedule_stop" and not text:
+            self.cfg.set(key, "")
+            return True
+        if schedule.parse_hhmm(text) is None:
+            self.notice("Saat 24 saatlik düzende olmalı, örneğin 02:00", 8)
+            return False
+        self.cfg.set(key, schedule.format_hhmm(schedule.parse_hhmm(text)))
+        return True
+
+    def apply_bridge_port(self, text) -> bool:
+        try:
+            port = int(str(text).strip())
+        except ValueError:
+            port = 0
+        if not 1024 <= port <= 65535:
+            self.notice("Port 1024 ile 65535 arasında olmalı", 8)
+            return False
+        if port != self.cfg.get("bridge_port"):
+            self.cfg.set("bridge_port", port)
+            self.restart_bridge()
+        return True
 
     def set_after_all(self, label):
         self.after_all = label
@@ -877,6 +1477,19 @@ class App(*_BASES):
 
     def test_notification(self):
         self._notify("done", "Bildirimler çalışıyor ✔")
+
+    def open_log(self):
+        path = setup_logging()
+        if not os.path.exists(path):
+            open(path, "a").close()
+        open_file(path)
+
+    def open_extension_folder(self):
+        folder = resource_path("browser_extension")
+        if os.path.isdir(folder):
+            open_in_file_manager(folder)
+        else:
+            self.notice("Eklenti klasörü bulunamadı", 8)
 
     # ------------------------------------------------------------------ notifications
     def _notify(self, kind, text):
@@ -915,7 +1528,7 @@ class App(*_BASES):
         # a paused download means "not finished": never shut down because of a pause-all
         if action == "none" or not done or any(i.state == PAUSED for i in items):
             return
-        self.after_all = "Hiçbir şey yapma"
+        self.after_all = NO_END_ACTION
         text, seconds = {"close": ("Uygulama kapanacak", 10),
                          "sleep": ("Bilgisayar uykuya geçecek", 30),
                          "shutdown": ("Bilgisayar kapanacak", 30)}[action]
@@ -927,6 +1540,120 @@ class App(*_BASES):
             self._on_close()
         else:
             notify.power_action(action)
+
+    # ----------------------------------------------------------------------- scheduler
+    def _check_schedule(self):
+        """Open or close the queue's gate according to the scheduler settings."""
+        cfg = self.cfg
+        start = schedule.parse_hhmm(cfg.get("schedule_start"))
+        stop_text = (cfg.get("schedule_stop") or "").strip()
+        stop = schedule.parse_hhmm(stop_text) if stop_text else None
+        now = self._now()
+        want_open = True
+        if cfg.get("schedule_on") and start is not None:
+            want_open = schedule.gate_should_be_open(now.hour * 60 + now.minute, start, stop)
+        if want_open != self.manager.gate_open:
+            self.manager.set_gate(want_open)
+            if want_open:
+                resumed = [it for it in self._sched_paused if it.state == PAUSED]
+                self._sched_paused = []
+                for it in resumed:
+                    self.manager.resume(it)
+                self.notice("Zamanlayıcı: indirmeler başladı")
+            elif stop is not None:
+                # the stop time came: running downloads pause and continue at the next start
+                for it in list(self.manager.items):
+                    if it.state in (RESOLVING, DOWNLOADING, WAITING):
+                        self._sched_paused.append(it)
+                        self.manager.pause(it)
+                self.notice("Zamanlayıcı: bitiş saati geldi, indirmeler duraklatıldı")
+            else:
+                self.notice("Zamanlayıcı: yeni indirmeler başlama saatini bekleyecek")
+        self.queue_note = "" if want_open else f"⏰ Zamanlayıcı: {schedule.format_hhmm(start)}'de başlayacak"
+
+    # ------------------------------------------------------------------ tray / window
+    def _ensure_tray(self):
+        if self.tray is None and tray.AVAILABLE:
+            try:
+                self.tray = tray.TrayIcon("Hızlı İndirici",
+                                          lambda name: self._ui_calls.put(lambda: self._tray_event(name)))
+                self.tray.start()
+            except Exception:
+                log.exception("tray icon could not start")
+                self.tray = None
+
+    def _tray_event(self, name):
+        if name == "show":
+            self._show_window()
+        elif name == "pause_all":
+            self.manager.pause_all()
+        elif name == "resume_all":
+            self.manager.resume_all()
+        elif name == "quit":
+            self._on_close()
+
+    def _hide_to_tray(self):
+        self._ensure_tray()
+        if self.tray is not None:
+            self.withdraw()
+        else:
+            self.iconify()
+
+    def _show_window(self):
+        try:
+            self.deiconify()
+            self.lift()
+            self.attributes("-topmost", True)
+            self.after(300, lambda: self.attributes("-topmost", False))
+            self.focus_force()
+        except TclError:
+            pass
+
+    def _on_window_x(self):
+        """The window's own close button: go to the tray if the user wants that, else quit."""
+        if self.cfg.get("tray_on_close") and tray.AVAILABLE and not self._closing:
+            self._hide_to_tray()
+            if self.tray is not None and not self._hidden_hint_shown and self.cfg.get("notify_toast"):
+                self._hidden_hint_shown = True
+                notify.toast("Hızlı İndirici", "Arka planda çalışıyor. Simgeye tıklayarak açabilirsin.")
+        else:
+            self._on_close()
+
+    # ------------------------------------------------------------------ browser bridge
+    def _start_bridge(self):
+        self.bridge = bridge_module.Bridge(BridgeApi(self), port=self.cfg.get("bridge_port"))
+        if not self.bridge.start():
+            self.bridge = None
+            self.notice("Tarayıcı köprüsü başlatılamadı (port dolu); eklenti çalışmaz", 10)
+
+    def restart_bridge(self):
+        old, self.bridge = self.bridge, None
+        if old is not None:
+            old.stop()
+        self._start_bridge()
+
+    def bridge_add(self, urls, extra, kind):
+        """Links from the browser extension. Runs on the bridge's thread: no widgets here."""
+        s = self.settings_from_config()
+        if kind:
+            s = dataclasses.replace(s, kind=kind)
+        skip = bool(self.cfg.get("block_duplicates"))
+        added = duplicates = 0
+        for u in urls:
+            if self.manager.add_url(normalize_url(u), s, skip_duplicates=skip, extra=extra):
+                added += 1
+            else:
+                duplicates += 1
+        if added:
+            self.notice(f"Tarayıcıdan {added} bağlantı eklendi")
+        return {"added": added, "duplicates": duplicates}
+
+    def bridge_status(self):
+        items = list(self.manager.items)
+        return {"active": sum(i.state in (RESOLVING, DOWNLOADING, PROCESSING) for i in items),
+                "queued": sum(i.state in (QUEUED, WAITING) for i in items),
+                "speed": int(sum(i.speed for i in items if i.state == DOWNLOADING)),
+                "total": len(items)}
 
     # ---------------------------------------------------------------------- updates
     def _open_updates(self):
@@ -974,6 +1701,7 @@ class App(*_BASES):
 
     # ------------------------------------------------------------------ close / loop
     def _on_close(self):
+        """Really quit: pause what runs, remember the list, close."""
         if self._closing:
             return
         self._closing = True
@@ -988,6 +1716,10 @@ class App(*_BASES):
             self.after(100, lambda: self._finish_close(deadline))
             return
         self.manager.save()
+        if self.tray is not None:
+            self.tray.stop()
+        if self.bridge is not None:
+            threading.Thread(target=self.bridge.stop, daemon=True).start()
         gc.collect()          # finalizers of Tk objects must run while the window still exists
         self.destroy()
         gc.enable()
@@ -1001,16 +1733,35 @@ class App(*_BASES):
                     break
                 self.notice(text)
 
+    def _drain_ui_calls(self):
+        while True:
+            try:
+                fn = self._ui_calls.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                fn()
+            except Exception:
+                log.exception("a call from another thread failed")
+
+    def report_callback_exception(self, exc, val, tb):
+        """A button / timer callback crashed: write it to the log, keep the window alive."""
+        log.error("callback failed", exc_info=(exc, val, tb))
+        self.notice("Beklenmeyen bir hata oldu (ayrıntı günlükte: Ayarlar → Günlüğü aç)", 10)
+
     def _tick(self):
         self._tick_no += 1
         try:
+            self._drain_ui_calls()
             self._sync_rows()
             self._watch_clipboard()
             self._drain_notices()
             self._drain_events()
             self._check_after_all()
+            self._check_schedule()
             if self._tick_no % 10 == 0:
                 self._ffmpeg_ok = bool(find_ffmpeg())
+                self._update_tray_tooltip()
             if self._tick_no % 20 == 0:
                 gc.collect()  # here, on the window's thread: see __init__
             self._update_update_widgets()
@@ -1019,10 +1770,17 @@ class App(*_BASES):
             if not self._closing:
                 self.after(300, self._tick)
 
+    def _update_tray_tooltip(self):
+        if self.tray is not None:
+            items = self.manager.items
+            active = sum(i.state in (DOWNLOADING, PROCESSING, RESOLVING) for i in items)
+            speed = sum(i.speed for i in items if i.state == DOWNLOADING)
+            self.tray.set_title(f"Hızlı İndirici • {active} aktif • {human_size(speed)}/s")
+
     def _update_status(self):
         items = self.manager.items
         active = [i for i in items if i.state in (DOWNLOADING, PROCESSING, RESOLVING)]
-        queued = sum(1 for i in items if i.state == QUEUED)
+        queued = sum(1 for i in items if i.state in (QUEUED, WAITING))
         speed = sum(i.speed for i in items if i.state == DOWNLOADING)
         parts = [f"Aktif: {len(active)}/{self.manager.max_parallel}", f"Sırada: {queued}",
                  f"Hız: {human_size(speed)}/s"]
@@ -1031,7 +1789,9 @@ class App(*_BASES):
             parts.append(f"Sınır: {limit}")
         parts.append("FFmpeg: hazır" if self._ffmpeg_ok else "FFmpeg: yok (gerekince otomatik indirilir)")
         text = "  •  ".join(parts)
-        if self.after_all != "Hiçbir şey yapma":
+        if self.queue_note:
+            text += f"  •  {self.queue_note}"
+        if self.after_all != NO_END_ACTION:
             text += f"  •  Bitince: {self.after_all.lower()}"
         if self._notice and time.time() < self._notice_until:
             text = f"{self._notice}    |    {text}"

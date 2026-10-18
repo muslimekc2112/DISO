@@ -218,6 +218,27 @@ class DownloadManager:
                 self.items.remove(item)
         self.save()
 
+    def redownload(self, item: Item):
+        """Download this item again from the start (the old file, if any, is left alone)."""
+        with self.lock:
+            if item.state in ACTIVE_STATES:
+                return
+        self._cleanup(item)
+        item.dest = item.final_path = ""
+        item.fraction, item.done, item.total = 0.0, 0, 0
+        self.start(item)
+        self.save()
+
+    def delete_with_file(self, item: Item):
+        """Remove from the list AND delete the downloaded file from the disk."""
+        path = item.final_path
+        self.remove(item)
+        if path:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
     def pause_all(self):
         for it in list(self.items):
             self.pause(it)

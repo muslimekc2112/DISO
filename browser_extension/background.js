@@ -1,0 +1,127 @@
+// Background script: context menu entries and (optionally) taking over the browser's downloads.
+// It only ever talks to the Hızlı İndirici app on 127.0.0.1. (lib.js is loaded before this file.)
+"use strict";
+
+const api = typeof browser !== "undefined" ? browser : chrome;
+const bypass = new Set();   // links we gave back to the browser because the app could not take them
+
+async function getOptions() {
+  const stored = await api.storage.local.get(HI.DEFAULTS);
+  return Object.assign({}, HI.DEFAULTS, stored);
+}
+
+// The app answers /ping with {"app": "HizliIndirici", ...}. null = not running / something else.
+async function ping(port) {
+  try {
+    const r = await fetch(HI.appBase(port) + "/ping", { cache: "no-store" });
+    const data = await r.json();
+    return data && data.app === HI.APP_ID ? data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function cookiesFor(url) {
+  try {
+    return HI.cookieHeader(await api.cookies.getAll({ url }));
+  } catch (e) {
+    return "";
+  }
+}
+
+// Send links to the app. For a single link the browser's session (cookies, referer) goes along,
+// so downloads that need a login work. Resolves with the app's answer, rejects if it fails.
+async function sendToApp(urls, { referer = "", kind = null } = {}) {
+  const opts = await getOptions();
+  const cookies = urls.length === 1 ? await cookiesFor(urls[0]) : "";
+  const payload = HI.buildPayload({ urls, referer, userAgent: navigator.userAgent, cookies, kind });
+  const r = await fetch(HI.appBase(opts.port) + "/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-HI-Client": "extension" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const why = (await r.json().catch(() => ({}))).error || r.status;
+    throw new Error(why === "disabled" ? "Uygulamada tarayıcı eklentisi kapalı" : "Uygulama reddetti: " + why);
+  }
+  return r.json();
+}
+
+async function flash(text, ok) {
+  const opts = await getOptions();
+  if (!opts.badge) return;
+  try {
+    await api.action.setBadgeBackgroundColor({ color: ok ? "#2e9e5b" : "#b23b3b" });
+    await api.action.setBadgeText({ text: text });
+    setTimeout(() => api.action.setBadgeText({ text: "" }), 2500);
+  } catch (e) { /* no toolbar button in this browser */ }
+}
+
+async function sendAndShow(urls, extra) {
+  try {
+    const result = await sendToApp(urls, extra);
+    await flash(result.added ? "✓" : "=", true);
+    return { ok: true, result, text: HI.describeResult(result) };
+  } catch (e) {
+    await flash("!", false);
+    // a fetch that cannot connect throws a TypeError in every browser (the wording differs)
+    const unreachable = e && e.name === "TypeError";
+    return { ok: false, text: unreachable ? "Uygulamaya ulaşılamadı: Hızlı İndirici açık mı?" : String(e && e.message || e) };
+  }
+}
+
+// ------------------------------------------------------------------------ context menu
+function createMenus() {
+  api.contextMenus.removeAll(() => {
+    api.contextMenus.create({ id: "hi-link", title: "Hızlı İndirici ile indir", contexts: ["link"] });
+    api.contextMenus.create({ id: "hi-media", title: "Hızlı İndirici ile indir", contexts: ["video", "audio", "image"] });
+    api.contextMenus.create({ id: "hi-page", title: "Bu sayfayı Hızlı İndirici ile indir (video)", contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-selection", title: "Seçilen bağlantıları Hızlı İndirici ile indir", contexts: ["selection"] });
+  });
+}
+api.runtime.onInstalled.addListener(createMenus);
+
+api.contextMenus.onClicked.addListener(async (info, tab) => {
+  const referer = (tab && tab.url) || info.pageUrl || "";
+  if (info.menuItemId === "hi-link") return sendAndShow([info.linkUrl], { referer });
+  if (info.menuItemId === "hi-media") return sendAndShow([info.srcUrl], { referer });
+  if (info.menuItemId === "hi-page") return sendAndShow([info.pageUrl || referer], { referer: "", kind: "video" });
+  if (info.menuItemId === "hi-selection") {
+    const urls = HI.extractUrls(info.selectionText);
+    if (!urls.length) return flash("?", false);
+    return sendAndShow(urls, { referer });
+  }
+});
+
+// -------------------------------------------------------------- take over browser downloads
+api.downloads.onCreated.addListener(async (item) => {
+  const url = item.finalUrl || item.url;
+  if (bypass.has(url)) { bypass.delete(url); return; }
+  const opts = await getOptions();
+  if (!HI.shouldIntercept(item, opts)) return;
+  const app = await ping(opts.port);
+  if (!app || !app.add) return;                    // the app is closed (or adding is off): the browser keeps it
+  try {
+    await api.downloads.cancel(item.id);
+    await api.downloads.erase({ id: item.id });
+    const result = await sendToApp([url], { referer: item.referrer || "" });
+    await flash(result.added ? "✓" : "=", true);
+  } catch (e) {                                    // could not hand it over: give it back to the browser
+    bypass.add(url);
+    try { await api.downloads.download({ url }); } catch (e2) { /* nothing more to do */ }
+    await flash("!", false);
+  }
+});
+
+// ------------------------------------------------------------------- popup / options pages
+api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  (async () => {
+    if (msg && msg.type === "send") return sendAndShow(msg.urls || [], { referer: msg.referer || "", kind: msg.kind || null });
+    if (msg && msg.type === "status") {
+      const opts = await getOptions();
+      return { app: await ping(opts.port), port: opts.port, intercept: opts.intercept };
+    }
+    return null;
+  })().then(sendResponse, (e) => sendResponse({ ok: false, text: String(e && e.message || e) }));
+  return true;   // the answer comes later
+});

@@ -1,5 +1,4 @@
 """The real window, hidden. Skipped when customtkinter or a display is missing."""
-import gc
 import json
 import os
 import time
@@ -9,85 +8,13 @@ import pytest
 
 pytest.importorskip("customtkinter")
 
-from app import notify, updater  # noqa: E402
 from app.models import (DONE, DOWNLOADING, ERROR, PAUSED, QUEUED, Item)  # noqa: E402
 from app.segmented_downloader import LIMITER  # noqa: E402
 from conftest import dump_threads, wait_for  # noqa: E402
+from ui_support import (FakeCountdown, add_item, destroyed, local_urls, notice, shown)  # noqa: E402
 
 pytestmark = pytest.mark.gui
 MB = 1024 * 1024
-
-
-class FakeCountdown:
-    """Stands in for the countdown window: records the question and answers 'yes' at once."""
-    log = []
-
-    def __init__(self, app, text, seconds, on_done):
-        FakeCountdown.log.append((text, seconds))
-        on_done()
-
-
-@pytest.fixture
-def make_app(monkeypatch, isolated_home):
-    from app import ui
-    FakeCountdown.log = []
-    notes = {"sound": [], "toast": [], "power": []}
-    monkeypatch.setattr(updater.Updater, "start", lambda self: None)          # no network
-    monkeypatch.setattr(notify, "play_sound", lambda kind="done": notes["sound"].append(kind))
-    monkeypatch.setattr(notify, "toast", lambda title, body: notes["toast"].append((title, body)))
-    monkeypatch.setattr(notify, "power_action", lambda kind: notes["power"].append(kind) or True)
-    monkeypatch.setattr(ui, "CountdownDialog", FakeCountdown)
-    made = []
-
-    def make():
-        try:
-            app = ui.App()
-        except Exception as e:  # noqa: BLE001 - no display
-            pytest.skip(f"no display: {e}")
-        app.withdraw()
-        app.update()
-        app.notes = notes
-        made.append(app)
-        return app
-
-    yield make
-    for app in made:
-        try:
-            app._closing = True
-            app.manager.shutdown()
-            gc.collect()      # same rule as the real window: collect Tk objects on this thread
-            app.destroy()
-        except Exception:  # noqa: BLE001 - already closed by the test
-            pass
-    gc.collect()
-    gc.enable()
-
-
-@pytest.fixture
-def app(make_app):
-    return make_app()
-
-
-def add_item(app, title, state, **kw):
-    it = Item(f"http://x/{title.lower()}", kind="file", title=title)
-    it.state = state
-    for k, v in kw.items():
-        setattr(it, k, v)
-    app.manager.items.append(it)
-    return it
-
-
-def shown(app):
-    app._sync_rows()
-    return [app.rows[i].item.title for i in app._order]
-
-
-def notice(app):
-    return app._notice
-
-
-def local_urls(server, n, size=2000):
-    return [server.url("f", server.file(size)[0]) for _ in range(n)]
 
 
 # ------------------------------------------------------------------------------ list
@@ -590,14 +517,6 @@ def test_update_panel_lists_every_component_and_refreshes(app):
 
 
 # ------------------------------------------------------------------------------ closing
-def destroyed(app):
-    try:
-        app.update()
-        return not app.winfo_exists()
-    except Exception:  # noqa: BLE001 - Tcl error: the window is gone
-        return True
-
-
 def test_closing_returns_at_once_and_closes_the_window(app):
     t0 = time.time()
     app._on_close()

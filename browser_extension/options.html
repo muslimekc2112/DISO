@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>Hızlı İndirici — Ayarlar</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#fff; --fg:#1d1f23; --muted:#6b7280; --card:#f1f3f6; --accent:#2f7de1; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#25272b; --fg:#eceff4; --muted:#9aa3b2; --card:#2f3238; } }
+    body { margin:0; padding:28px; background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif; max-width:560px; }
+    h1 { font-size:20px; margin:0 0 18px; }
+    .card { background:var(--card); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+    label { display:block; font-weight:600; margin-bottom:4px; }
+    small { display:block; color:var(--muted); margin-top:4px; }
+    input[type=number], input[type=text], textarea { width:100%; box-sizing:border-box; padding:7px; border-radius:6px; border:1px solid #8884; background:var(--bg); color:var(--fg); font:inherit; }
+    button { padding:8px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; margin-right:8px; }
+    #msg { margin-top:10px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>⚡ Hızlı İndirici — Ayarlar</h1>
+  <div class="card">
+    <label for="port">Bağlantı noktası</label>
+    <input id="port" type="number" min="1024" max="65535">
+    <small>Uygulamadaki Ayarlar → "Eklenti bağlantı noktası" ile aynı olmalı.</small>
+  </div>
+  <div class="card">
+    <label><input id="intercept" type="checkbox"> Tarayıcı indirmelerini Hızlı İndirici'ye yönlendir</label>
+    <small>Uygulama kapalıysa indirme tarayıcıda normal şekilde devam eder.</small>
+    <label for="minSizeMB" style="margin-top:12px">En az boyut (MB)</label>
+    <input id="minSizeMB" type="number" min="0">
+    <small>Bu boyuttan büyük indirmeler yakalanır. 0: yalnızca aşağıdaki dosya türleri.</small>
+    <label for="extensions" style="margin-top:12px">Her zaman yakalanacak dosya türleri</label>
+    <textarea id="extensions" rows="3"></textarea>
+  </div>
+  <div class="card">
+    <label><input id="badge" type="checkbox"> Gönderince araç çubuğu simgesinde ✓ göster</label>
+  </div>
+  <button id="save">Kaydet</button><button id="test">Bağlantıyı dene</button>
+  <div id="msg"></div>
+  <script src="lib.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -269,3 +269,74 @@ def test_auto_mode_treats_an_unreachable_page_as_a_video_site():
     item = Item("http://127.0.0.1:9/page", kind="auto")
     jobs.classify(item)
     assert item.kind == "video"
+
+
+# ------------------------------------------------------------- redownload / delete with file
+def test_redownload_fetches_the_file_again_from_the_start(manager, server, settings, folder):
+    name, data = server.file(100_000)
+    manager.add_url(server.url("f", name), settings)
+    assert wait_for(lambda: states(manager) == [DONE])
+    item = manager.items[0]
+    first = item.final_path
+    manager.redownload(item)
+    assert wait_for(lambda: item.state == DONE and item.final_path and item.final_path != first)
+    assert open(item.final_path, "rb").read() == data
+    assert sorted(os.listdir(folder)) == sorted([name, name.replace(".bin", " (1).bin")])  # old copy kept
+    assert server.hits(name) >= 4                                                          # fetched twice
+
+
+def test_redownload_throws_the_partial_file_away(manager, server, settings, folder):
+    name, data = server.file(6 * MB)
+    LIMITER.set_rate(1 * MB)
+    manager.add_url(server.url("f", name), settings)
+    item = manager.items[0]
+    wait_for(lambda: item.state == DOWNLOADING and item.done > 1 * MB, 20)
+    manager.pause(item)
+    assert wait_for(lambda: item.state == PAUSED)
+    partial = item.dest + ".part"
+    assert os.path.exists(partial)
+    LIMITER.set_rate(0)
+    sent = server.sent(name)
+    manager.redownload(item)
+    assert wait_for(lambda: item.state == DONE, 20)
+    assert server.sent(name) - sent >= len(data)          # the whole file again, no resume
+    assert open(item.final_path, "rb").read() == data
+
+
+def test_a_running_download_is_not_restarted(manager, server, settings):
+    name, _ = server.file(6 * MB)
+    LIMITER.set_rate(1 * MB)
+    manager.add_url(server.url("f", name), settings)
+    item = manager.items[0]
+    wait_for(lambda: item.state == DOWNLOADING and item.done > 0.5 * MB, 20)
+    dest = item.dest
+    manager.redownload(item)
+    assert item.state == DOWNLOADING and item.dest == dest
+
+
+def test_a_failed_download_can_be_redownloaded(manager, server, settings):
+    manager.add_url(server.url("f", "missing.bin"), settings)
+    assert wait_for(lambda: states(manager) == [ERROR])
+    hits = server.hits("missing.bin")
+    manager.redownload(manager.items[0])
+    assert wait_for(lambda: server.hits("missing.bin") > hits)
+    assert wait_for(lambda: states(manager) == [ERROR])
+
+
+def test_delete_with_file_removes_the_item_and_the_file(manager, server, settings, folder):
+    name, _ = server.file(5000)
+    manager.add_url(server.url("f", name), settings)
+    assert wait_for(lambda: states(manager) == [DONE])
+    path = manager.items[0].final_path
+    assert os.path.exists(path)
+    manager.delete_with_file(manager.items[0])
+    assert manager.items == [] and not os.path.exists(path) and os.listdir(folder) == []
+
+
+def test_delete_with_file_copes_with_a_file_that_is_already_gone(manager, server, settings):
+    name, _ = server.file(5000)
+    manager.add_url(server.url("f", name), settings)
+    assert wait_for(lambda: states(manager) == [DONE])
+    os.remove(manager.items[0].final_path)
+    manager.delete_with_file(manager.items[0])
+    assert manager.items == []

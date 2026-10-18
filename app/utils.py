@@ -95,6 +95,16 @@ def human_eta(seconds) -> str:
     return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 
+def human_duration(seconds) -> str:
+    """185 -> '3:05', 3725 -> '1:02:05', 0 / None -> ''."""
+    seconds = int(seconds or 0)
+    if seconds <= 0:
+        return ""
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
 # ---------------------------------------------------------------------------- file names
 def sanitize_filename(name: str, maxlen: int = 150) -> str:
     name = _INVALID.sub("_", str(name or ""))
@@ -203,3 +213,17 @@ def urls_from_file(path: str, limit: int = 2_000_000) -> list:
         except UnicodeDecodeError:
             continue
     return extract_urls(raw.decode("utf-8", "replace"))
+
+
+def open_file(path: str) -> bool:
+    """Open a file with the program Windows (or the OS) associates with it."""
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(path)  # noqa
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
+        return True
+    except Exception:
+        return False

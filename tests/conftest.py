@@ -19,7 +19,7 @@ import uuid
 
 import pytest
 
-pytest_plugins = ["media_support"]   # shared media fixtures (media, served, stand_in)
+pytest_plugins = ["media_support", "ui_support"]   # shared media fixtures (media, served, stand_in)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -51,6 +51,12 @@ def clean_globals():
     LIMITER.set_rate(0)
     from app import segmented_downloader
     segmented_downloader.set_proxy("")
+    import logging.handlers
+    from app.logs import log
+    for h in list(log.handlers):          # the log file belongs to the test's private home
+        if isinstance(h, logging.handlers.RotatingFileHandler):
+            log.removeHandler(h)
+            h.close()
     sys.meta_path[:] = meta_path
     updater._overrides.clear()
     updater._active.clear()

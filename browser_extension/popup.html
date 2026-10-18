@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>Hızlı İndirici</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#fff; --fg:#1d1f23; --muted:#6b7280; --card:#f1f3f6; --accent:#2f7de1; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#25272b; --fg:#eceff4; --muted:#9aa3b2; --card:#2f3238; } }
+    body { margin:0; width:300px; padding:14px; background:var(--bg); color:var(--fg); font:13px system-ui, sans-serif; }
+    h1 { font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+    h1 img { width:20px; height:20px; }
+    .status { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--card); border-radius:8px; margin-bottom:10px; }
+    .dot { width:10px; height:10px; border-radius:50%; background:#b23b3b; flex:none; }
+    .dot.on { background:#2e9e5b; }
+    button { width:100%; padding:9px; margin:4px 0; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+    button.secondary { background:var(--card); color:var(--fg); }
+    button:disabled { opacity:.5; cursor:default; }
+    label { display:flex; gap:8px; align-items:center; margin:10px 0 4px; }
+    #msg { min-height:18px; margin-top:8px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <h1><img src="icons/icon48.png" alt=""> Hızlı İndirici</h1>
+  <div class="status"><span id="dot" class="dot"></span><span id="state">Kontrol ediliyor…</span></div>
+  <button id="page">⬇ Bu sekmeyi indir</button>
+  <button id="audio" class="secondary">🎵 Bu sekmeyi MP3 olarak indir</button>
+  <label><input type="checkbox" id="intercept"> Tarayıcı indirmelerini yakala</label>
+  <button id="options" class="secondary">⚙ Ayarlar</button>
+  <div id="msg"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

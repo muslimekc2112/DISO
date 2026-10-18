@@ -29,6 +29,8 @@ AFTER_ALL = {  # menu text -> action. Not saved: it applies once, to the current
     "Bilgisayarı uyut": "sleep",
     "Bilgisayarı kapat": "shutdown",
 }
+THEMES = {"Koyu": "dark", "Açık": "light", "Sistem": "system"}
+AUTO_RETRY = {"Kapalı": 0, "1 kez": 1, "3 kez": 3, "5 kez": 5, "10 kez": 10}
 SORTS = ["Yeni üstte", "Eski üstte", "Ad (A→Z)", "Boyut (büyük üstte)", "Duruma göre"]
 FILTERS = ["Hepsi", "Aktif", "Sırada", "Duraklatılmış", "Tamamlanan", "Hatalı"]
 MAX_PARALLEL_CHOICES = [str(n) for n in range(1, 9)]
@@ -43,12 +45,26 @@ DEFAULTS = {
     "cookies": "Yok",
     "playlist": False,
     "clip_watch": False,
+    "subs": "Yok",
+    "cover": True,
+    "sort_folders": False,
     # settings window
     "max_parallel": 3,
     "speed_limit": "Sınırsız",
     "notify_sound": True,
     "notify_toast": True,
     "block_duplicates": True,
+    "auto_retry": 3,
+    "proxy": "",
+    "playlist_ask": True,
+    "schedule_on": False,
+    "schedule_start": "02:00",
+    "schedule_stop": "07:00",
+    "tray_on_close": False,
+    "start_with_windows": False,
+    "bridge_on": True,
+    "bridge_port": 17653,
+    "theme": "Koyu",
     # list
     "sort": "Yeni üstte",
     "filter": "Hepsi",
