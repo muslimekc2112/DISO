@@ -73,7 +73,7 @@ Aynı anda indirme sayısı (1–8), toplam **hız sınırı**, otomatik deneme 
 
 **Dil:** Ayarlar → Dil → English (DISO yeniden açılır). **Yedek ve yardım:** 💾 Yedek al (ayarlar, çalma listeleri, indirme listesi ve geçmiş tek `.disoyedek` dosyasına), 📂 Yedeği yükle (başka bilgisayardan getir), 📊 İndirme geçmişi (ne zaman ne indi, ne kadar hızlı, en çok hangi siteden; listeden silinenler de kalır), ⌨ Klavye kısayolları (her yerde **F1**).
 
-**ℹ Hakkında** (Ayarlar'da, ya da başlıktaki BETA rozetine tıkla): sürümü, DISO'nun nerede durduğunu ve verilerinin nerede olduğunu gösterir. Bir şey ters giderse **Detayları kopyala** ile sürüm, Windows, yt-dlp, FFmpeg ve Deno bilgilerini tek seferde panoya alıp mesaja yapıştırabilirsin.
+**ℹ Hakkında** (Ayarlar'da, ya da başlıktaki BETA rozetine tıkla): sürümü, DISO'nun nerede durduğunu ve verilerinin nerede olduğunu gösterir. Bir şey ters giderse **Detayları kopyala** ile sürüm, Windows, yt-dlp, FFmpeg ve Deno bilgilerini tek seferde panoya alıp [sorun bildirimine](https://github.com/muslimekc2112/DISO/issues) yapıştırabilirsin.
 
 ### ⏰ Zamanlayıcı (gece indirme)
 Ayarlar → Zamanlayıcı'yı aç, başlangıç (ve istersen bitiş) saatini yaz, örneğin `02:00`–`07:00`. Saat gelene kadar yeni indirmeler sırada bekler. Bitiş saati gelince çalışanlar duraklar, bir sonraki başlangıçta kaldığı yerden devam eder.
@@ -92,7 +92,7 @@ Ayarlar → Zamanlayıcı'yı aç, başlangıç (ve istersen bitiş) saatini yaz
 - **YouTube/Instagram aniden çalışmazsa:** `⟳ Güncellemeler` → "Kontrol et" → DISO'yu yeniden aç. yt-dlp program içinde güncellenir, yeniden derlemek gerekmez.
 - **YouTube "format bulunamadı" derse:** kurulum paketiyle gelen Deno yeterlidir. Kaynak koddan çalıştırıyorsan bir kez `winget install DenoLand.Deno` kur.
 - **Giriş isteyen videolar:** "Giriş çerezleri" menüsünden giriş yaptığın tarayıcıyı seç (Firefox en sorunsuzu) ya da tarayıcı eklentisini kullan.
-- **Bir şey ters giderse:** Ayarlar → **ℹ Hakkında** → "Detayları kopyala", ya da "Günlüğü aç" (`%LOCALAPPDATA%\DISO\diso.log`).
+- **Bir şey ters giderse:** Ayarlar → **ℹ Hakkında** → "Detayları kopyala" ile bilgileri kopyala, sonra [GitHub'da yeni bir sorun aç](https://github.com/muslimekc2112/DISO/issues) ve bilgileri oraya yapıştır. Günlük dosyası: `%LOCALAPPDATA%\DISO\diso.log`.
 - **Google Drive / Mega / MediaFire sayfaları** doğrudan indirme linki değildir; DISO bir sayfadaki butona basamaz.
 
 Ayrıntılı teknik açıklama: `HOW_IT_WAS_MADE.txt` (İngilizce). Sürüm geçmişi: `CHANGELOG.md`.
