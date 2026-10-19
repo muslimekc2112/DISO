@@ -28,8 +28,9 @@ from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED,
                      QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
 from .segmented_downloader import LIMITER, check_connection, set_proxy
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
-from .ui_common import install_smooth_scrolling, install_wrap_to_fit
+from .ui_common import guard_color_emoji, install_smooth_scrolling, install_wrap_to_fit
 
+guard_color_emoji()                 # Linux with an old libXft: before the first window
 install_smooth_scrolling()
 install_wrap_to_fit()
 from .utils import (MAC, WINDOWS, app_data_dir, default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,

@@ -33,6 +33,49 @@ def set_if_changed(widget, **options):
         widget.configure(**changed)
 
 
+XFT_COLOR_OK = 20305          # libXft 2.3.5: the first that can draw colour (emoji) glyphs
+REJECT_COLOR_FONTS = """<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+  <selectfont><rejectfont><pattern><patelt name="color"><bool>true</bool></patelt></pattern></rejectfont></selectfont>
+</fontconfig>
+"""
+
+
+def guard_color_emoji(folder=None, version=None, environ=None) -> bool:
+    """Linux: Tk draws its text with libXft, and a libXft older than 2.3.5 makes the whole program die
+    ("BadLength") the moment a colour emoji font (Noto Color Emoji: there by default on Ubuntu 22.04,
+    Mint 21 ...) is asked for a glyph like 🎵. Then fontconfig is told to leave colour fonts out (the
+    emoji come from the plain fonts or stay empty). Must run before the first window. True if it did."""
+    import os
+    import sys
+    environ = os.environ if environ is None else environ
+    if version is None:
+        if not sys.platform.startswith("linux") or environ.get("FONTCONFIG_FILE"):
+            return False
+        try:
+            import ctypes
+
+            import _tkinter  # noqa: F401 - loads Tk and with it the libXft it uses
+            version = ctypes.CDLL("libXft.so.2").XftGetVersion()
+        except Exception:  # noqa: BLE001 - no libXft (not X11): nothing to guard
+            return False
+    if version >= XFT_COLOR_OK:
+        return False
+    if folder is None:
+        from .utils import app_data_dir
+        folder = app_data_dir()
+    path = os.path.join(folder, "fonts-no-color.conf")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(REJECT_COLOR_FONTS)
+    except OSError:
+        return False
+    environ["FONTCONFIG_FILE"] = path
+    return True
+
+
 SCROLL_FRAME_MS = 16          # wheel steps that arrive within this time are scrolled together
 
 

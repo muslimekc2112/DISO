@@ -329,6 +329,17 @@ def test_notifications_on_macos_and_linux(monkeypatch):
     assert notify.toast_command("T", "B", system="linux") is None
 
 
+def test_an_old_libxft_gets_no_colour_fonts(tmp_path):
+    from app import ui_common
+    env = {}
+    assert ui_common.guard_color_emoji(str(tmp_path), version=20306, environ=env) is False and env == {}
+    assert ui_common.guard_color_emoji(str(tmp_path), version=20304, environ=env) is True
+    conf = open(env["FONTCONFIG_FILE"], encoding="utf-8").read()
+    assert "/etc/fonts/fonts.conf" in conf and '<patelt name="color"><bool>true</bool></patelt>' in conf
+    if not sys.platform.startswith("linux"):
+        assert ui_common.guard_color_emoji() is False          # nothing to do elsewhere
+
+
 # ------------------------------------------------------------------------------- the setup scripts
 SCRIPTS = os.path.join(ROOT, "tools", "unix")
 
