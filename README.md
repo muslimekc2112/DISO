@@ -2,7 +2,7 @@
 
 **English | [Türkçe](README.tr.md)**
 
-A download manager for files, videos and music, with a music player built in. For **Windows, Linux and macOS**. **Version 0.12.0 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
+A download manager for files, videos and music, with a music player built in. For **Windows and Linux**. **Version 0.12.0 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
 
 Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
@@ -23,23 +23,17 @@ Two ways; FFmpeg, yt-dlp and Deno are inside both, there is nothing else to inst
 - **Any distribution (no administrator password):** unpack `DISO-0.12.0-beta-linux-x86_64.tar.gz` and run `./install.sh` in that folder. It asks the language (Türkçe / English), installs DISO for you in `~/.local/opt/DISO` and puts it into the applications menu. **"Uninstall DISO"** in the menu (or `~/.local/opt/DISO/uninstall.sh`) removes it and asks whether your settings and playlists should go too.
 - DISO keeps its data in `~/.local/share/DISO`. The tray icon needs a desktop with a tray (GNOME: the "AppIndicator" extension); without one, DISO opening again brings its window back.
 
-## Installing on macOS
-`DISO-0.12.0-beta-macos-arm64.dmg` (Apple Silicon: M1, M2 …) or `DISO-0.12.0-beta-macos-x86_64.dmg` (Intel). Open it and drag **DISO** onto **Applications**.
-- DISO is not signed by Apple, so the first start may say "could not be verified": press **Done**, then **System Settings → Privacy & Security → Open Anyway** (macOS 14 and earlier: right-click DISO → Open). Only once.
-- **Uninstalling:** double-click **"Uninstall DISO.command"** on the disk image. It asks whether your settings and playlists should go too. DISO keeps its data in `~/Library/Application Support/DISO`.
-- Closing the window with "Keep running when closed" on puts DISO into the Dock (macOS has no tray for it).
-
-**What only Windows has:** the media keys of the keyboard, the ⏮ ⏯ ⏭ buttons on the taskbar preview and Windows' media panel. Everything else (downloads, music player, extension, updates) works the same on all three.
+**What only Windows has:** the media keys of the keyboard, the ⏮ ⏯ ⏭ buttons on the taskbar preview and Windows' media panel. Everything else (downloads, music player, extension, updates) works the same on both.
 
 ## 🌐 Language
-DISO, its installer and its browser extension speak **English and Turkish**. On the first start DISO uses Turkish if the system (Windows, macOS, Linux) is in Turkish, and English otherwise. You can switch at any time with **TR | EN** at the top left of the main window, or Settings → **Language** (DISO restarts). The setup and uninstall windows start in the language you chose in DISO and have a **Türkçe | English** switch at the top; the language chosen in setup becomes DISO's language too. The browser extension uses the browser's language.
+DISO, its installer and its browser extension speak **English and Turkish**. On the first start DISO uses Turkish if the system (Windows, Linux) is in Turkish, and English otherwise. You can switch at any time with **TR | EN** at the top left of the main window, or Settings → **Language** (DISO restarts). The setup and uninstall windows start in the language you chose in DISO and have a **Türkçe | English** switch at the top; the language chosen in setup becomes DISO's language too. The browser extension uses the browser's language.
 
 ## For developers
 1. Install Python 3.10+ (tick **"Add Python to PATH"** in its installer).
 2. Double-click `run.bat`: it installs the libraries and starts the program. (By hand: `pip install -r requirements.txt`, then `python main.py`)
 3. `build.bat` makes a portable single-file `DISO.exe` that needs no install (`build.bat --no-ffmpeg` for a smaller one). It unpacks itself to a temporary folder at every start, so it takes a few seconds to open.
 4. `python tools/build_installer.py` makes the setup package: it builds the program as a folder (`build\app\DISO`, `python tools/build_exe.py --onedir`), downloads Deno and checks its SHA-256, and writes `dist\DISO-Setup-<version>.exe`. The installed DISO is a folder, so it opens in 2–3 seconds.
-5. **Linux / macOS:** `python tools/build_unix.py` on that system makes the `.deb` + `.tar.gz` (Linux) or the `.dmg` (macOS). GitHub Actions does it for every release on its own Linux and Mac machines, tests the result from the outside (`tools/unix/smoke.py`: selftest, the browser's native host, a real download, a screenshot), installs and removes it, and attaches it to the release (`.github/workflows/unix.yml`).
+5. **Linux:** `python tools/build_unix.py` on a Linux PC makes the `.deb` and the `.tar.gz`. GitHub Actions does it for every release on its own Linux machine, tests the result from the outside (`tools/unix/smoke.py`: selftest, the browser's native host, a real download, a screenshot), installs and removes it, and attaches it to the release (`.github/workflows/unix.yml`).
 6. The icons are made from one picture: after changing `IKON\icon.png`, run `python tools/make_icons.py`.
 
 The name, publisher, version and GitHub address are written in one place: `app/brand.py`. The program's texts are written in Turkish; their English is in `app/lang_en.py` (the keys are the Turkish texts as shown on screen).

@@ -3,12 +3,13 @@
 **[English](CHANGELOG.md) | Türkçe**
 
 ## 0.12.0 beta
-- **Linux ve macOS:** DISO artık Linux'ta ve macOS'ta da çalışıyor. Linux için `.deb` (Debian, Ubuntu, Mint …) ve her dağıtım için `.tar.gz` (içindeki `install.sh` ile, yönetici şifresi gerekmeden); macOS için Apple Silicon ve Intel `.dmg`. FFmpeg, yt-dlp ve Deno içinde gelir; DISO onları orada da kendisi günceller (FFmpeg: Linux'ta BtbN, macOS'ta martin-riedl.de derlemeleri, SHA-256 ile doğrulanır).
-- **Kurulum ve kaldırma iki dilli:** `install.sh` ve kaldırıcılar Türkçe / English sorar; kaldırırken ayarlarının, çalma listelerinin ve geçmişin de silinip silinmeyeceğini sorar (indirdiğin dosyalara dokunmaz).
-- **Müzik çalar Linux ve macOS'ta:** sesi FFmpeg çözüyor, SDL çalıyor; her dosya türü (Opus, Vorbis, FLAC …) dönüştürmeden çalar, geçiş (cross-fade) ve önizleme de var.
-- **Tarayıcı eklentisi Linux ve macOS'ta:** DISO kapalıyken eklenti onu açabilir (her tarayıcının kendi klasörüne küçük bir dosya yazılır). Eklenti rehberi tarayıcıları orada da bulur; **Chromium** da listede.
-- **Oturum açılınca başlat** (Linux: autostart, macOS: LaunchAgent), bildirimler (macOS Bildirim Merkezi, Linux notify-send), "bitince bilgisayarı kapat / uyut" da bu sistemlerde çalışıyor.
-- Yalnızca Windows'ta kalanlar: medya tuşları, görev çubuğu önizleme düğmeleri ve Windows medya paneli. macOS'ta tepsi yok: "Kapatınca arka planda çalış" açıkken pencere Dock'a küçülür.
+- **Linux:** DISO artık Linux'ta da çalışıyor: Debian, Ubuntu, Mint … için `.deb` ve her dağıtım için `.tar.gz` (içindeki `install.sh` ile, yönetici şifresi gerekmeden). FFmpeg, yt-dlp ve Deno içinde gelir; DISO onları orada da kendisi günceller (FFmpeg: BtbN derlemeleri, SHA-256 ile doğrulanır).
+- **Kurulum ve kaldırma iki dilli:** `install.sh` ve `uninstall.sh` Türkçe / English sorar; kaldırırken ayarlarının, çalma listelerinin ve geçmişin de silinip silinmeyeceğini sorar (indirdiğin dosyalara dokunmaz). Uygulamalar menüsünde "DISO'yu Kaldır" var.
+- **Müzik çalar Linux'ta:** sesi FFmpeg çözüyor, SDL çalıyor; her dosya türü (Opus, Vorbis, FLAC …) dönüştürmeden çalar, geçiş (cross-fade) ve önizleme de var.
+- **Tarayıcı eklentisi Linux'ta:** DISO kapalıyken eklenti onu açabilir (her tarayıcının kendi klasörüne küçük bir dosya yazılır). Eklenti rehberi tarayıcıları orada da bulur; **Chromium** da listede.
+- **Oturum açılınca başlat** (autostart), bildirimler (notify-send) ve "bitince bilgisayarı kapat / uyut" Linux'ta da çalışıyor.
+- Yalnızca Windows'ta kalanlar: medya tuşları, görev çubuğu önizleme düğmeleri ve Windows medya paneli.
+- Taşınabilir `DISO.exe` artık sürümlere eklenmiyor (kurulumu kullan).
 
 ## 0.11.5 beta
 - **Ana pencerenin sol üstünde TR | EN:** dili tek tıkla değiştir (DISO yeniden açılmayı önerir; Ayarlar → Dil ile aynı şey).

@@ -2,7 +2,7 @@
 
 **[English](README.md) | Türkçe**
 
-Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. **Windows, Linux ve macOS** için. **Sürüm 0.12.0 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
+Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. **Windows ve Linux** için. **Sürüm 0.12.0 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
 
 Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
 
@@ -23,16 +23,10 @@ Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlant�
 - **Her dağıtım (yönetici şifresi gerekmez):** `DISO-0.12.0-beta-linux-x86_64.tar.gz` dosyasını aç, klasörün içinde `./install.sh` çalıştır. Dili sorar (Türkçe / English), DISO'yu senin için `~/.local/opt/DISO` klasörüne kurar ve uygulamalar menüsüne koyar. Menüdeki **"DISO'yu Kaldır"** (ya da `~/.local/opt/DISO/uninstall.sh`) onu kaldırır; ayarlarının ve çalma listelerinin de silinip silinmeyeceğini sorar.
 - DISO verilerini `~/.local/share/DISO` içinde tutar. Tepsi simgesi için masaüstünde bir tepsi olmalı (GNOME: "AppIndicator" eklentisi); yoksa DISO'yu yeniden açmak penceresini geri getirir.
 
-## macOS'ta kurulum
-`DISO-0.12.0-beta-macos-arm64.dmg` (Apple Silicon: M1, M2 …) ya da `DISO-0.12.0-beta-macos-x86_64.dmg` (Intel). Aç ve **DISO**'yu **Applications** (Uygulamalar) klasörüne sürükle.
-- DISO Apple tarafından imzalı olmadığı için ilk açılışta "doğrulanamadı" diyebilir: **Bitti**'ye bas, sonra **Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç** (macOS 14 ve öncesinde: DISO'ya sağ tık → Aç). Bir kez yeter.
-- **Kaldırma:** disk görüntüsündeki **"Uninstall DISO.command"**a çift tıkla. Ayarlarının ve çalma listelerinin de silinip silinmeyeceğini sorar. DISO verilerini `~/Library/Application Support/DISO` içinde tutar.
-- "Kapatınca arka planda çalış" açıkken pencereyi kapatınca DISO Dock'a küçülür (macOS'ta onun için tepsi yok).
-
-**Yalnızca Windows'ta olanlar:** klavyenin medya tuşları, görev çubuğu önizlemesindeki ⏮ ⏯ ⏭ düğmeleri ve Windows'un medya paneli. Geri kalan her şey (indirmeler, müzik çalar, eklenti, güncellemeler) üçünde de aynı.
+**Yalnızca Windows'ta olanlar:** klavyenin medya tuşları, görev çubuğu önizlemesindeki ⏮ ⏯ ⏭ düğmeleri ve Windows'un medya paneli. Geri kalan her şey (indirmeler, müzik çalar, eklenti, güncellemeler) ikisinde de aynı.
 
 ## 🌐 Dil
-DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta sistem (Windows, macOS, Linux) Türkçe ise Türkçe, değilse İngilizce başlar. Sonra istediğin zaman ana pencerenin sol üstündeki **TR | EN** ile ya da Ayarlar → **Dil** ile değiştirebilirsin (DISO yeniden açılır). Kurulum ve kaldırma pencereleri DISO'da seçtiğin dille açılır, üstlerinde **Türkçe | English** seçici vardır; kurulumda seçtiğin dil DISO'nun dili de olur. Tarayıcı eklentisi tarayıcının dilini kullanır.
+DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta sistem (Windows, Linux) Türkçe ise Türkçe, değilse İngilizce başlar. Sonra istediğin zaman ana pencerenin sol üstündeki **TR | EN** ile ya da Ayarlar → **Dil** ile değiştirebilirsin (DISO yeniden açılır). Kurulum ve kaldırma pencereleri DISO'da seçtiğin dille açılır, üstlerinde **Türkçe | English** seçici vardır; kurulumda seçtiğin dil DISO'nun dili de olur. Tarayıcı eklentisi tarayıcının dilini kullanır.
 
 ## Geliştirici kurulumu
 1. Python 3.10+ kur (kurulumda **"Add Python to PATH"** işaretli olsun).
