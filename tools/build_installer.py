@@ -1,4 +1,4 @@
-"""Builds dist/DISO-Setup-<version>.exe (e.g. DISO-Setup-0.11.0-beta.exe): one file that installs the program on a PC that has nothing.
+"""Builds dist/DISO-Setup-<version>.exe (e.g. DISO-Setup-0.11.1-beta.exe): one file that installs the program on a PC that has nothing.
 
 What goes into it (the "payload"):
     DISO.exe + _internal/   the program as a folder (tools/build_exe.py --onedir; it carries Python, ffmpeg,

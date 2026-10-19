@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "DISO",
-  "version": "0.11.0",
-  "version_name": "0.11.0 beta",
+  "version": "0.11.1",
+  "version_name": "0.11.1 beta",
   "description": "__MSG_description__",
   "default_locale": "en",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs98prIPbzslehdvXGSrzvgI0xlYgwQo+fNOAgFvRfb0QUJhUgiKnfdpXXgUZr0TwtaDvV0v/a0PNJakbxsrz137LGOQIdR2Q4Iegw8Do4I/zxd59/f/lrfxkg3xh/X/Wu1NnJFnq6DKZl3wZnsUZP5JvG61CVl8jNldAaPhvKasaJ9rElJAi4ae5l4apfL3f/ykrqpsiRff9UPSUWETaUck22BkBNPN+WbWJAtPQUO85AuujXBCWDk19GZ48hHZFOVyAxKnuqwjar2ES/T/7WahYNp2Lkvzc1Txkizs196aYmuSUiHn+J3438EUytucrI6tp1X1BcWtraj8fVFEnFwIDAQAB",

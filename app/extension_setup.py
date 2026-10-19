@@ -125,6 +125,49 @@ FIREFOX_NOTE = ("Firefox: about:debugging sayfasında “Geçici eklenti yükle�
                 "dosyasını seç. Firefox imzasız eklentileri kalıcı kurmadığı için Firefox kapanınca eklenti de kalkar.")
 
 
+OFFER_TEXT = ("DISO'nun tarayıcı eklentisiyle indirmek çok daha kolay: bir linke sağ tıkla, “DISO ile indir”i seç; "
+              "indirme hemen DISO'da başlasın. DISO kapalıysa eklenti onu kendisi açar.\n\n"
+              "Chrome, Edge, Brave, Opera, Vivaldi ve Firefox'ta çalışır. Eklemek bir dakika sürer; ne yapacağını "
+              "adım adım göstereceğim.")
+
+
+class ExtensionOffer(ctk.CTkToplevel):
+    """'Shall we add DISO to your browser?' - asked once the app runs, until the extension is in a browser."""
+
+    def __init__(self, parent, on_add, on_later, on_never):
+        super().__init__(parent)
+        self.title("DISO • Tarayıcı eklentisi")
+        self.resizable(False, False)
+        self.transient(parent)
+        set_window_icon(self)
+        self.columnconfigure(0, weight=1)
+        self.answer = None
+        ctk.CTkLabel(self, text="🧩 DISO'yu tarayıcına ekleyelim mi?", font=ctk.CTkFont(size=20, weight="bold"),
+                     anchor="w").grid(row=0, column=0, sticky="ew", padx=26, pady=(22, 8))
+        ctk.CTkLabel(self, text=OFFER_TEXT, anchor="w", justify="left", wraplength=480).grid(
+            row=1, column=0, sticky="ew", padx=26)
+        ctk.CTkLabel(self, text="İstediğin zaman Ayarlar → Tarayıcıya ekle'den de ekleyebilirsin.", anchor="w",
+                     text_color="gray", font=ctk.CTkFont(size=11)).grid(row=2, column=0, sticky="ew", padx=26, pady=(10, 0))
+        foot = ctk.CTkFrame(self, fg_color="transparent")
+        foot.grid(row=3, column=0, sticky="ew", padx=22, pady=(16, 20))
+        foot.columnconfigure(0, weight=1)
+        self.never_btn = ctk.CTkButton(foot, text="Bir daha sorma", width=120, fg_color="transparent", border_width=1,
+                                       text_color=("gray20", "gray80"), command=lambda: self._answer("never", on_never))
+        self.never_btn.grid(row=0, column=0, sticky="w")
+        self.later_btn = ctk.CTkButton(foot, text="Sonra hatırlat", width=120, fg_color=("gray70", "gray30"),
+                                       text_color=("gray10", "gray90"), command=lambda: self._answer("later", on_later))
+        self.later_btn.grid(row=0, column=1, padx=8)
+        self.add_btn = ctk.CTkButton(foot, text="🧩 Eklentiyi ekle", width=150, command=lambda: self._answer("add", on_add))
+        self.add_btn.grid(row=0, column=2)
+        self.protocol("WM_DELETE_WINDOW", lambda: self._answer("later", on_later))     # the X is "later", not "never"
+        self.after(150, self.lift)
+
+    def _answer(self, answer, action):
+        self.answer = answer
+        self.destroy()
+        action()
+
+
 class ExtensionGuide(ctk.CTkToplevel):
     """'Add DISO to your browser': a button per browser, and the steps."""
 
@@ -142,8 +185,8 @@ class ExtensionGuide(ctk.CTkToplevel):
         self.columnconfigure(0, weight=1)
         ctk.CTkLabel(self, text="🧩 DISO'yu tarayıcına ekle", font=ctk.CTkFont(size=20, weight="bold"),
                      anchor="w").grid(row=0, column=0, sticky="ew", padx=24, pady=(20, 4))
-        ctk.CTkLabel(self, text="IDM gibi: linke sağ tıkla → “DISO ile indir”; istersen tarayıcının kendi indirmelerini "
-                                "de DISO alır. DISO kapalıysa kendisi açılır.", anchor="w", justify="left",
+        ctk.CTkLabel(self, text="Linke sağ tıkla → “DISO ile indir”: indirme hemen DISO'da başlar. İstersen tarayıcının "
+                                "kendi indirmelerini de DISO alır. DISO kapalıysa kendisi açılır.", anchor="w", justify="left",
                      wraplength=570, text_color="gray").grid(row=1, column=0, sticky="ew", padx=24)
         ctk.CTkLabel(self, text=STEPS, anchor="w", justify="left", wraplength=570).grid(
             row=2, column=0, sticky="ew", padx=24, pady=(14, 8))

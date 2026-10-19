@@ -350,7 +350,7 @@ def test_setup_asks_which_browsers_get_the_extension_and_then_guides_the_user(wi
     w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=lambda exe: None,
                 browsers={"chrome": r"C:\c\chrome.exe", "brave": r"C:\b\brave.exe"},
                 start=lambda exe, args: started.append((exe, args)))
-    assert has_text(w, "Hangilerine?") and has_text(w, "Google Chrome") and has_text(w, "Brave")
+    assert has_text(w, "Hangi tarayıcılara eklensin?") and has_text(w, "Google Chrome") and has_text(w, "Brave")
     w.browser_vars["brave"].set(False)                              # the user wants it in Chrome only
     ext = tmp_path / "ext"
     ext.mkdir()
@@ -367,7 +367,7 @@ def test_setup_asks_which_browsers_get_the_extension_and_then_guides_the_user(wi
 
 def test_without_a_browser_or_a_choice_there_is_no_guide(windows, package, env):
     w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=lambda exe: None, browsers={})
-    assert not has_text(w, "Hangilerine?")
+    assert not has_text(w, "Hangi tarayıcılara eklensin?")
     w.launch_var.set(False)
     w.start_install()
     assert pump(w, lambda: w.result is not None or w.exit_code == 2)

@@ -69,6 +69,9 @@ DEFAULTS = {
     "look": "Yeni",
     "language": "Türkçe",                # the interface language (app/i18n.py)
     "last_version": "",                 # the version that last ran: a new one is announced once
+    "extension_seen": False,            # the browser extension has talked to DISO (so it is in a browser)
+    "extension_ask": True,              # offer to add the browser extension (until it is added, or "don't ask again")
+    "extension_ask_after": 0,           # "remind me later": not before this time (seconds since 1970)
     # list
     "sort": "Yeni üstte",
     "filter": "Hepsi",

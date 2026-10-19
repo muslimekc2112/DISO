@@ -2,6 +2,10 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 0.11.1 beta
+- **DISO tarayıcı eklentisini kendisi önerir:** açıldıktan birkaç saniye sonra, eklenti henüz bir tarayıcıda değilse "DISO'yu tarayıcına ekleyelim mi?" diye sorar. **Eklentiyi ekle** adım adım rehberi açar, **Sonra hatırlat** üç gün sonra tekrar sorar, **Bir daha sorma** hiç sormaz. Eklenti DISO'ya bir kez bağlanınca soru tamamen kalkar. DISO simge olarak başlarsa, tarayıcıdan link alma kapalıysa ya da bilgisayarda desteklenen tarayıcı yoksa sorulmaz.
+- Kurulumda, rehberde ve eklentinin ayarlarında eklentiyle ilgili daha açık metinler.
+
 ## 0.11.0 beta
 **Yeni: tarayıcı eklentisi IDM'inki gibi çalışıyor**
 - **DISO kendisi açılır:** tarayıcıda "DISO ile indir" dediğinde DISO kapalıysa eklenti onu başlatır (tarayıcının native messaging kanalıyla, IDM gibi), hazır olmasını bekler ve indirme hemen başlar. Kurulum bunu her tarayıcı için kaydeder; DISO da her açılışta kendini o kullanıcı için kaydeder, böylece taşınabilir `DISO.exe` ile de çalışır. Kaldırınca silinir.

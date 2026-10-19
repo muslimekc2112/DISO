@@ -49,7 +49,7 @@ class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 class Bridge:
     """api must offer: add(urls, extra, kind) -> dict, status() -> dict, show() -> None,
-    and an `add_enabled` attribute."""
+    and an `add_enabled` attribute; extension_seen() (optional) is called when an extension talks to us."""
 
     def __init__(self, api, port: int = DEFAULT_PORT):
         self.api = api
@@ -70,6 +70,10 @@ class Bridge:
                 if not origin_allowed(origin) or not host_allowed(self.headers.get("Host"), bridge.port):
                     self._send(403, {"error": "forbidden"})
                     return False
+                if origin and origin.startswith(_EXTENSION_ORIGINS):
+                    seen = getattr(bridge.api, "extension_seen", None)      # the extension is in a browser
+                    if seen:
+                        seen()
                 return True
 
             def _send(self, status, payload=None):

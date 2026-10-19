@@ -21,7 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def _find_setup():
     """The newest dist/DISO-Setup-<version>.exe (the file name carries the version)."""
     found = sorted(glob.glob(os.path.join(ROOT, "dist", "DISO-Setup-*.exe")), key=os.path.getmtime)
-    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Setup-0.11.0-beta.exe")
+    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Setup-0.11.1-beta.exe")
 
 
 SETUP = _find_setup()

@@ -46,6 +46,7 @@ def make_app(monkeypatch, isolated_home):
     notes = {"sound": [], "toast": [], "power": [], "startup": []}
     monkeypatch.setitem(config.DEFAULTS, "bridge_port", 0)                    # any free port
     monkeypatch.setitem(config.DEFAULTS, "last_version", brand.VERSION_LABEL)  # not a first run: no welcome note in the way
+    monkeypatch.setitem(config.DEFAULTS, "extension_ask", False)              # nor the "add the extension?" window
     monkeypatch.setattr(ui.tray, "TrayIcon", FakeTray)
     monkeypatch.setattr(ui.startup, "set_enabled", lambda on, *a, **k: notes["startup"].append(on) or True)
     monkeypatch.setattr(updater.Updater, "start", lambda self: None)          # no network

@@ -39,6 +39,8 @@ KIND_LABELS = {
     "Dosya (rar, zip, exe, iso…)": "file",
 }
 CONNECTIONS = ["8", "16", "32"]
+EXTENSION_OFFER_DELAY = 4000            # ms after the start: "add DISO to your browser?" (once the window is settled)
+EXTENSION_LATER = 3 * 24 * 3600         # s: "remind me later" asks again after three days
 BAD = "#b23b3b"
 BAD_HOVER = "#8f2e2e"
 GOOD = "#2e9e5b"
@@ -963,6 +965,10 @@ class BridgeApi:
     def show(self):
         self.app._ui_calls.put(self.app._show_window)
 
+    def extension_seen(self):
+        if not self.app.cfg.get("extension_seen"):
+            self.app.cfg.set("extension_seen", True)
+
 
 class App(ctk.CTk):
     def __init__(self, minimized=False):
@@ -1056,6 +1062,8 @@ class App(ctk.CTk):
         self._bind_shortcuts()
         self._announce_version()         # before anything that can fail: a warning must be the last word
         self._start_bridge()
+        if not minimized:
+            self.after(EXTENSION_OFFER_DELAY, self._maybe_offer_extension)
         if self.cfg.get("tray_on_close") or minimized:
             self._ensure_tray()
         if minimized:
@@ -1780,6 +1788,27 @@ class App(ctk.CTk):
             open_in_file_manager(folder)
         else:
             self.notice("Eklenti klasörünü bulamadım", 8)
+
+    def should_offer_extension(self, now=None) -> bool:
+        """Offer the browser extension? Not once it has talked to us, not after "don't ask again", not before
+        "remind me later" is over, not with the bridge off, and not on a PC without a supported browser."""
+        cfg = self.cfg
+        if not cfg.get("extension_ask") or cfg.get("extension_seen") or not cfg.get("bridge_on"):
+            return False
+        if (time.time() if now is None else now) < cfg.get("extension_ask_after"):
+            return False
+        return bool(extension_setup.find_browsers())
+
+    def _maybe_offer_extension(self):
+        try:
+            if self._closing or self.state() == "withdrawn" or not self.should_offer_extension():
+                return
+            self.extension_offer = extension_setup.ExtensionOffer(
+                self, on_add=self.open_extension_guide,
+                on_later=lambda: self.cfg.set("extension_ask_after", int(time.time()) + EXTENSION_LATER),
+                on_never=lambda: self.cfg.set("extension_ask", False))
+        except Exception:  # noqa: BLE001 - only a suggestion: never in the way
+            log.exception("extension offer")
 
     def open_extension_guide(self):
         """'Add DISO to your browser' (one window at a time)."""

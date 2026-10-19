@@ -311,10 +311,20 @@ PLAIN = {
         "your download folder is never touched.",
     # ---- the browser extension: adding it, starting DISO from the browser
     "DISO • Tarayıcı eklentisi": "DISO • Browser extension", "🧩 DISO'yu tarayıcına ekle": "🧩 Add DISO to your browser",
-    "IDM gibi: linke sağ tıkla → “DISO ile indir”; istersen tarayıcının kendi indirmelerini de DISO alır. DISO kapalıysa "
-    "kendisi açılır.":
-        "Like IDM: right-click a link → “Download with DISO”; if you like, DISO also takes over the browser's own "
-        "downloads. When DISO is closed, it opens by itself.",
+    "Linke sağ tıkla → “DISO ile indir”: indirme hemen DISO'da başlar. İstersen tarayıcının kendi indirmelerini de DISO "
+    "alır. DISO kapalıysa kendisi açılır.":
+        "Right-click a link → “Download with DISO”: the download starts in DISO right away. If you like, DISO also takes "
+        "over the browser's own downloads. When DISO is closed, it opens by itself.",
+    "🧩 DISO'yu tarayıcına ekleyelim mi?": "🧩 Shall we add DISO to your browser?",
+    "DISO'nun tarayıcı eklentisiyle indirmek çok daha kolay: bir linke sağ tıkla, “DISO ile indir”i seç; indirme hemen "
+    "DISO'da başlasın. DISO kapalıysa eklenti onu kendisi açar.\n\nChrome, Edge, Brave, Opera, Vivaldi ve Firefox'ta "
+    "çalışır. Eklemek bir dakika sürer; ne yapacağını adım adım göstereceğim.":
+        "Downloading is much easier with DISO's browser extension: right-click a link, choose “Download with DISO”, and "
+        "the download starts in DISO right away. If DISO is closed, the extension opens it for you.\n\nIt works in "
+        "Chrome, Edge, Brave, Opera, Vivaldi and Firefox. Adding it takes a minute; I'll show you each step.",
+    "İstediğin zaman Ayarlar → Tarayıcıya ekle'den de ekleyebilirsin.":
+        "You can also add it any time from Settings → Add to browser.",
+    "Bir daha sorma": "Don't ask again", "Sonra hatırlat": "Remind me later", "🧩 Eklentiyi ekle": "🧩 Add the extension",
     "1. Aşağıdan tarayıcını seç: eklentiler sayfası ve eklenti klasörü açılır, klasörün yolu panoya kopyalanır.\n"
     "2. Eklentiler sayfasında sağ üstteki “Geliştirici modu”nu aç.\n"
     "3. “Paketlenmemiş öğe yükle”ye bas, açılan pencerenin adres çubuğuna Ctrl+V ile yolu yapıştır ve “Klasör seç”e bas. "
@@ -342,9 +352,8 @@ PLAIN = {
     "Chrome, Edge, Brave, Opera, Firefox: linke sağ tık → DISO ile indir. DISO kapalıysa kendisi açılır":
         "Chrome, Edge, Brave, Opera, Firefox: right-click a link → Download with DISO. When DISO is closed, it opens by itself",
     "Tarayıcı eklentisi için hazırlanıyor…": "Getting ready for the browser extension…",
-    "🧩 Tarayıcı eklentisi: linke sağ tık → “DISO ile indir” (IDM gibi). Hangilerine?":
-        "🧩 Browser extension: right-click a link → “Download with DISO” (like IDM). Into which browsers?",
-    "🧩 Eklentiyi ekle": "🧩 Add the extension",
+    "🧩 Tarayıcı eklentisi (linke sağ tık → “DISO ile indir”). Hangi tarayıcılara eklensin?":
+        "🧩 Browser extension (right-click a link → “Download with DISO”). Which browsers should get it?",
     # ---- contact
     "✉ Bize ulaş": "✉ Contact us",
     "Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse aşağıdaki "

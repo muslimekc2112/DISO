@@ -224,7 +224,7 @@ class SetupWindow(_Window):
                                          ("Kurulum bitince uygulamayı aç", self.launch_var)), start=4):
             ctk.CTkSwitch(self.body, text=text, variable=var).grid(row=i, column=0, sticky="w", pady=(10 if i == 4 else 4, 0))
         if self.browsers:
-            ctk.CTkLabel(self.body, text="🧩 Tarayıcı eklentisi: linke sağ tık → “DISO ile indir” (IDM gibi). Hangilerine?",
+            ctk.CTkLabel(self.body, text="🧩 Tarayıcı eklentisi (linke sağ tık → “DISO ile indir”). Hangi tarayıcılara eklensin?",
                          anchor="w", justify="left", wraplength=570).grid(row=8, column=0, sticky="ew", pady=(12, 2))
             box = ctk.CTkFrame(self.body, fg_color="transparent")
             box.grid(row=9, column=0, sticky="w")

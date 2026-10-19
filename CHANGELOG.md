@@ -2,6 +2,10 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 0.11.1 beta
+- **DISO offers the browser extension itself:** a few seconds after it starts, if the extension is not in a browser yet, DISO asks "Shall we add DISO to your browser?" — **Add the extension** opens the step-by-step guide, **Remind me later** asks again in three days, **Don't ask again** never asks. Once the extension has talked to DISO, the question goes away for good. Not asked when DISO starts in the tray, when links from the browser are switched off, or on a PC without a supported browser.
+- Clearer wording about the extension in setup, the guide and the extension's settings.
+
 ## 0.11.0 beta
 **New: the browser extension works like IDM's**
 - **DISO opens by itself:** "Download with DISO" in the browser starts DISO when it is closed (through the browser's native messaging, as IDM does), waits until it is ready and the download starts at once. Setup registers it for every browser; DISO itself also registers for the current user at every start, so a portable `DISO.exe` works too. Uninstalling removes it.

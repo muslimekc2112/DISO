@@ -89,3 +89,82 @@ def test_the_settings_button_opens_one_guide(app, monkeypatch, tmp_path):
         assert app.extension_guide is first and list(first.buttons) == ["edge"]
     finally:
         first.destroy()
+
+# ------------------------------------------------------------------------------ "shall we add DISO to your browser?"
+@pytest.fixture
+def asking(app, monkeypatch):
+    """The app as on a real PC: a browser is there, and the question is still open."""
+    monkeypatch.setattr(es, "find_browsers", lambda: {"chrome": r"C:\c\chrome.exe"})
+    app.cfg.set("extension_ask", True)
+    monkeypatch.setattr(app, "state", lambda *a: "normal")                # the test window is hidden; a real one is not
+    return app
+
+
+@pytest.mark.gui
+def test_the_question_is_asked_only_while_it_makes_sense(asking, monkeypatch):
+    import time
+    app = asking
+    assert app.should_offer_extension()
+    app.cfg.set("extension_ask_after", int(time.time()) + 60)              # "remind me later" is not over
+    assert not app.should_offer_extension() and app.should_offer_extension(now=time.time() + 120)
+    app.cfg.set("extension_ask_after", 0)
+    app.cfg.set("bridge_on", False)                                        # links from the browser are switched off
+    assert not app.should_offer_extension()
+    app.cfg.set("bridge_on", True)
+    monkeypatch.setattr(es, "find_browsers", lambda: {})                   # no supported browser on this PC
+    assert not app.should_offer_extension()
+
+
+@pytest.mark.gui
+def test_once_the_extension_talks_to_diso_it_is_never_asked_again(asking):
+    from app import ui
+    ui.BridgeApi(asking).extension_seen()
+    assert asking.cfg.get("extension_seen") is True and not asking.should_offer_extension()
+
+
+@pytest.mark.gui
+def test_add_opens_the_guide(asking, monkeypatch):
+    opened = []
+    monkeypatch.setattr(asking, "open_extension_guide", lambda: opened.append(1))
+    asking._maybe_offer_extension()
+    offer = asking.extension_offer
+    offer.withdraw()
+    texts = " ".join(str(w.cget("text")) for w in offer.winfo_children() if isinstance(w, es.ctk.CTkLabel))
+    assert "ekleyelim mi?" in texts and "IDM" not in texts
+    offer.add_btn.invoke()
+    assert opened == [1] and offer.answer == "add" and asking.cfg.get("extension_ask") is True
+
+
+@pytest.mark.gui
+def test_later_asks_again_in_three_days_and_never_means_never(asking):
+    import time
+    from app import ui
+    asking._maybe_offer_extension()
+    asking.extension_offer.withdraw()
+    asking.extension_offer.later_btn.invoke()
+    after = asking.cfg.get("extension_ask_after")
+    assert abs(after - (time.time() + ui.EXTENSION_LATER)) < 60 and not asking.should_offer_extension()
+    asking.cfg.set("extension_ask_after", 0)
+    asking._maybe_offer_extension()
+    asking.extension_offer.withdraw()
+    asking.extension_offer.never_btn.invoke()
+    assert asking.cfg.get("extension_ask") is False and not asking.should_offer_extension()
+
+
+@pytest.mark.gui
+def test_closing_the_question_with_x_means_later(asking):
+    asking._maybe_offer_extension()
+    offer = asking.extension_offer
+    offer.withdraw()
+    offer.tk.call(offer.protocol("WM_DELETE_WINDOW"))                     # what the X calls
+    assert offer.answer == "later" and asking.cfg.get("extension_ask_after") > 0
+
+
+@pytest.mark.gui
+def test_a_window_started_as_a_tray_icon_is_not_asked(make_app, monkeypatch):
+    from app import config
+    monkeypatch.setitem(config.DEFAULTS, "extension_ask", True)
+    monkeypatch.setattr(es, "find_browsers", lambda: {"chrome": "c.exe"})
+    app = make_app(minimized=True)
+    app._maybe_offer_extension()                                           # hidden in the tray: it waits for a real start
+    assert getattr(app, "extension_offer", None) is None

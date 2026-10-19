@@ -173,6 +173,17 @@ def get(base, path, headers=None):
     return requests.get(base + path, headers=headers or {}, proxies={"http": None, "https": None})
 
 
+def test_the_bridge_notices_that_the_extension_is_in_a_browser(running):
+    api, b, base = running
+    seen = []
+    api.extension_seen = lambda: seen.append(1)
+    get(base, "/ping")                                                    # a local program: not the extension
+    get(base, "/ping", headers={"Origin": "https://evil.example"})        # a web page: refused, not the extension
+    assert seen == []
+    get(base, "/ping", headers=EXT)
+    get(base, "/status", headers={"Origin": "moz-extension://1234"})
+    assert seen == [1, 1]
+
 def test_ping_identifies_the_app(running):
     api, b, base = running
     data = get(base, "/ping").json()
