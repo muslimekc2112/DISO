@@ -3,6 +3,7 @@ scheduler, tray, browser bridge, settings window, theme and log."""
 import datetime
 import json
 import os
+import sys
 import time
 import types
 
@@ -763,6 +764,7 @@ def test_every_new_setting_is_wired(app, monkeypatch):
     assert customtkinter.get_appearance_mode() == "Light" and app.cfg.get("theme") == "Açık"
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="customtkinter hides a window to recolour its title bar on Windows only")
 def test_the_settings_window_stays_visible_when_the_theme_changes(app):
     """Changing the theme used to hide the open settings window; the Ayarlar button then only
     lifted the invisible window, so it looked as if the button did nothing."""

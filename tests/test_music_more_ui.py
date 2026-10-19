@@ -2,6 +2,7 @@
 the mini player, Windows' media panel and the taskbar buttons, the 30 second preview, search history and
 suggestions, and downloading a whole (YouTube Music) playlist into a list of its own."""
 import os
+import sys
 import time
 
 import pytest
@@ -109,7 +110,9 @@ def test_the_mini_player_steps_in_and_out(music_app, songs):
     music.open_mini()
     mini = music.mini
     assert isinstance(mini, MiniPlayer) and music.state() == "withdrawn"
-    assert mini.attributes("-topmost") and mini._iconbitmap_method_called
+    assert mini._iconbitmap_method_called
+    if not sys.platform.startswith("linux"):     # X11: the window manager keeps it on top (the tests' screen has none)
+        assert mini.attributes("-topmost")
     music._tick()
     assert mini.title_label.cget("text") == "Ogle" and mini.play_btn.cget("text") == "⏸"
     mini.next_btn.invoke()
