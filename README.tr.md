@@ -7,13 +7,13 @@ Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows 
 Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
 
 ## Kurulum (Python'u olmayan bir bilgisayar için)
-`DISO-Kurulum-0.10.1-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
+`DISO-Setup-0.10.1-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
 - **Yönetici izni ister:** DISO bu bilgisayardaki herkes için `C:\Program Files\ISO\DISO` klasörüne kurulur. Windows "izin ver?" diye sorar, **Evet** de.
 - Başlat menüsüne ve masaüstüne kısayol koyar, "Uygulamalar" listesine yazılır. İstersen Windows ile birlikte başlar.
 - **Güncelleme:** yeni kurulum dosyasını çalıştırman yeter. Çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
 - **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
 - **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır (ya da Başlat menüsündeki "DISO'yu Kaldır"). Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Kurulum-0.10.1-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
+- **Sessiz kurulum:** `DISO-Setup-0.10.1-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
 - Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
 
 ## 🌐 Dil
@@ -23,7 +23,7 @@ DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konu�
 1. Python 3.10+ kur (kurulumda **"Add Python to PATH"** işaretli olsun).
 2. `run.bat` dosyasına çift tıkla: kütüphaneleri kurar ve programı açar. (Elle: `pip install -r requirements.txt` sonra `python main.py`)
 3. Tek dosyalık, kurulumsuz taşınabilir `DISO.exe` için `build.bat` (daha küçüğü için `build.bat --no-ffmpeg`). Her açılışta kendini geçici klasöre açtığı için açılması birkaç saniye sürer.
-4. Kurulum paketi için `python tools/build_installer.py`: programı klasör halinde derler (`build\app\DISO`, `python tools/build_exe.py --onedir`), Deno'yu indirip SHA-256 ile doğrular ve `dist\DISO-Kurulum-<sürüm>.exe` çıkarır. Kurulan DISO bir klasör olduğu için her açılışta açılmayı beklemez, 2–3 saniyede açılır.
+4. Kurulum paketi için `python tools/build_installer.py`: programı klasör halinde derler (`build\app\DISO`, `python tools/build_exe.py --onedir`), Deno'yu indirip SHA-256 ile doğrular ve `dist\DISO-Setup-<sürüm>.exe` çıkarır. Kurulan DISO bir klasör olduğu için her açılışta açılmayı beklemez, 2–3 saniyede açılır.
 5. İkonlar tek bir resimden üretilir: `IKON\icon.png` değişince `python tools/make_icons.py`.
 
 İsim, yayıncı, sürüm ve GitHub adresi tek yerde: `app/brand.py`. Arayüzün İngilizcesi `app/lang_en.py`'de (anahtarlar ekrandaki Türkçe metinler).
@@ -87,7 +87,7 @@ Ayarlar → Zamanlayıcı'yı aç, başlangıç (ve istersen bitiş) saatini yaz
 `browser_extension` klasörü Chrome / Edge / Brave / Firefox için eklentidir (kurulum: `browser_extension/README.txt`). Bağlantıya sağ tık → "DISO ile indir"; istersen tarayıcının kendi indirmelerini de yakalar (DISO kapalıysa tarayıcı normal indirir). Giriş gerektiren siteler için tarayıcının oturumu DISO'ya iletilir (çerezler diske yazılmaz). DISO yalnızca bu bilgisayarda dinler ve web sayfalarından değil, yalnızca **eklentiden** gelen istekleri kabul eder. Eklenti tarayıcının diline göre Türkçe ya da İngilizce görünür.
 
 ## Testler (geliştirenler için)
-`run_tests.bat` (ya da `python -m pytest`) tüm testleri çalıştırır. İnternet gerekmez: testler yerel bir sunucuyla Range desteği olmayan, bağlantısı kopan, bağlantı sınırı koyan sunucuları, sahte bir proxy'yi ve sahte bir PyPI'yi taklit eder. Eklentinin mantığı `node` ile de sınanır. İngilizce arayüz ve İngilizce kurulum ayrı bir süreçte gerçekten açılıp ekranda Türkçe yazı kalmadığı denetlenir. Gerçek FFmpeg gerektiren testler `ffmpeg/` klasöründe (veya PATH'te) ffmpeg yoksa, pencere testleri ekran yoksa, eklenti testleri node yoksa atlanır. Kurulum paketi testleri (`-m installer`) paket derlenmişse gerçek `Kurulum.exe`'yi geçici bir yerde çalıştırır, gerçek Başlat menüne ya da kayıt defterine dokunmaz.
+`run_tests.bat` (ya da `python -m pytest`) tüm testleri çalıştırır. İnternet gerekmez: testler yerel bir sunucuyla Range desteği olmayan, bağlantısı kopan, bağlantı sınırı koyan sunucuları, sahte bir proxy'yi ve sahte bir PyPI'yi taklit eder. Eklentinin mantığı `node` ile de sınanır. İngilizce arayüz ve İngilizce kurulum ayrı bir süreçte gerçekten açılıp ekranda Türkçe yazı kalmadığı denetlenir. Gerçek FFmpeg gerektiren testler `ffmpeg/` klasöründe (veya PATH'te) ffmpeg yoksa, pencere testleri ekran yoksa, eklenti testleri node yoksa atlanır. Kurulum paketi testleri (`-m installer`) paket derlenmişse gerçek `DISO-Setup` dosyasını geçici bir yerde çalıştırır, gerçek Başlat menüne ya da kayıt defterine dokunmaz.
 - Sadece hızlı testler: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
 - Tek dosya: `python -m pytest tests/test_downloader.py`
 - Kurulumu pencere açmadan denetle: `python main.py --selftest sonuc.json`

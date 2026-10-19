@@ -8,6 +8,8 @@
 - İlk açılışta dil Windows'tan seçilir: Windows Türkçe ise Türkçe, değilse İngilizce. Ayarlar → Dil ile istediğin zaman değişir. Kurulum DISO'da seçtiğin dili, eklenti tarayıcının dilini kullanır.
 - **✉ Bize ulaş:** Hakkında penceresinde GitHub'da yeni bir sorun sayfası açan düğme. "Bana yolla" yerine artık sorunlar GitHub'dan bildiriliyor.
 
+- Kurulum dosyasının adı artık `DISO-Setup-<sürüm>.exe` (eskiden `DISO-Kurulum-…`), iki dilde de aynı.
+
 **Düzeltildi**
 - İngilizce arayüzde Türkçe kalan yazılar: filtre ve sıralama seçenekleri ("Tamamlanan", "Ad (A→Z)"), indirme türü "Ses (MP3)", duraklatılmış satırın durumu, link bilgisindeki "Sadece ses (MP3)" ve altyazı satırı, güncellemelerdeki "Kur" düğmesi ve "Son kontrol", geçmiş penceresindeki "Bugün/Dün", "toplam", "En çok", müzik çaların "Çalmaya hazırlanıyor…" ve "Çalamadım, sıradakine geçtim" notları, şarkı aramadaki hata yazıları.
 

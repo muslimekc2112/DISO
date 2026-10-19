@@ -8,6 +8,8 @@
 - On the first start the language comes from Windows: Turkish if Windows is in Turkish, English otherwise. Change it any time in Settings → Language. Setup uses the language chosen in DISO; the extension uses the browser's language.
 - **✉ Contact us:** a button in the About window that opens a new issue page on GitHub. Problems are now reported on GitHub instead of "send it to me".
 
+- The setup file is now called `DISO-Setup-<version>.exe` (it was `DISO-Kurulum-…`), the same in both languages.
+
 **Fixed**
 - Texts that were still Turkish in the English interface: the filter and sort choices ("Finished", "Name (A→Z)"), the "Audio (MP3)" download type, the state of a paused row, "Audio only (MP3)" and the subtitles line in a link's details, the "Install" button and "Last check" in the updates window, "Today/Yesterday", "in total" and "Most from" in the history window, the music player's "Getting ready to play…" and "Could not play it, went on to the next one" notes, and the error texts of the song search.
 

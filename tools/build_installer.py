@@ -1,4 +1,4 @@
-"""Builds dist/DISO-Kurulum-<version>.exe (e.g. DISO-Kurulum-0.10.0-beta.exe): one file that installs the program on a PC that has nothing.
+"""Builds dist/DISO-Setup-<version>.exe (e.g. DISO-Setup-0.10.1-beta.exe): one file that installs the program on a PC that has nothing.
 
 What goes into it (the "payload"):
     DISO.exe + _internal\   the program as a folder (tools/build_exe.py --onedir; it carries Python, ffmpeg,
@@ -43,8 +43,8 @@ DENO_URL = "https://github.com/denoland/deno/releases/download/{tag}/" + DENO_AS
 
 
 def setup_name(brand_module) -> str:
-    """DISO-Kurulum-0.10.0-beta : the file name says which version it installs."""
-    return f"DISO-Kurulum-{brand_module.VERSION}-{brand_module.CHANNEL}"
+    """DISO-Setup-0.10.1-beta : the file name says which version it installs."""
+    return f"DISO-Setup-{brand_module.VERSION}-{brand_module.CHANNEL}"
 
 
 def sha256(path, chunk=1 << 20):
@@ -212,10 +212,10 @@ def main(argv):
     files = make_payload(PAYLOAD, APP_DIR, uninstaller, deno_exe, __version__, deno_version, __version_label__)
     log(f"payload: {len(files)} files, {sum(f['size'] for f in files) / 1048576:.0f} MB")
     name = setup_name(brand)
-    for old in glob.glob(os.path.join(DIST, "DISO-Kurulum*.exe")):          # an older version's setup must not be mistaken for this one
+    for old in glob.glob(os.path.join(DIST, "DISO-Kurulum*.exe")) + glob.glob(os.path.join(DIST, "DISO-Setup*.exe")):          # an older version's setup must not be mistaken for this one
         os.remove(old)
     built = pyinstaller(name, os.path.join(ROOT, "hizli_setup", "setup_main.py"),
-                        write_version_file(os.path.join(versions, "setup.txt"), "DISO Kurulumu",
+                        write_version_file(os.path.join(versions, "setup.txt"), "DISO Setup",
                                            name + ".exe", __version__, __version_label__),
                         extra=("--add-data", PAYLOAD + os.pathsep + "payload"), dist=DIST)
     log(f"ready: {built}  ({os.path.getsize(built) / 1048576:.0f} MB)  sha256 {sha256(built)}")

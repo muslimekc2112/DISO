@@ -65,7 +65,7 @@ yapar:
   3. Tek dosyalık taşınabilir DISO.exe için build.bat'a çift tıkla.
      exe "dist" klasöründe çıkar.
   4. Kurulum paketi için:  python tools/build_installer.py
-     dist\DISO-Kurulum-<sürüm>.exe dosyasını yazar.
+     dist\DISO-Setup-<sürüm>.exe dosyasını yazar.
 
 FFmpeg: kurman GEREKMEZ. Bir MP3 (ya da görüntüsü ve sesi ayrı gelen bir
 video) indirdiğinde program FFmpeg'i bir kere  %LOCALAPPDATA%\DISO\tools

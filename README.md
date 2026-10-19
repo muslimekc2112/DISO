@@ -7,13 +7,13 @@ A download manager for files, videos and music, with a music player built in. Fo
 Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
 ## Installing (on a PC without Python)
-Double-click `DISO-Kurulum-0.10.1-beta.exe` ("Kurulum" means setup) and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
+Double-click `DISO-Setup-0.10.1-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
 - **It asks for administrator rights:** DISO is installed for everyone on the PC, in `C:\Program Files\ISO\DISO`. Windows asks "allow?"; say **Yes**.
 - It adds Start menu and desktop shortcuts and appears in the "Apps" list. If you like, it starts together with Windows.
 - **Updating:** just run the new setup file. It closes a running DISO and installs into the same folder; your settings and playlists stay.
 - **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
 - **Uninstalling:** Settings → Apps → DISO → Uninstall (or "Uninstall DISO" in the Start menu). Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
-- **Silent install:** `DISO-Kurulum-0.10.1-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- **Silent install:** `DISO-Setup-0.10.1-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
 - Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
 ## 🌐 Language
@@ -23,7 +23,7 @@ DISO, its installer and its browser extension speak **English and Turkish**. On 
 1. Install Python 3.10+ (tick **"Add Python to PATH"** in its installer).
 2. Double-click `run.bat`: it installs the libraries and starts the program. (By hand: `pip install -r requirements.txt`, then `python main.py`)
 3. `build.bat` makes a portable single-file `DISO.exe` that needs no install (`build.bat --no-ffmpeg` for a smaller one). It unpacks itself to a temporary folder at every start, so it takes a few seconds to open.
-4. `python tools/build_installer.py` makes the setup package: it builds the program as a folder (`build\app\DISO`, `python tools/build_exe.py --onedir`), downloads Deno and checks its SHA-256, and writes `dist\DISO-Kurulum-<version>.exe`. The installed DISO is a folder, so it opens in 2–3 seconds.
+4. `python tools/build_installer.py` makes the setup package: it builds the program as a folder (`build\app\DISO`, `python tools/build_exe.py --onedir`), downloads Deno and checks its SHA-256, and writes `dist\DISO-Setup-<version>.exe`. The installed DISO is a folder, so it opens in 2–3 seconds.
 5. The icons are made from one picture: after changing `IKON\icon.png`, run `python tools/make_icons.py`.
 
 The name, publisher, version and GitHub address are written in one place: `app/brand.py`. The program's texts are written in Turkish; their English is in `app/lang_en.py` (the keys are the Turkish texts as shown on screen).
@@ -87,7 +87,7 @@ Turn on Settings → Scheduler and type the start time (and, if you like, the en
 The `browser_extension` folder is an extension for Chrome / Edge / Brave / Firefox (how to install: `browser_extension/README.txt`). Right-click a link → "Download with DISO"; if you like, it also catches the browser's own downloads (when DISO is closed, the browser downloads as usual). For sites that need a login, the browser's session is passed to DISO (cookies are never written to disk). DISO listens only on this PC and accepts requests only from the **extension**, never from web pages. The extension shows in English or Turkish, following the browser's language.
 
 ## Tests (for developers)
-`run_tests.bat` (or `python -m pytest`) runs every test. No internet is needed: the tests imitate servers without Range support, servers that drop connections or limit them, a fake proxy and a fake PyPI on a local server. The extension's logic is also tested with `node`. The English interface and the English installer are really opened in a process of their own, and the tests check that no Turkish text is left on screen. Tests that need a real FFmpeg are skipped without ffmpeg in `ffmpeg/` (or on PATH), window tests without a display, extension tests without node. The setup package tests (`-m installer`) run the real `Kurulum.exe` in a temporary place if the package was built; they never touch your real Start menu or registry.
+`run_tests.bat` (or `python -m pytest`) runs every test. No internet is needed: the tests imitate servers without Range support, servers that drop connections or limit them, a fake proxy and a fake PyPI on a local server. The extension's logic is also tested with `node`. The English interface and the English installer are really opened in a process of their own, and the tests check that no Turkish text is left on screen. Tests that need a real FFmpeg are skipped without ffmpeg in `ffmpeg/` (or on PATH), window tests without a display, extension tests without node. The setup package tests (`-m installer`) run the real `DISO-Setup` file in a temporary place if the package was built; they never touch your real Start menu or registry.
 - Only the quick tests: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
 - One file: `python -m pytest tests/test_downloader.py`
 - Check the installation without opening a window: `python main.py --selftest result.json`

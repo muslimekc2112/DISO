@@ -63,7 +63,7 @@ Download-manager features (like IDM / FDM):
   3. To build a single portable DISO.exe, double-click  build.bat
      The exe appears in the "dist" folder.
   4. To build the setup package:  python tools/build_installer.py
-     It writes dist\DISO-Kurulum-<version>.exe.
+     It writes dist\DISO-Setup-<version>.exe.
 
 FFmpeg: you do NOT have to install it. When you download an MP3 (or a video
 whose picture and sound come separately) the program downloads FFmpeg once

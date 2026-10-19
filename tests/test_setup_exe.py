@@ -1,4 +1,4 @@
-"""The real dist/DISO-Kurulum.exe, run the way a person's computer would run it.
+"""The real dist/DISO-Setup-<version>.exe, run the way a person's computer would run it.
 
 Everything it changes is kept under a temporary folder and a throw-away registry key
 (HIZLI_SETUP_TEST_ROOT), so the user's Start Menu, Desktop and registry are never touched.
@@ -19,15 +19,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _find_setup():
-    """The newest dist/DISO-Kurulum-<version>.exe (the file name carries the version)."""
-    found = sorted(glob.glob(os.path.join(ROOT, "dist", "DISO-Kurulum-*.exe")), key=os.path.getmtime)
-    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Kurulum-0.10.1-beta.exe")
+    """The newest dist/DISO-Setup-<version>.exe (the file name carries the version)."""
+    found = sorted(glob.glob(os.path.join(ROOT, "dist", "DISO-Setup-*.exe")), key=os.path.getmtime)
+    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Setup-0.10.1-beta.exe")
 
 
 SETUP = _find_setup()
 WINDIR = os.environ.get("SystemRoot", r"C:\Windows")
 pytestmark = [pytest.mark.installer,
-              pytest.mark.skipif(not os.path.isfile(SETUP), reason="dist/DISO-Kurulum-<version>.exe has not been built"),
+              pytest.mark.skipif(not os.path.isfile(SETUP), reason="dist/DISO-Setup-<version>.exe has not been built"),
               pytest.mark.skipif(not winapi.WINDOWS, reason="Windows only")]
 
 
