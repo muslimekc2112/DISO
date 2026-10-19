@@ -2,7 +2,8 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
-## 0.12.0 beta
+## 1.0
+- **DISO 1.0: out of beta.** Everything below is in it, on Windows and now on Linux too.
 - **Linux:** DISO now runs on Linux too: a `.deb` for Debian, Ubuntu, Mint … and a `.tar.gz` for any distribution (with `install.sh` inside, no administrator password needed). FFmpeg, yt-dlp and Deno come inside; DISO updates them there too (FFmpeg: BtbN builds, checked with SHA-256).
 - **Setup and removal in two languages:** `install.sh` and `uninstall.sh` ask Türkçe / English; removing asks whether your settings, playlists and history should go too (the files you downloaded are not touched). "Uninstall DISO" is in the applications menu.
 - **The music player on Linux:** FFmpeg decodes the sound and SDL plays it; every kind of file (Opus, Vorbis, FLAC …) plays without converting, with cross-fade and previews.

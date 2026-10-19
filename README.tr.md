@@ -2,25 +2,25 @@
 
 **[English](README.md) | Türkçe**
 
-Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. **Windows ve Linux** için. **Sürüm 0.12.0 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
+Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. **Windows ve Linux** için. **Sürüm 1.0**. Arayüz **Türkçe ve İngilizce**.
 
 Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
 
 ## Windows'ta kurulum (Python'u olmayan bir bilgisayar için)
-`DISO-Setup-0.12.0-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
+`DISO-Setup-1.0.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
 - **Yönetici izni ister:** DISO bu bilgisayardaki herkes için `C:\Program Files\ISO\DISO` klasörüne kurulur. Windows "izin ver?" diye sorar, **Evet** de.
 - Başlat menüsüne ve masaüstüne kısayol koyar, "Uygulamalar" listesine yazılır. İstersen Windows ile birlikte başlar.
 - **Hangi tarayıcılara eklenti kurulacağını sorar** (linke sağ tık → "DISO ile indir", IDM gibi) ve eklemene yardım eder; bkz. [Tarayıcı eklentisi](#-tarayıcı-eklentisi).
 - **Güncelleme:** yeni kurulum dosyasını çalıştırman yeter. Çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
 - **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
 - **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır, ya da Başlat menüsünde DISO'ya sağ tık → Kaldır (Windows önce kendi uygulama listesini açar; orada DISO'nun yanındaki Kaldır'a bas), ya da Başlat menüsündeki "DISO'yu Kaldır". Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Setup-0.12.0-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
+- **Sessiz kurulum:** `DISO-Setup-1.0.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
 - Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
 
 ## Linux'ta kurulum
 İki yol var; ikisinde de FFmpeg, yt-dlp ve Deno içinde gelir, ayrıca bir şey kurman gerekmez:
-- **Debian, Ubuntu, Linux Mint, Pop!_OS …:** `DISO-0.12.0-beta-linux-x86_64.deb`. Çift tıkla (Yazılım Merkezi) ya da `sudo apt install ./DISO-0.12.0-beta-linux-x86_64.deb`. DISO `/opt/diso` klasörüne ve uygulamalar menüsüne gelir; terminalde `diso` ile açılır. Kaldırma: Yazılım Merkezi ya da `sudo apt remove diso`.
-- **Her dağıtım (yönetici şifresi gerekmez):** `DISO-0.12.0-beta-linux-x86_64.tar.gz` dosyasını aç, klasörün içinde `./install.sh` çalıştır. Dili sorar (Türkçe / English), DISO'yu senin için `~/.local/opt/DISO` klasörüne kurar ve uygulamalar menüsüne koyar. Menüdeki **"DISO'yu Kaldır"** (ya da `~/.local/opt/DISO/uninstall.sh`) onu kaldırır; ayarlarının ve çalma listelerinin de silinip silinmeyeceğini sorar.
+- **Debian, Ubuntu, Linux Mint, Pop!_OS …:** `DISO-1.0-linux-x86_64.deb`. Çift tıkla (Yazılım Merkezi) ya da `sudo apt install ./DISO-1.0-linux-x86_64.deb`. DISO `/opt/diso` klasörüne ve uygulamalar menüsüne gelir; terminalde `diso` ile açılır. Kaldırma: Yazılım Merkezi ya da `sudo apt remove diso`.
+- **Her dağıtım (yönetici şifresi gerekmez):** `DISO-1.0-linux-x86_64.tar.gz` dosyasını aç, klasörün içinde `./install.sh` çalıştır. Dili sorar (Türkçe / English), DISO'yu senin için `~/.local/opt/DISO` klasörüne kurar ve uygulamalar menüsüne koyar. Menüdeki **"DISO'yu Kaldır"** (ya da `~/.local/opt/DISO/uninstall.sh`) onu kaldırır; ayarlarının ve çalma listelerinin de silinip silinmeyeceğini sorar.
 - DISO verilerini `~/.local/share/DISO` içinde tutar. Tepsi simgesi için masaüstünde bir tepsi olmalı (GNOME: "AppIndicator" eklentisi); yoksa DISO'yu yeniden açmak penceresini geri getirir.
 
 **Yalnızca Windows'ta olanlar:** klavyenin medya tuşları, görev çubuğu önizlemesindeki ⏮ ⏯ ⏭ düğmeleri ve Windows'un medya paneli. Geri kalan her şey (indirmeler, müzik çalar, eklenti, güncellemeler) ikisinde de aynı.
@@ -87,7 +87,7 @@ Aynı anda indirme sayısı (1–8), toplam **hız sınırı**, otomatik deneme 
 
 **Yedek ve yardım:** 💾 Yedek al (ayarlar, çalma listeleri, indirme listesi ve geçmiş tek `.disoyedek` dosyasına), 📂 Yedeği yükle (başka bilgisayardan getir), 📊 İndirme geçmişi (ne zaman ne indi, ne kadar hızlı, en çok hangi siteden; listeden silinenler de kalır), ⌨ Klavye kısayolları (her yerde **F1**).
 
-**ℹ Hakkında** (Ayarlar'da, ya da başlıktaki BETA rozetine tıkla): sürümü, DISO'nun nerede durduğunu ve verilerinin nerede olduğunu gösterir. **📋 Detayları kopyala** sürüm, Windows, yt-dlp, FFmpeg ve Deno bilgilerini tek seferde panoya alır, **✉ Bize ulaş** GitHub'da yeni bir sorun sayfası açar.
+**ℹ Hakkında** (Ayarlar'da, ya da başlıktaki sürüm rozetine tıkla): sürümü, DISO'nun nerede durduğunu ve verilerinin nerede olduğunu gösterir. **📋 Detayları kopyala** sürüm, Windows, yt-dlp, FFmpeg ve Deno bilgilerini tek seferde panoya alır, **✉ Bize ulaş** GitHub'da yeni bir sorun sayfası açar.
 
 ### ⏰ Zamanlayıcı (gece indirme)
 Ayarlar → Zamanlayıcı'yı aç, başlangıç (ve istersen bitiş) saatini yaz, örneğin `02:00`–`07:00`. Saat gelene kadar yeni indirmeler sırada bekler. Bitiş saati gelince çalışanlar duraklar, bir sonraki başlangıçta kaldığı yerden devam eder.

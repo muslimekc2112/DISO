@@ -1,4 +1,4 @@
-"""Builds dist/DISO-Setup-<version>.exe (e.g. DISO-Setup-0.11.2-beta.exe): one file that installs the program on a PC that has nothing.
+"""Builds dist/DISO-Setup-<version>.exe (e.g. DISO-Setup-1.0.exe): one file that installs the program on a PC that has nothing.
 
 What goes into it (the "payload"):
     DISO.exe + _internal/   the program as a folder (tools/build_exe.py --onedir; it carries Python, ffmpeg,
@@ -44,8 +44,8 @@ DENO_URL = "https://github.com/denoland/deno/releases/download/{tag}/" + DENO_AS
 
 
 def setup_name(brand_module) -> str:
-    """DISO-Setup-0.10.1-beta : the file name says which version it installs."""
-    return f"DISO-Setup-{brand_module.VERSION}-{brand_module.CHANNEL}"
+    """DISO-Setup-1.0 (DISO-Setup-0.10.1-beta before): the file name says which version it installs."""
+    return f"DISO-Setup-{brand_module.FILE_LABEL}"
 
 
 def sha256(path, chunk=1 << 20):

@@ -67,7 +67,7 @@ class _Window(ctk.CTk):
         titlebox = ctk.CTkFrame(head, fg_color="transparent")
         titlebox.grid(row=0, column=1, sticky="sw")
         ctk.CTkLabel(titlebox, text=core.DISPLAY_NAME, font=ctk.CTkFont(size=26, weight="bold")).pack(side="left")
-        ctk.CTkLabel(titlebox, text=brand.CHANNEL.upper(), width=48, height=22, corner_radius=8,
+        ctk.CTkLabel(titlebox, text=brand.CHANNEL.upper() or brand.VERSION_LABEL, width=48, height=22, corner_radius=8,
                      fg_color=look.ACCENT_SOFT if look.is_new() else ("gray78", "gray28"),
                      text_color=look.ACCENT if look.is_new() else ("gray20", "gray85"),
                      font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(10, 0), pady=(8, 0))

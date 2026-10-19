@@ -372,10 +372,10 @@ PLAIN = {
         "🧩 Browser extension (right-click a link → “Download with DISO”). Which browsers should get it?",
     # ---- contact
     "✉ Bize ulaş": "✉ Contact us",
-    "Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse aşağıdaki "
-    "“Detayları kopyala”ya bas, sonra “Bize ulaş” ile GitHub'da yeni bir sorun aç ve metni oraya yapıştır.":
-        "This is a beta: everything works, but some corners may be rough. If something goes wrong, press “Copy details” "
-        "below, then “Contact us” to open a new issue on GitHub and paste the text there.",
+    "Bir şey ters giderse aşağıdaki “Detayları kopyala”ya bas, sonra “Bize ulaş” ile GitHub'da yeni bir sorun aç ve "
+    "metni oraya yapıştır.":
+        "If something goes wrong, press “Copy details” below, then “Contact us” to open a new issue on GitHub and "
+        "paste the text there.",
     # ---- song search by artist
     "Şarkı adı ya da YouTube linki yaz…": "Type a song name or a YouTube link…",
     "Sanatçı / kanal (boş da olur)": "Artist / channel (optional)",

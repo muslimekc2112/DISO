@@ -2,25 +2,25 @@
 
 **English | [Türkçe](README.tr.md)**
 
-A download manager for files, videos and music, with a music player built in. For **Windows and Linux**. **Version 0.12.0 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
+A download manager for files, videos and music, with a music player built in. For **Windows and Linux**. **Version 1.0**. The interface speaks **English and Turkish**.
 
 Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
 ## Installing on Windows (on a PC without Python)
-Double-click `DISO-Setup-0.12.0-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
+Double-click `DISO-Setup-1.0.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
 - **It asks for administrator rights:** DISO is installed for everyone on the PC, in `C:\Program Files\ISO\DISO`. Windows asks "allow?"; say **Yes**.
 - It adds Start menu and desktop shortcuts and appears in the "Apps" list. If you like, it starts together with Windows.
 - It asks **which browsers should get the extension** (right-click a link → "Download with DISO", like IDM) and helps you add it; see [Browser extension](#-browser-extension).
 - **Updating:** just run the new setup file. It closes a running DISO and installs into the same folder; your settings and playlists stay.
 - **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
 - **Uninstalling:** Settings → Apps → DISO → Uninstall, or right-click DISO in the Start menu → Uninstall (Windows first opens its list of apps; press Uninstall next to DISO there), or "Uninstall DISO" in the Start menu. Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
-- **Silent install:** `DISO-Setup-0.12.0-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- **Silent install:** `DISO-Setup-1.0.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
 - Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
 ## Installing on Linux
 Two ways; FFmpeg, yt-dlp and Deno are inside both, there is nothing else to install:
-- **Debian, Ubuntu, Linux Mint, Pop!_OS …:** `DISO-0.12.0-beta-linux-x86_64.deb`. Double-click it (Software Center), or `sudo apt install ./DISO-0.12.0-beta-linux-x86_64.deb`. DISO goes to `/opt/diso` and the applications menu; `diso` starts it from a terminal. Uninstall: Software Center, or `sudo apt remove diso`.
-- **Any distribution (no administrator password):** unpack `DISO-0.12.0-beta-linux-x86_64.tar.gz` and run `./install.sh` in that folder. It asks the language (Türkçe / English), installs DISO for you in `~/.local/opt/DISO` and puts it into the applications menu. **"Uninstall DISO"** in the menu (or `~/.local/opt/DISO/uninstall.sh`) removes it and asks whether your settings and playlists should go too.
+- **Debian, Ubuntu, Linux Mint, Pop!_OS …:** `DISO-1.0-linux-x86_64.deb`. Double-click it (Software Center), or `sudo apt install ./DISO-1.0-linux-x86_64.deb`. DISO goes to `/opt/diso` and the applications menu; `diso` starts it from a terminal. Uninstall: Software Center, or `sudo apt remove diso`.
+- **Any distribution (no administrator password):** unpack `DISO-1.0-linux-x86_64.tar.gz` and run `./install.sh` in that folder. It asks the language (Türkçe / English), installs DISO for you in `~/.local/opt/DISO` and puts it into the applications menu. **"Uninstall DISO"** in the menu (or `~/.local/opt/DISO/uninstall.sh`) removes it and asks whether your settings and playlists should go too.
 - DISO keeps its data in `~/.local/share/DISO`. The tray icon needs a desktop with a tray (GNOME: the "AppIndicator" extension); without one, DISO opening again brings its window back.
 
 **What only Windows has:** the media keys of the keyboard, the ⏮ ⏯ ⏭ buttons on the taskbar preview and Windows' media panel. Everything else (downloads, music player, extension, updates) works the same on both.
@@ -88,7 +88,7 @@ Number of downloads at the same time (1–8), a total **speed limit**, the numbe
 
 **Backup and help:** 💾 Back up (settings, playlists, download list and history in one `.disoyedek` file), 📂 Restore (bring them from another PC), 📊 Download history (what was downloaded when, how fast, from which sites the most; rows you removed from the list stay here), ⌨ Keyboard shortcuts (**F1** everywhere).
 
-**ℹ About** (in Settings, or click the BETA badge in the title): shows the version, where DISO is installed and where its data is. **📋 Copy details** puts the version, Windows, yt-dlp, FFmpeg and Deno details on the clipboard in one go, and **✉ Contact us** opens a new issue page on GitHub.
+**ℹ About** (in Settings, or click the version badge in the title): shows the version, where DISO is installed and where its data is. **📋 Copy details** puts the version, Windows, yt-dlp, FFmpeg and Deno details on the clipboard in one go, and **✉ Contact us** opens a new issue page on GitHub.
 
 ### ⏰ Scheduler (downloading at night)
 Turn on Settings → Scheduler and type the start time (and, if you like, the end time), for example `02:00`–`07:00`. New downloads wait in the queue until the start time. At the end time the running ones pause and go on at the next start time.

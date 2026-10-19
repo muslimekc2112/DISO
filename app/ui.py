@@ -896,9 +896,8 @@ class AboutDialog(ctk.CTkToplevel):
         ctk.CTkLabel(head, text=f"Sürüm {brand.VERSION_LABEL}", font=ctk.CTkFont(size=14)).grid(row=1, column=1, sticky="w")
         ctk.CTkLabel(head, text="Dosya, video ve müzik indirme yöneticisi", text_color="gray").grid(
             row=2, column=1, sticky="nw")
-        ctk.CTkLabel(self, text="Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse "
-                                "aşağıdaki “Detayları kopyala”ya bas, sonra “Bize ulaş” ile GitHub'da yeni bir sorun aç "
-                                "ve metni oraya yapıştır.",
+        ctk.CTkLabel(self, text="Bir şey ters giderse aşağıdaki “Detayları kopyala”ya bas, sonra “Bize ulaş” ile GitHub'da "
+                                "yeni bir sorun aç ve metni oraya yapıştır.",
                      wraplength=600, justify="left", anchor="w", text_color="gray").grid(
             row=1, column=0, sticky="ew", padx=28, pady=(0, 8))
         self.body = ctk.CTkScrollableFrame(self)
@@ -1114,7 +1113,7 @@ class App(ctk.CTk):
         titlebox.grid(row=0, column=1, sticky="sw")
         ctk.CTkLabel(titlebox, text=brand.NAME, font=ctk.CTkFont(size=26, weight="bold")).pack(side="left")
         self.beta_badge = ctk.CTkLabel(
-            titlebox, text=brand.CHANNEL.upper(), width=48, height=22, corner_radius=8,
+            titlebox, text=brand.CHANNEL.upper() or brand.VERSION_LABEL, width=48, height=22, corner_radius=8,
             fg_color=look.ACCENT_SOFT if look.is_new() else ("gray78", "gray28"),
             text_color=look.ACCENT if look.is_new() else ("gray20", "gray85"), font=ctk.CTkFont(size=11, weight="bold"))
         self.beta_badge.pack(side="left", padx=(10, 0), pady=(8, 0))

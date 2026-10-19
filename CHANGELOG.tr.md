@@ -2,7 +2,8 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
-## 0.12.0 beta
+## 1.0
+- **DISO 1.0: beta bitti.** Aşağıdakilerin hepsi içinde; Windows'ta ve artık Linux'ta da.
 - **Linux:** DISO artık Linux'ta da çalışıyor: Debian, Ubuntu, Mint … için `.deb` ve her dağıtım için `.tar.gz` (içindeki `install.sh` ile, yönetici şifresi gerekmeden). FFmpeg, yt-dlp ve Deno içinde gelir; DISO onları orada da kendisi günceller (FFmpeg: BtbN derlemeleri, SHA-256 ile doğrulanır).
 - **Kurulum ve kaldırma iki dilli:** `install.sh` ve `uninstall.sh` Türkçe / English sorar; kaldırırken ayarlarının, çalma listelerinin ve geçmişin de silinip silinmeyeceğini sorar (indirdiğin dosyalara dokunmaz). Uygulamalar menüsünde "DISO'yu Kaldır" var.
 - **Müzik çalar Linux'ta:** sesi FFmpeg çözüyor, SDL çalıyor; her dosya türü (Opus, Vorbis, FLAC …) dönüştürmeden çalar, geçiş (cross-fade) ve önizleme de var.

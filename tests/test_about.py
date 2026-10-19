@@ -35,8 +35,8 @@ def pump(window, condition, timeout=10.0):
 # ------------------------------------------------------------------------------ the one place that names the program
 def test_the_name_and_the_version_are_written_down_once():
     assert (brand.NAME, brand.PUBLISHER, brand.APP_ID) == ("DISO", "ISO", "DISO")
-    assert brand.VERSION == __version__ == "0.12.0" and brand.CHANNEL == __channel__ == "beta"
-    assert brand.VERSION_LABEL == __version_label__ == "0.12.0 beta" and brand.EXE_NAME == "DISO.exe"
+    assert brand.VERSION == __version__ == "1.0.0" and brand.CHANNEL == __channel__ == ""
+    assert brand.VERSION_LABEL == __version_label__ == "1.0" and brand.EXE_NAME == "DISO.exe"
     assert all(part.isdigit() for part in brand.VERSION.split("."))            # Windows and Chrome want numbers only
 
 

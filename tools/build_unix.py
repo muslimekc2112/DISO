@@ -210,7 +210,7 @@ def _fill_info_plist(app):
 # ------------------------------------------------------------------------------- setup files
 def base_name() -> str:
     from app import brand
-    return f"DISO-{brand.VERSION}-{brand.CHANNEL}-{'macos' if MAC else 'linux'}-{ARCH}"
+    return f"DISO-{brand.FILE_LABEL}-{'macos' if MAC else 'linux'}-{ARCH}"
 
 
 def _desktop_entry(exec_path, icon) -> str:
@@ -276,7 +276,7 @@ def make_deb(app) -> str:
     os.makedirs(control)
     arch = "arm64" if ARCH == "arm64" else "amd64"
     with open(os.path.join(control, "control"), "w", encoding="utf-8") as f:
-        f.write(f"Package: diso\nVersion: {brand.VERSION}~{brand.CHANNEL}\nArchitecture: {arch}\n"
+        f.write(f"Package: diso\nVersion: {brand.VERSION}{'~' + brand.CHANNEL if brand.CHANNEL else ''}\nArchitecture: {arch}\n"
                 f"Maintainer: {brand.PUBLISHER} <noreply@github.com>\nInstalled-Size: {size}\n"
                 "Section: net\nPriority: optional\n"
                 f"Homepage: {brand.HOME_URL}\n"
