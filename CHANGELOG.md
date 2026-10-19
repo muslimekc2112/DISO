@@ -2,6 +2,11 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 0.11.5 beta
+- **TR | EN at the top left of the main window:** change the language with one click (DISO offers to restart; the same as Settings → Language).
+- **Fixed:** fast wheel scrolling in Settings (and the other scrolling windows) left copies of rows on the screen, so texts looked broken. Wheel steps are now added up, scrolled at once and painted right away.
+- **Fixed:** the end of some texts was cut off: hints in Settings ("…I go on when it's back", "…a new list with their own name", "…keep going once started"), the version below Settings ("SO 0.11.4 be"), "Automatic (file / video)" in the main window, and long texts in Updates, Shortcuts, About and the extension guide when those windows were made smaller. Long texts now wrap at the width of the window; the version is at the top right of Settings.
+
 ## 0.11.4 beta
 - **Language switch in the setup and uninstall windows:** **Türkçe | English** at the top right. The window opens in DISO's language (Windows' own if DISO never ran) and you can change it; once installing or removing starts, the language stays. The language chosen in setup becomes DISO's language too (your other settings are not touched).
 - **Uninstalling:** right-click DISO in the Start menu → Uninstall opens Windows' list of apps; Uninstall there opens DISO's uninstaller, which asks about "Also delete my settings and playlists". "Uninstall DISO" in the Start menu opens the uninstaller directly.

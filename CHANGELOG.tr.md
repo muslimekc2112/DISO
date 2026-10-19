@@ -2,6 +2,11 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 0.11.5 beta
+- **Ana pencerenin sol üstünde TR | EN:** dili tek tıkla değiştir (DISO yeniden açılmayı önerir; Ayarlar → Dil ile aynı şey).
+- **Düzeltildi:** Ayarlar'da (ve kaydırılan diğer pencerelerde) tekerlekle hızlı kaydırınca satırların kopyaları ekranda kalıyor, yazılar bozuk görünüyordu. Tekerlek adımları artık birleştirilip tek seferde kaydırılıyor ve hemen yeniden çiziliyor.
+- **Düzeltildi:** bazı yazıların sonu kesiliyordu: Ayarlar'daki açıklamalar ("…kaldığı yerden devam ederim", "…kendi adıyla yeni bir listeye gider", "…hep açık kalır"), Ayarlar'ın altındaki sürüm yazısı ("SO 0.11.4 be"), ana penceredeki "Otomatik (dosya / video)" ve pencereler küçültülünce Güncellemeler, Kısayollar, Hakkında ve eklenti rehberindeki uzun metinler. Uzun metinler artık pencerenin genişliğinde alt satıra geçer; sürüm Ayarlar'ın sağ üstünde.
+
 ## 0.11.4 beta
 - **Kurulum ve kaldırma pencerelerinde dil seçici:** sağ üstte **Türkçe | English**. Pencere DISO'nun diliyle (DISO hiç açılmadıysa Windows'un diliyle) açılır, istersen değiştirirsin; kurulum ya da kaldırma başlayınca dil sabitlenir. Kurulumda seçtiğin dil DISO'nun dili de olur (diğer ayarlarına dokunulmaz).
 - **Kaldırma:** Başlat menüsünde DISO'ya sağ tık → Kaldır, Windows'un uygulama listesini açar; oradaki Kaldır, DISO'nun kaldırıcısını açar ve "Ayarlarımı ve çalma listelerimi de sil" seçeneğini sorar. Başlat menüsündeki "DISO'yu Kaldır" doğrudan kaldırıcıyı açar.

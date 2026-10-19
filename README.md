@@ -2,23 +2,23 @@
 
 **English | [Türkçe](README.tr.md)**
 
-A download manager for files, videos and music, with a music player built in. For Windows. **Version 0.11.4 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
+A download manager for files, videos and music, with a music player built in. For Windows. **Version 0.11.5 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
 
 Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
 ## Installing (on a PC without Python)
-Double-click `DISO-Setup-0.11.4-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
+Double-click `DISO-Setup-0.11.5-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
 - **It asks for administrator rights:** DISO is installed for everyone on the PC, in `C:\Program Files\ISO\DISO`. Windows asks "allow?"; say **Yes**.
 - It adds Start menu and desktop shortcuts and appears in the "Apps" list. If you like, it starts together with Windows.
 - It asks **which browsers should get the extension** (right-click a link → "Download with DISO", like IDM) and helps you add it; see [Browser extension](#-browser-extension).
 - **Updating:** just run the new setup file. It closes a running DISO and installs into the same folder; your settings and playlists stay.
 - **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
 - **Uninstalling:** Settings → Apps → DISO → Uninstall, or right-click DISO in the Start menu → Uninstall (Windows first opens its list of apps; press Uninstall next to DISO there), or "Uninstall DISO" in the Start menu. Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
-- **Silent install:** `DISO-Setup-0.11.4-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- **Silent install:** `DISO-Setup-0.11.5-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
 - Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
 ## 🌐 Language
-DISO, its installer and its browser extension speak **English and Turkish**. On the first start DISO uses Turkish if Windows is in Turkish, and English otherwise. You can switch at any time: Settings → **Language** (DISO restarts). The setup and uninstall windows start in the language you chose in DISO and have a **Türkçe | English** switch at the top; the language chosen in setup becomes DISO's language too. The browser extension uses the browser's language.
+DISO, its installer and its browser extension speak **English and Turkish**. On the first start DISO uses Turkish if Windows is in Turkish, and English otherwise. You can switch at any time with **TR | EN** at the top left of the main window, or Settings → **Language** (DISO restarts). The setup and uninstall windows start in the language you chose in DISO and have a **Türkçe | English** switch at the top; the language chosen in setup becomes DISO's language too. The browser extension uses the browser's language.
 
 ## For developers
 1. Install Python 3.10+ (tick **"Add Python to PATH"** in its installer).

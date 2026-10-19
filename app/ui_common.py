@@ -33,6 +33,107 @@ def set_if_changed(widget, **options):
         widget.configure(**changed)
 
 
+SCROLL_FRAME_MS = 16          # wheel steps that arrive within this time are scrolled together
+
+
+def install_smooth_scrolling():
+    """Fast wheel scrolling in a customtkinter scrollable frame (the settings ...) left copies of rows
+    on the screen: every wheel step moved all the rows at once, and when the steps came faster than
+    Windows painted, the old pictures stayed behind. The steps are now added up and scrolled once per
+    frame, followed by a full repaint. Must run before the first scrollable frame is made."""
+    import sys
+    import tkinter as tk
+
+    import customtkinter as ctk
+    cls = ctk.CTkScrollableFrame
+    if not sys.platform.startswith("win") or getattr(cls, "_smooth_scrolling", False):
+        return
+    cls._smooth_scrolling = True
+    original = cls._mouse_wheel_all
+
+    def flush(frame):
+        frame._wheel_after = None
+        units, frame._wheel_units = getattr(frame, "_wheel_units", 0), 0
+        if not units:
+            return
+        try:
+            canvas = frame._parent_canvas
+            canvas.yview("scroll", units, "units")
+            canvas.update_idletasks()                          # paint the new place before the next step
+        except tk.TclError:                                    # the window was closed meanwhile
+            pass
+
+    def wheel(self, event):
+        if self._shift_pressed or not self._check_if_valid_scroll(event.widget):
+            return original(self, event)
+        try:
+            if self._parent_canvas.yview() == (0.0, 1.0):      # everything is visible: nothing to scroll
+                return None
+        except tk.TclError:
+            return None
+        self._wheel_units = getattr(self, "_wheel_units", 0) - int(event.delta / 6)
+        if getattr(self, "_wheel_after", None) is None:
+            self._wheel_after = self.after(SCROLL_FRAME_MS, lambda: flush(self))
+        return None
+
+    cls._mouse_wheel_all = wheel
+
+
+def _stretched(widget) -> bool:
+    """True when the widget fills the width of its place (grid sticky "ew", pack fill x)."""
+    try:
+        manager = widget.winfo_manager()
+        if manager == "grid":
+            sticky = widget.grid_info().get("sticky", "")
+            return "e" in sticky and "w" in sticky
+        if manager == "pack":
+            return widget.pack_info().get("fill") in ("x", "both")
+    except Exception:  # noqa: BLE001
+        pass
+    return False
+
+
+def fit_wrap(label):
+    """A label that fills its row wraps its lines at the width the row really has, never more than the
+    wraplength it was made with. Without this a narrower window cut the end of long texts off."""
+    try:
+        width = label.winfo_width()
+        if width <= 1 or not _stretched(label):
+            return
+        room = int(width / float(label._get_widget_scaling())) - 6
+        current = label.cget("wraplength") or 0
+        if width < label._label.winfo_reqwidth() - 2:            # cut off: wrap shorter
+            wrap = max(60, min(label._wrap_max, room))
+        elif room > current + 2 and current < label._wrap_max:   # room again: longer lines, up to the original
+            wrap = min(label._wrap_max, room)
+        else:
+            return                                               # (never shrinks a label that fits: no creeping)
+        if abs(wrap - current) > 2:
+            label.configure(wraplength=wrap)
+    except Exception:  # noqa: BLE001 - only looks
+        pass
+
+
+def install_wrap_to_fit():
+    """Every CTkLabel made with a wraplength follows the width of its row (see fit_wrap)."""
+    import tkinter as tk
+
+    import customtkinter as ctk
+    cls = ctk.CTkLabel
+    if getattr(cls, "_wrap_to_fit", False):
+        return
+    cls._wrap_to_fit = True
+    original = cls.__init__
+
+    def __init__(self, *args, **kw):
+        original(self, *args, **kw)
+        if kw.get("wraplength"):
+            self._wrap_max = kw["wraplength"]
+            tk.Misc.bind(self, "<Configure>", lambda e, label=self: fit_wrap(label), "+")
+
+    cls.__init__ = __init__
+
+
 def logo_image(px):
     """The program's icon as a CTkImage of px x px (a new one each time: a CTkImage keeps pictures that belong
     to the window it was first shown in, so it must not be shared between windows). None if the file is missing."""

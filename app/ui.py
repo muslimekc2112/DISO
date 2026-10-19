@@ -28,6 +28,10 @@ from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED,
                      QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
 from .segmented_downloader import LIMITER, check_connection, set_proxy
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
+from .ui_common import install_smooth_scrolling, install_wrap_to_fit
+
+install_smooth_scrolling()
+install_wrap_to_fit()
 from .utils import (app_data_dir, default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,
                     human_size, is_url, normalize_url, open_file, open_in_file_manager,
                     resource_path, urls_from_file)
@@ -39,6 +43,8 @@ KIND_LABELS = {
     "Dosya (rar, zip, exe, iso…)": "file",
 }
 CONNECTIONS = ["8", "16", "32"]
+LANGUAGE_SHORT = {"TR": "Türkçe", "EN": "English"}          # the switch at the top left of the main window
+LANGUAGE_NAMES = {name: short for short, name in LANGUAGE_SHORT.items()}
 EXTENSION_OFFER_DELAY = 4000            # ms after the start: "add DISO to your browser?" (once the window is settled)
 EXTENSION_LATER = 3 * 24 * 3600         # s: "remind me later" asks again after three days
 BAD = "#b23b3b"
@@ -359,7 +365,7 @@ class UpdatePanel(ctk.CTkToplevel):
         ctk.CTkLabel(head, text="⟳ Güncellemeler", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w")
         ctk.CTkLabel(head, text="Uygulama her açılışta bu bileşenleri kontrol eder. Yeni sürüm varsa "
                                 "otomatik indirilir ve SHA-256 ile doğrulanır.",
-                     text_color="gray", wraplength=560, justify="left").pack(anchor="w", pady=(2, 0))
+                     text_color="gray", wraplength=560, justify="left", anchor="w").pack(fill="x", pady=(2, 0))
 
         self.cards_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.cards_frame.grid(row=1, column=0, sticky="nsew", padx=16, pady=6)
@@ -416,6 +422,9 @@ class SettingsPanel(ctk.CTkToplevel):
 
         ctk.CTkLabel(self, text="⚙ Ayarlar", font=ctk.CTkFont(size=22, weight="bold")).grid(
             row=0, column=0, sticky="w", padx=24, pady=(14, 4))
+        # up here, not among the buttons below: there it was squeezed and cut ("SO 0.11.4 be")
+        self.version_label = ctk.CTkLabel(self, text=f"{brand.NAME} {brand.VERSION_LABEL}", text_color="gray")
+        self.version_label.grid(row=0, column=0, sticky="e", padx=24, pady=(14, 4))
         self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.body.grid(row=1, column=0, sticky="nsew", padx=14, pady=4)
 
@@ -573,8 +582,6 @@ class SettingsPanel(ctk.CTkToplevel):
         self.log_button.grid(row=0, column=1, padx=8)
         self.about_button = ctk.CTkButton(foot, text="ℹ Hakkında", width=110, command=app.open_about)
         self.about_button.grid(row=0, column=2)
-        ctk.CTkLabel(foot, text=f"{brand.NAME} {brand.VERSION_LABEL}", text_color="gray").grid(
-            row=0, column=3, sticky="e", padx=10)
         ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=4)
 
         self._proxy_result = None
@@ -591,11 +598,13 @@ class SettingsPanel(ctk.CTkToplevel):
         return card
 
     def _add(self, card, title, hint, widget):
-        t = ctk.CTkLabel(card, text=title, anchor="w", font=ctk.CTkFont(weight="bold"))
-        t.grid(row=card._row, column=0, sticky="w", padx=16, pady=(8, 0))
+        # both fill their column and wrap at its width (a wide control next to them leaves less room)
+        t = ctk.CTkLabel(card, text=title, anchor="w", font=ctk.CTkFont(weight="bold"), wraplength=380,
+                         justify="left")
+        t.grid(row=card._row, column=0, sticky="ew", padx=16, pady=(8, 0))
         h = ctk.CTkLabel(card, text=hint, anchor="w", text_color="gray", font=ctk.CTkFont(size=11),
-                         wraplength=300, justify="left")
-        h.grid(row=card._row + 1, column=0, sticky="w", padx=16, pady=(0, 6))
+                         wraplength=380, justify="left")
+        h.grid(row=card._row + 1, column=0, sticky="ew", padx=16, pady=(0, 6))
         widget.grid(row=card._row, column=1, rowspan=2, padx=16, sticky="e")
         card._row += 2
         return t, h
@@ -1097,6 +1106,12 @@ class App(ctk.CTk):
             text_color=look.ACCENT if look.is_new() else ("gray20", "gray85"), font=ctk.CTkFont(size=11, weight="bold"))
         self.beta_badge.pack(side="left", padx=(10, 0), pady=(8, 0))
         self.beta_badge.bind("<Button-1>", lambda e: self.open_about())
+        # the language, one click away (it changes when DISO starts again, which it offers)
+        self.language_switch = ctk.CTkSegmentedButton(titlebox, values=list(LANGUAGE_SHORT), width=78, height=24,
+                                                      font=ctk.CTkFont(size=11, weight="bold"),
+                                                      command=self._on_language_switch)
+        self.language_switch.set(LANGUAGE_NAMES[self.cfg.get("language")])
+        self.language_switch.pack(side="left", padx=(10, 0), pady=(8, 0))
         ctk.CTkLabel(head, text="Linki yapıştır, gerisini bana bırak • Dosya, video, MP3 • YouTube, Instagram, TikTok, X…",
                      text_color="gray").grid(row=1, column=1, sticky="nw")
 
@@ -1127,7 +1142,8 @@ class App(ctk.CTk):
             ctk.CTkLabel(opt, text=text).grid(row=0, column=col, padx=10, pady=(8, 0), sticky="w")
 
         label("Ne indirilecek", 0)
-        self.kind_menu = ctk.CTkOptionMenu(opt, values=list(KIND_LABELS), command=self._on_kind)
+        # wide enough for "Otomatik (dosya / video)" (it was cut off at the arrow)
+        self.kind_menu = ctk.CTkOptionMenu(opt, values=list(KIND_LABELS), width=185, command=self._on_kind)
         self.kind_menu.set(cfg.get("kind"))
         self.kind_menu.grid(row=1, column=0, padx=10, pady=(0, 6), sticky="ew")
 
@@ -1592,6 +1608,24 @@ class App(ctk.CTk):
             pass
         self.settings_panel = SettingsPanel(self)
 
+    def _on_language_switch(self, short):
+        name = LANGUAGE_SHORT.get(short)
+        if not name or name == self.cfg.get("language"):
+            return
+        self.apply_setting("language", name)
+
+    def _show_language(self):
+        """The TR | EN switch and the settings' language menu show the chosen language."""
+        name = self.cfg.get("language")
+        try:
+            if self.language_switch.get() != LANGUAGE_NAMES.get(name):
+                self.language_switch.set(LANGUAGE_NAMES.get(name))
+            panel = self.settings_panel
+            if panel is not None and panel.winfo_exists() and panel.language_menu.get() != name:
+                panel.language_menu.set(name)
+        except (TclError, AttributeError):
+            pass
+
     def apply_setting(self, key, value):
         """Settings window changed something: save it and apply it at once."""
         if key == "start_with_windows":
@@ -1613,6 +1647,7 @@ class App(ctk.CTk):
         elif key == "look":
             self.after(150, self._offer_restart)
         elif key == "language":
+            self._show_language()
             self.after(150, lambda: self._offer_restart(
                 "Dil programı yeniden açınca değişir.\n\nŞimdi yeniden açılsın mı?",
                 "Tamam, dil bir sonraki açılışta değişecek"))
