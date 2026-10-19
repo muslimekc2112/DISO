@@ -79,6 +79,7 @@ class Config:
     def __init__(self, path=None):
         self.path = path or os.path.join(app_data_dir(), "settings.json")
         self.data = dict(DEFAULTS)
+        self.saved = set()                  # the keys that came from the file (not defaults)
         self._lock = threading.Lock()
         self._load()
 
@@ -93,6 +94,7 @@ class Config:
         for key, default in DEFAULTS.items():
             if key in saved and isinstance(saved[key], type(default)):
                 self.data[key] = saved[key]
+                self.saved.add(key)
 
     def sanitize(self, choices: dict):
         """Drop saved values that are not in the menus any more (e.g. renamed options)."""

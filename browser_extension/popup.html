@@ -21,12 +21,13 @@
 </head>
 <body>
   <h1><img src="icons/icon48.png" alt=""> DISO</h1>
-  <div class="status"><span id="dot" class="dot"></span><span id="state">Kontrol ediliyor…</span></div>
-  <button id="page">⬇ Bu sekmeyi indir</button>
-  <button id="audio" class="secondary">🎵 Bu sekmeyi MP3 olarak indir</button>
-  <label><input type="checkbox" id="intercept"> Tarayıcı indirmelerini yakala</label>
-  <button id="options" class="secondary">⚙ Ayarlar</button>
+  <div class="status"><span id="dot" class="dot"></span><span id="state" data-i18n="checking">Kontrol ediliyor…</span></div>
+  <button id="page" data-i18n="sendTab">⬇ Bu sekmeyi indir</button>
+  <button id="audio" class="secondary" data-i18n="sendTabAudio">🎵 Bu sekmeyi MP3 olarak indir</button>
+  <label><input type="checkbox" id="intercept"> <span data-i18n="catchDownloads">Tarayıcı indirmelerini yakala</span></label>
+  <button id="options" class="secondary" data-i18n="settings">⚙ Ayarlar</button>
   <div id="msg"></div>
+  <script src="lib.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

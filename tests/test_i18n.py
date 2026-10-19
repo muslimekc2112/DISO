@@ -47,10 +47,36 @@ def test_the_choice_values_of_the_program_are_all_translated(english):
     from app import config, models
     from app.music_ui import MODES, SLEEP_CHOICES, VIEW_FIND, VIEW_LISTS
     from app.player import REPEAT_MODES
+    from app.ui import FILTER_STATES, KIND_LABELS, SORT_KEYS
     values = (list(config.THEMES) + list(config.AFTER_ALL) + config.SORTS + config.FILTERS + models.SUBTITLE_CHOICES
-              + MODES + SLEEP_CHOICES + [VIEW_LISTS, VIEW_FIND] + list(REPEAT_MODES))
-    untranslated = [v for v in values if i18n.tr(v) == v and any(c in v for c in "çğıöşüÇĞİÖŞÜ")]
+              + MODES + SLEEP_CHOICES + [VIEW_LISTS, VIEW_FIND] + list(REPEAT_MODES)
+              + list(FILTER_STATES) + list(KIND_LABELS) + list(SORT_KEYS))
+    same_in_english = {"Video (MP4)", "Proxy"}
+    untranslated = [v for v in values if i18n.tr(v) == v and v not in same_in_english]
     assert untranslated == []
+
+
+def test_the_language_comes_from_the_settings_or_else_from_windows(tmp_path, monkeypatch):
+    from app.config import Config
+    settings = tmp_path / "settings.json"
+    monkeypatch.setattr(i18n, "windows_language", lambda: "English")
+    assert i18n.saved_language(str(settings)) == "English"                       # nothing chosen yet: Windows' own
+    assert i18n.saved_language(str(settings), "Türkçe") == "Türkçe"
+    settings.write_text(json.dumps({"language": "Türkçe"}), encoding="utf-8")
+    assert i18n.saved_language(str(settings)) == "Türkçe"                        # a choice wins
+    assert "language" in Config(str(settings)).saved
+    settings.write_text(json.dumps({"theme": "Koyu"}), encoding="utf-8")
+    assert "language" not in Config(str(settings)).saved
+
+
+def test_texts_built_from_pieces_are_translated_too(english):
+    assert i18n.tr("Altyazı: tr, en  (+3 otomatik dil)") == "Subtitles: tr, en  (+3 automatic languages)"
+    assert i18n.tr("Altyazı: yok") == "Subtitles: none"
+    assert i18n.tr("Bugün 14:05") == "Today 14:05" and i18n.tr("toplam 3 MB") == "3 MB in total"
+    assert i18n.tr("Video: 3 • MP3: 2 • Dosya: 1") == "Video: 3 • MP3: 2 • Files: 1"
+    assert i18n.tr("⏸ Beklemede • 45.0%") == "⏸ Paused • 45.0%"
+    assert i18n.tr("Sadece ses (MP3) • ~3 MB") == "Audio only (MP3) • ~3 MB"
+    assert i18n.tr("Çalamadım, sıradakine geçtim: Şarkı") == "Could not play it, went on to the next one: Şarkı"
 
 
 SCRIPT = r'''

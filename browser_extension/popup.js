@@ -10,7 +10,7 @@ async function refresh() {
   const s = await ask({ type: "status" });
   const on = !!(s && s.app);
   $("dot").className = "dot" + (on ? " on" : "");
-  $("state").textContent = on ? "Uygulama çalışıyor (v" + s.app.version + ")" : "Uygulama kapalı — DISO'yi aç";
+  $("state").textContent = on ? HI.t("appRuns", [s.app.version]) : HI.t("appClosed");
   $("page").disabled = $("audio").disabled = !on;
   $("intercept").checked = !!(s && s.intercept);
 }
@@ -19,9 +19,10 @@ async function sendTab(kind) {
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.url) return;
   const r = await ask({ type: "send", urls: [tab.url], kind });
-  $("msg").textContent = r ? r.text : "Cevap yok";
+  $("msg").textContent = r ? r.text : HI.t("noAnswer");
 }
 
+HI.translatePage(document);
 $("page").addEventListener("click", () => sendTab("auto"));
 $("audio").addEventListener("click", () => sendTab("audio"));
 $("intercept").addEventListener("change", (e) => api.storage.local.set({ intercept: e.target.checked }));

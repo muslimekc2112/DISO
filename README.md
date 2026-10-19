@@ -1,98 +1,105 @@
 # DISO
 
-Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows için. **Sürüm 0.10.0 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir.
+**English | [Türkçe](README.tr.md)**
 
-Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
+A download manager for files, videos and music, with a music player built in. For Windows. **Version 0.10.1 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
 
-## Kurulum (Python'u olmayan bir bilgisayar için)
-`DISO-Kurulum-0.10.0-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
-- **Yönetici izni ister:** DISO bu bilgisayardaki herkes için `C:\Program Files\ISO\DISO` klasörüne kurulur. Windows "izin ver?" diye sorar, **Evet** de.
-- Başlat menüsüne ve masaüstüne kısayol koyar, "Uygulamalar" listesine yazılır. İstersen Windows ile birlikte başlar.
-- **Güncelleme:** yeni kurulum dosyasını çalıştırman yeter. Çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
-- **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
-- **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır (ya da Başlat menüsündeki "DISO'yu Kaldır"). Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Kurulum-0.10.0-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
-- Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
+Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
-## Geliştirici kurulumu
-1. Python 3.10+ kur (kurulumda **"Add Python to PATH"** işaretli olsun).
-2. `run.bat` dosyasına çift tıkla: kütüphaneleri kurar ve programı açar. (Elle: `pip install -r requirements.txt` sonra `python main.py`)
-3. Tek dosyalık, kurulumsuz taşınabilir `DISO.exe` için `build.bat` (daha küçüğü için `build.bat --no-ffmpeg`). Her açılışta kendini geçici klasöre açtığı için açılması birkaç saniye sürer.
-4. Kurulum paketi için `python tools/build_installer.py`: programı klasör halinde derler (`build\app\DISO`, `python tools/build_exe.py --onedir`), Deno'yu indirip SHA-256 ile doğrular ve `dist\DISO-Kurulum-<sürüm>.exe` çıkarır. Kurulan DISO bir klasör olduğu için her açılışta açılmayı beklemez, 2–3 saniyede açılır.
-5. İkonlar tek bir resimden üretilir: `IKON\icon.png` değişince `python tools/make_icons.py`.
+## Installing (on a PC without Python)
+Double-click `DISO-Kurulum-0.10.1-beta.exe` ("Kurulum" means setup) and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
+- **It asks for administrator rights:** DISO is installed for everyone on the PC, in `C:\Program Files\ISO\DISO`. Windows asks "allow?"; say **Yes**.
+- It adds Start menu and desktop shortcuts and appears in the "Apps" list. If you like, it starts together with Windows.
+- **Updating:** just run the new setup file. It closes a running DISO and installs into the same folder; your settings and playlists stay.
+- **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
+- **Uninstalling:** Settings → Apps → DISO → Uninstall (or "Uninstall DISO" in the Start menu). Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
+- **Silent install:** `DISO-Kurulum-0.10.1-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
-İsim, yayıncı ve sürüm tek yerde: `app/brand.py`.
+## 🌐 Language
+DISO, its installer and its browser extension speak **English and Turkish**. On the first start DISO uses Turkish if Windows is in Turkish, and English otherwise. You can switch at any time: Settings → **Language** (DISO restarts). The setup and uninstall windows use the language you chose in DISO; the browser extension uses the browser's language.
 
-**FFmpeg kurman gerekmez:** MP3 veya video+ses birleştirme ilk gerektiğinde DISO kendisi indirir (bir kereliğine, ~115 MB, SHA-256 ile doğrulanır). İstersen `ffmpeg.exe` ve `ffprobe.exe` dosyalarını `ffmpeg/` klasörüne koy.
+## For developers
+1. Install Python 3.10+ (tick **"Add Python to PATH"** in its installer).
+2. Double-click `run.bat`: it installs the libraries and starts the program. (By hand: `pip install -r requirements.txt`, then `python main.py`)
+3. `build.bat` makes a portable single-file `DISO.exe` that needs no install (`build.bat --no-ffmpeg` for a smaller one). It unpacks itself to a temporary folder at every start, so it takes a few seconds to open.
+4. `python tools/build_installer.py` makes the setup package: it builds the program as a folder (`build\app\DISO`, `python tools/build_exe.py --onedir`), downloads Deno and checks its SHA-256, and writes `dist\DISO-Kurulum-<version>.exe`. The installed DISO is a folder, so it opens in 2–3 seconds.
+5. The icons are made from one picture: after changing `IKON\icon.png`, run `python tools/make_icons.py`.
 
-## Kullanım
-- Linki yapıştır, **⬇ İndir**'e bas. "Otomatik" modda DISO dosya mı video mu kendi anlar.
-- `📄` ile bir `.txt` dosyasındaki bütün linkleri ekleyebilir, `Ctrl+V` ile panodaki linkleri listeye atabilirsin. Listede zaten olan link tekrar eklenmez.
-- **ℹ** düğmesi bir linkin kalitelerini, boyutlarını ve altyazı dillerini gösterir; istediğin kaliteyle ya da MP3 olarak tek tıkla indirirsin.
-- **Oynatma listesi** kutusu işaretliyken bir liste linki eklersen hangi videoların inecek olduğunu seçebilirsin.
-- **Altyazı** menüsü (Türkçe / İngilizce / tüm diller) altyazıyı videonun yanına `.srt` olarak kaydeder ve MP4'ün içine de koyar (oynatıcıda altyazı seçeneği olarak çıkar). YouTube bazen kendi çevirisini (ör. İngilizceden Türkçeye) vermez; o zaman videonun kendi dilindeki altyazıyı kaydeder ve bunu satırda söyler. Altyazı alınamasa bile video her zaman iner. MP3'lere videonun küçük resmi **kapak resmi** olarak gömülür.
-- **Türe göre klasör** kutusu dosyaları Video, Müzik, Arşiv, Belge, Program, Resim, Diğer klasörlerine ayırır.
-- Her satırda ⏸/▶ (duraklat/devam), 📂 (klasörü aç), ✖ (kaldır) var; **sağ tık** menüsü ve çift tıkla açma da. DISO kapansa bile yarım indirmeler kaldığı yerden devam eder. Satırın solundaki renkli şerit durumu gösterir (iniyor, bitti, hata, beklemede).
-- Listede arama, filtre, sıralama ve kutucukla çoklu seçim (toplu başlat/duraklat/sil) var. Kısayollar: `Ctrl+F` ara, `Ctrl+A` hepsini seç, `Delete` seçilenleri sil.
-- Bağlantı koparsa indirme **kendi kendine tekrar dener** (10, 30, 60 sn… artan beklemeyle) ve kaldığı yerden sürer.
-- İndirme bitince ses ve Windows bildirimi gelir.
+The name, publisher, version and GitHub address are written in one place: `app/brand.py`. The program's texts are written in Turkish; their English is in `app/lang_en.py` (the keys are the Turkish texts as shown on screen).
 
-### 🎵 Müzik çalar modu
-Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarıyla ayrı bir müzik çalar penceresine geçersin; indirmeler arkada sürer, müzik de pencere değişse kesilmez.
-- **Birden fazla çalma listesi** yapabilirsin (`＋` yeni, `✎` ad değiştir, `🗑` sil). Listeler kapanınca kaybolmaz (`%LOCALAPPDATA%\DISO\playlists.json`).
-- `＋ Dosya` ve `📁 Klasör` ile müzik eklersin; parçaları `▲` `▼` (ya da `Ctrl+↑/↓`) ile istediğin sıraya dizersin, `Delete` ile çıkarırsın. Dosyalar silinmez.
-- Çift tıklayınca o parçadan başlar. Çal/duraklat, önceki/sonraki, ilerleme çubuğu, ses, **🔀 Karışık** ve **🔁 Tekrar** (kapalı / liste / tek) var. `Boşluk` çal/duraklat.
-- Parça tablosunda **sanatçı, başlık ve süre** görünür (dosyanın etiketlerinden, arka planda okunur; etiketi olmayan dosya adıyla görünür). Listenin toplam süresi altta yazar. Çalan parçanın **kapak resmi** ve albümü çalar kutusunda görünür.
-- Biten müzik indirmeleri **kendiliğinden çalma listesine girer**: YouTube oynatma listesi kendi adıyla bir listeye (sırası korunarak), tek başına inen MP3 "İndirilenler" listesine. Kapatmak için Ayarlar → "Biten müzikleri çalma listesine ekle". Bir indirmenin **sağ tık menüsünden → Müzik listesine ekle** ile istediğin listeye de koyabilirsin.
-- **Dosyası silinen parça listeden kendiliğinden çıkar** (altta kısa bir not düşer). Takılı olmayan bir USB bellekteki parça silinmiş sayılmaz, bellek takılınca yerinde durur.
-- **Listede ara** (`Ctrl+F`): yazdıkça süzer. **Sütun başlığına tıkla**, liste o sütuna göre sıralanır (ikinci tık tersten).
-- **Sağ tık:** çal, klasörde göster, başka listeye ekle, listeden çıkar.
-- **Kaldığın yerden devam:** DISO'yu kapatıp açınca son çalan şarkı "Kaldığın yer" diye görünür, ▶ ile aynı saniyeden sürer.
-- **⏭ Sıradaki olarak çal / ➕ Sıraya ekle** (sağ tık): listeyi bozmadan, istediğin şarkıları şu ankinden sonra çaldırır; **📋 Sıra** düğmesi sırayı gösterir (tıkla: çıkar, ya da hepsini temizle).
-- **🎚 Şarkılar arası geçiş** (⚙ menüsü): biten şarkı kısılırken yenisi 3, 6 ya da 10 saniyede yavaşça girer.
-- **🗗 Mini oynatıcı**: köşede her zaman üstte duran küçük çalar (kapak, ⏮ ⏯ ⏭, ilerleme); ⤢ ile büyük pencereye dönülür.
-- **Görev çubuğu ve Windows ses paneli**: müzik penceresinin görev çubuğu önizlemesinde ⏮ ⏯ ⏭; ses tuşlarına basınca çıkan Windows panelinde çalan şarkı, sanatçı ve kapak, düğmeleriyle.
-- **🔀 Karıştır** düğmesi listeye kalıcı olarak yeni bir rastgele sıra verir (beğenmezsen `Ctrl+Z` eski sıraya döndürür). Sırayı bozmadan karışık dinlemek istersen oynatıcıdaki **🔀 Karışık** kutusunu kullan.
-- **🎤 Şarkı sözleri:** çalan (ya da seçtiğin) şarkının sözü varsa oynatıcının sağ üstünde **🎤 Sözler** düğmesi çıkar, yoksa hiç görünmez. Sözler penceresinde zamanlı sözler şarkıyla birlikte akar: söylenen satır büyük ve renkli, bir satıra tıklarsan şarkı oraya atlar; yazıyı A−/A+ ile büyütüp küçültebilirsin. Sözler önce **YouTube Music**'ten gelir (DISO'dan inen şarkıda o videonun kendi sözleri, diğerlerinde ad ve sanatçıyla aranır); satır zamanları YouTube Music'te yoksa [LRCLIB](https://lrclib.net)'ten alınır, ama yalnızca metni aynı şarkıysa. Şarkının yanına `şarkı.lrc` olarak kaydedilir. Yanlış gelirse sağ tık → "🔄 Sözler yanlış, yeniden bul" ya da sözler penceresindeki "Yanlışsa yeniden bul". "Şarkı bul" ile indirdiğin şarkıların sözleri kendiliğinden aranır; başka bir şarkı için sağ tık → "Şarkı sözlerini internette bul".
-- **😴 Uyku zamanlayıcısı:** 15–90 dakika sonra ya da çalan parça bitince müziği durdurur.
-- **Klavyedeki medya tuşları** (çal/duraklat, ileri, geri, durdur) DISO öndeyken de arkadayken de çalışır. Tuşları yalnızca müzik çalarken (ya da duraklatılmışken) alır; durdurunca tarayıcıya ve diğer programlara geri bırakır.
-- Desteklenen biçimler Windows'un çalabildikleridir: mp3, wav, wma, m4a, aac.
+**No need to install FFmpeg:** the first time an MP3 or a video+audio merge needs it, DISO downloads it itself (once, ~115 MB, checked with SHA-256). If you prefer, put `ffmpeg.exe` and `ffprobe.exe` into the `ffmpeg/` folder.
 
-#### 🔍 Şarkı bul
-Müzik çaların üstündeki **🔍 Şarkı bul** sekmesine şarkı ya da sanatçı adı yaz (YouTube linki de olur), Enter'a bas. Sonuçlarda başlık, kanal ve süre görünür.
-- Beğendiğine **çift tıkla** ya da seçip **⬇ İndir (MP3)**'e bas. Şarkı arka planda MP3 olarak (kapak resmiyle) iner, sen bu arada dinlemeye devam edersin. Ekranda yalnızca yüzdesi görünür.
-- İnince **"Hangi listeye ekleyeyim?"** diye sorar: var olan bir liste, yeni bir liste ya da "Şimdilik ekleme". Aynı anda biten şarkılar için tek soru gelir; son seçtiğin liste bir dahaki sefere önce önerilir.
-- Bulup indirdiğin şarkılar `%LOCALAPPDATA%\DISO\Müzik` klasöründe durur (**📂 İnenler** düğmesi açar). İndirme listesinde de görünürler, oradan duraklatıp sürdürebilirsin.
-- **🎧 Önizle**: indirmeden önce şarkının 30 saniyesini dinle (çalan müzik bekler, sonra kaldığı yerden devam eder).
-- Yazarken **YouTube önerileri** ve **son aramaların** çıkar; ↑ ↓ ve Enter ile seçersin.
-- **YouTube Music / YouTube listesi linki** yapıştırırsan şarkıları gelir; **⬇ Hepsini indir** hepsini MP3 olarak indirip listenin adıyla bir çalma listesine, sırasıyla koyar.
-- Aynı şarkıyı iki kez indirmez: iniyorsa bekler, inmişse yeniden listeye eklemeyi sorar, yarım kaldıysa kaldığı yerden sürer.
+## Using it
+- Paste a link and press **⬇ Download**. In "Automatic" mode DISO works out by itself whether it is a file or a video.
+- `📄` adds every link in a `.txt` file, and `Ctrl+V` puts the links on the clipboard into the list. A link already in the list is not added again.
+- The **ℹ** button shows a link's qualities, sizes and subtitle languages; download the quality you want, or MP3, with one click.
+- With **Playlist** ticked, adding a playlist link lets you choose which videos to download.
+- The **subtitles** menu (Turkish / English / all languages) saves subtitles as `.srt` next to the video and also puts them inside the MP4 (players offer them as a subtitle track). YouTube sometimes refuses its own translation (e.g. English to Turkish); then the subtitles in the video's own language are saved and the row says so. The video is always downloaded, even when the subtitles are not. MP3s get the video's thumbnail embedded as **cover art**.
+- **Folders by type** sorts files into Video, Music, Archives, Documents, Programs, Images and Other folders.
+- Every row has ⏸/▶ (pause/resume), 📂 (open folder) and ✖ (remove), plus a **right-click** menu and double-click to open. Unfinished downloads go on from where they stopped, even after DISO was closed. The coloured strip on the left of a row shows its state (downloading, done, error, paused).
+- The list has search, filters, sorting and checkboxes for picking several rows (start/pause/delete them together). Shortcuts: `Ctrl+F` search, `Ctrl+A` select all, `Delete` delete the selected ones.
+- If the connection drops, the download **retries by itself** (after 10, 30, 60 s… growing waits) and goes on from where it stopped.
+- A sound and a Windows notification tell you when a download is done.
 
-### ⚙ Ayarlar
-Aynı anda indirme sayısı (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, "Dene" düğmesiyle), bildirimler, **zamanlayıcı**, **kapatınca arka planda çalış** (sistem tepsisi), **Windows ile başlat**, tema (koyu/açık/sistem), görünüm stili (Yeni/Klasik), "tüm indirmeler bitince" eylemi (DISO'yu kapat / uyut / bilgisayarı kapat) ve günlük dosyası. Seçtiğin her şey kapanıp açılınca hatırlanır.
+### 🎵 Music player mode
+The **Download mode | Music player mode** switch at the bottom of the window opens a separate music player window. Downloads go on in the background, and the music keeps playing when you switch windows.
+- Make **as many playlists as you like** (`＋` new, `✎` rename, `🗑` delete). They survive closing DISO (`%LOCALAPPDATA%\DISO\playlists.json`).
+- Add music with `＋ File` and `📁 Folder`, put the songs in any order with `▲` `▼` (or `Ctrl+↑/↓`), take them out with `Delete`. The files themselves are never deleted.
+- Double-click a song to start from it. There is play/pause, previous/next, a progress bar, volume, **🔀 Shuffle** and **🔁 Repeat** (off / list / one song). `Space` plays/pauses.
+- The song table shows **artist, title and length** (read from the file's tags in the background; a file without tags shows its file name). The list's total length is shown below it. The playing song's **cover art** and album appear in the player box.
+- Finished music downloads **go into a playlist by themselves**: a YouTube playlist into a list with its own name (in its order), a single MP3 into the "Downloaded" list. To turn this off: Settings → "Put finished music into a playlist". From a download's **right-click menu → Add to a playlist** you can also put it into any list.
+- **A song whose file was deleted leaves the list by itself** (a short note says so). A song on a USB stick that is not plugged in does not count as deleted; it is still there when the stick comes back.
+- **Search the list** (`Ctrl+F`): filters as you type. **Click a column title** to sort by that column (click again for reverse).
+- **Right-click:** play, show in folder, add to another list, remove from the list.
+- **Go on where you left off:** after restarting DISO the last song shows as "Where you left off", and ▶ goes on from the same second.
+- **⏭ Play next / ➕ Add to queue** (right-click): plays the songs you pick after the current one without changing the list; the **📋 Queue** button shows the queue (click to remove one, or clear them all).
+- **🎚 Crossfade** (⚙ menu): while a song fades out the next one fades in over 3, 6 or 10 seconds.
+- **🗗 Mini player**: a small always-on-top player in the corner (cover, ⏮ ⏯ ⏭, progress); ⤢ goes back to the big window.
+- **Taskbar and the Windows media panel**: ⏮ ⏯ ⏭ in the music window's taskbar preview; the panel Windows shows when you press the volume keys shows the song, artist and cover, with its buttons.
+- The **🔀 Shuffle** button gives the list a new random order for good (`Ctrl+Z` brings the old order back if you don't like it). To listen in random order without changing the list, use the **🔀 Shuffle** box in the player.
+- **🎤 Lyrics:** when the playing (or selected) song has lyrics, a **🎤 Lyrics** button appears at the top right of the player; otherwise it is not shown. In the lyrics window timed lyrics scroll with the song: the line being sung is big and coloured, clicking a line jumps there, and A−/A+ change the text size. Lyrics come from **YouTube Music** first (for a song downloaded by DISO, that very video's lyrics; for others a search by title and artist); when YouTube Music has no line timings, they come from [LRCLIB](https://lrclib.net), but only if the text is the same song. They are saved next to the song as `song.lrc`. If they are wrong: right-click → "🔄 Wrong lyrics, look again", or "Wrong? Look again" in the lyrics window. Songs downloaded with "Find songs" get their lyrics looked up by themselves; for other songs, right-click → "Find lyrics online".
+- **😴 Sleep timer:** stops the music after 15–90 minutes, or when the current song ends.
+- **The media keys on your keyboard** (play/pause, next, previous, stop) work whether DISO is in front or not. DISO only takes them while music is playing (or paused); once stopped, it gives them back to the browser and other programs.
+- Supported formats are the ones Windows can play: mp3, wav, wma, m4a, aac. For files Windows cannot open directly (MP3s with large cover art, videos with Opus sound) a playable copy is made in the background the first time they play.
 
-**Dil:** Ayarlar → Dil → English (DISO yeniden açılır). **Yedek ve yardım:** 💾 Yedek al (ayarlar, çalma listeleri, indirme listesi ve geçmiş tek `.disoyedek` dosyasına), 📂 Yedeği yükle (başka bilgisayardan getir), 📊 İndirme geçmişi (ne zaman ne indi, ne kadar hızlı, en çok hangi siteden; listeden silinenler de kalır), ⌨ Klavye kısayolları (her yerde **F1**).
+#### 🔍 Find songs
+Type a song or artist name (or a YouTube link) in the **🔍 Find songs** tab at the top of the music player and press Enter. The results show title, channel and length.
+- **Double-click** the one you like, or select it and press **⬇ Download (MP3)**. The song downloads in the background as an MP3 (with cover art) while you keep listening. Only its percentage is shown.
+- When it's done DISO asks **which list it should go into**: an existing list, a new list or "Not now". Songs that finish together get one question; the list you chose last is offered first next time.
+- Songs you find and download are kept in `%LOCALAPPDATA%\DISO\Müzik` (the **📂 Downloaded** button opens it). They also show in the download list, where you can pause and resume them.
+- **🎧 Preview**: listen to 30 seconds of a song before downloading (the music that was playing waits, then goes on).
+- While you type, **YouTube suggestions** and **your recent searches** appear; pick one with ↑ ↓ and Enter.
+- Paste a **YouTube Music / YouTube playlist link** to get its songs; **⬇ Download all** downloads them all as MP3 into a playlist with the list's name, in order.
+- The same song is never downloaded twice: if it is downloading DISO waits, if it is done it asks whether to add it to a list again, and if it stopped halfway it goes on from there.
 
-**ℹ Hakkında** (Ayarlar'da, ya da başlıktaki BETA rozetine tıkla): sürümü, DISO'nun nerede durduğunu ve verilerinin nerede olduğunu gösterir. Bir şey ters giderse **Detayları kopyala** ile sürüm, Windows, yt-dlp, FFmpeg ve Deno bilgilerini tek seferde panoya alıp [sorun bildirimine](https://github.com/muslimekc2112/DISO/issues) yapıştırabilirsin.
+### ⚙ Settings
+Number of downloads at the same time (1–8), a total **speed limit**, the number of automatic retries, a **proxy** (http / socks5, with a "Test" button), notifications, the **scheduler**, **keep running when closed** (system tray), **start with Windows**, theme (dark/light/system), style (New/Classic), **language** (Türkçe/English), what to do "when all downloads finish" (close DISO / sleep / shut down the PC) and the log file. Everything you choose is remembered.
 
-### ⏰ Zamanlayıcı (gece indirme)
-Ayarlar → Zamanlayıcı'yı aç, başlangıç (ve istersen bitiş) saatini yaz, örneğin `02:00`–`07:00`. Saat gelene kadar yeni indirmeler sırada bekler. Bitiş saati gelince çalışanlar duraklar, bir sonraki başlangıçta kaldığı yerden devam eder.
+**Backup and help:** 💾 Back up (settings, playlists, download list and history in one `.disoyedek` file), 📂 Restore (bring them from another PC), 📊 Download history (what was downloaded when, how fast, from which sites the most; rows you removed from the list stay here), ⌨ Keyboard shortcuts (**F1** everywhere).
 
-## 🌐 Tarayıcı eklentisi
-`browser_extension` klasörü Chrome / Edge / Brave / Firefox için eklentidir (kurulum: `browser_extension/README.txt`). Bağlantıya sağ tık → "DISO ile indir"; istersen tarayıcının kendi indirmelerini de yakalar (DISO kapalıysa tarayıcı normal indirir). Giriş gerektiren siteler için tarayıcının oturumu DISO'ya iletilir (çerezler diske yazılmaz). DISO yalnızca bu bilgisayarda dinler ve web sayfalarından değil, yalnızca **eklentiden** gelen istekleri kabul eder.
+**ℹ About** (in Settings, or click the BETA badge in the title): shows the version, where DISO is installed and where its data is. **📋 Copy details** puts the version, Windows, yt-dlp, FFmpeg and Deno details on the clipboard in one go, and **✉ Contact us** opens a new issue page on GitHub.
 
-## Testler (geliştirenler için)
-`run_tests.bat` (ya da `python -m pytest`) tüm testleri çalıştırır. İnternet gerekmez: testler yerel bir sunucuyla Range desteği olmayan, bağlantısı kopan, bağlantı sınırı koyan sunucuları, sahte bir proxy'yi ve sahte bir PyPI'yi taklit eder. Eklentinin mantığı `node` ile de sınanır. Gerçek FFmpeg gerektiren testler `ffmpeg/` klasöründe (veya PATH'te) ffmpeg yoksa, pencere testleri ekran yoksa, eklenti testleri node yoksa atlanır. Kurulum paketi testleri (`-m installer`) paket derlenmişse gerçek `Kurulum.exe`'yi geçici bir yerde çalıştırır, gerçek Başlat menüne ya da kayıt defterine dokunmaz.
-- Sadece hızlı testler: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
-- Tek dosya: `python -m pytest tests/test_downloader.py`
-- Kurulumu pencere açmadan denetle: `python main.py --selftest sonuc.json`
+### ⏰ Scheduler (downloading at night)
+Turn on Settings → Scheduler and type the start time (and, if you like, the end time), for example `02:00`–`07:00`. New downloads wait in the queue until the start time. At the end time the running ones pause and go on at the next start time.
 
-## Sorun giderme
-- **Güncellemeler:** DISO her açılışta yt-dlp, yt-dlp-ejs ve FFmpeg'e bakar; yeni sürüm varsa kendisi indirir (SHA-256 ile doğrulanır). Yeni yt-dlp çalışmazsa otomatik olarak öncekine dönülür. Durumu ve elle kontrolü `⟳ Güncellemeler` penceresinden yapabilirsin.
-- **YouTube/Instagram aniden çalışmazsa:** `⟳ Güncellemeler` → "Kontrol et" → DISO'yu yeniden aç. yt-dlp program içinde güncellenir, yeniden derlemek gerekmez.
-- **YouTube "format bulunamadı" derse:** kurulum paketiyle gelen Deno yeterlidir. Kaynak koddan çalıştırıyorsan bir kez `winget install DenoLand.Deno` kur.
-- **Giriş isteyen videolar:** "Giriş çerezleri" menüsünden giriş yaptığın tarayıcıyı seç (Firefox en sorunsuzu) ya da tarayıcı eklentisini kullan.
-- **Bir şey ters giderse:** Ayarlar → **ℹ Hakkında** → "Detayları kopyala" ile bilgileri kopyala, sonra [GitHub'da yeni bir sorun aç](https://github.com/muslimekc2112/DISO/issues) ve bilgileri oraya yapıştır. Günlük dosyası: `%LOCALAPPDATA%\DISO\diso.log`.
-- **Google Drive / Mega / MediaFire sayfaları** doğrudan indirme linki değildir; DISO bir sayfadaki butona basamaz.
+## 🧩 Browser extension
+The `browser_extension` folder is an extension for Chrome / Edge / Brave / Firefox (how to install: `browser_extension/README.txt`). Right-click a link → "Download with DISO"; if you like, it also catches the browser's own downloads (when DISO is closed, the browser downloads as usual). For sites that need a login, the browser's session is passed to DISO (cookies are never written to disk). DISO listens only on this PC and accepts requests only from the **extension**, never from web pages. The extension shows in English or Turkish, following the browser's language.
 
-Ayrıntılı teknik açıklama: `HOW_IT_WAS_MADE.txt` (İngilizce). Sürüm geçmişi: `CHANGELOG.md`.
+## Tests (for developers)
+`run_tests.bat` (or `python -m pytest`) runs every test. No internet is needed: the tests imitate servers without Range support, servers that drop connections or limit them, a fake proxy and a fake PyPI on a local server. The extension's logic is also tested with `node`. The English interface and the English installer are really opened in a process of their own, and the tests check that no Turkish text is left on screen. Tests that need a real FFmpeg are skipped without ffmpeg in `ffmpeg/` (or on PATH), window tests without a display, extension tests without node. The setup package tests (`-m installer`) run the real `Kurulum.exe` in a temporary place if the package was built; they never touch your real Start menu or registry.
+- Only the quick tests: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
+- One file: `python -m pytest tests/test_downloader.py`
+- Check the installation without opening a window: `python main.py --selftest result.json`
+
+## Troubleshooting
+- **Updates:** at every start DISO checks yt-dlp, yt-dlp-ejs and FFmpeg and downloads newer versions itself (checked with SHA-256). If a new yt-dlp does not work, it goes back to the previous one by itself. See the state and check by hand in the `⟳ Updates` window.
+- **If YouTube/Instagram suddenly stop working:** `⟳ Updates` → "Check" → restart DISO. yt-dlp is updated inside the program; nothing needs to be rebuilt.
+- **If YouTube says "no formats found":** the Deno that comes with the setup package is enough. If you run from source, install it once with `winget install DenoLand.Deno`.
+- **Videos that need a login:** pick the browser you are logged in with in the "Login cookies" menu (Firefox works best), or use the browser extension.
+- **Google Drive / Mega / MediaFire pages** are not direct download links; DISO cannot press a button on a web page.
+
+## ✉ Contact us
+Found a bug or have an idea? [Open a new issue on GitHub](https://github.com/muslimekc2112/DISO/issues/new); English or Turkish are both fine. When reporting a bug, first press Settings → **ℹ About** → **📋 Copy details** in DISO and paste the text into the issue; the **✉ Contact us** button opens the same page. The log file helps too: `%LOCALAPPDATA%\DISO\diso.log`.
+
+How it works, in detail: `HOW_IT_WAS_MADE.txt` (in Turkish: `NASIL_YAPILDI.txt`). Version history: [`CHANGELOG.md`](CHANGELOG.md). License: MIT (`LICENSE`).

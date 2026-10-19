@@ -42,7 +42,7 @@ async function sendToApp(urls, { referer = "", kind = null } = {}) {
   });
   if (!r.ok) {
     const why = (await r.json().catch(() => ({}))).error || r.status;
-    throw new Error(why === "disabled" ? "Uygulamada tarayıcı eklentisi kapalı" : "Uygulama reddetti: " + why);
+    throw new Error(why === "disabled" ? HI.t("bridgeOff") : HI.t("refused", [why]));
   }
   return r.json();
 }
@@ -66,17 +66,17 @@ async function sendAndShow(urls, extra) {
     await flash("!", false);
     // a fetch that cannot connect throws a TypeError in every browser (the wording differs)
     const unreachable = e && e.name === "TypeError";
-    return { ok: false, text: unreachable ? "Uygulamaya ulaşılamadı: DISO açık mı?" : String(e && e.message || e) };
+    return { ok: false, text: unreachable ? HI.t("unreachableOpen") : String(e && e.message || e) };
   }
 }
 
 // ------------------------------------------------------------------------ context menu
 function createMenus() {
   api.contextMenus.removeAll(() => {
-    api.contextMenus.create({ id: "hi-link", title: "DISO ile indir", contexts: ["link"] });
-    api.contextMenus.create({ id: "hi-media", title: "DISO ile indir", contexts: ["video", "audio", "image"] });
-    api.contextMenus.create({ id: "hi-page", title: "Bu sayfayı DISO ile indir (video)", contexts: ["page"] });
-    api.contextMenus.create({ id: "hi-selection", title: "Seçilen bağlantıları DISO ile indir", contexts: ["selection"] });
+    api.contextMenus.create({ id: "hi-link", title: HI.t("menuLink"), contexts: ["link"] });
+    api.contextMenus.create({ id: "hi-media", title: HI.t("menuLink"), contexts: ["video", "audio", "image"] });
+    api.contextMenus.create({ id: "hi-page", title: HI.t("menuPage"), contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-selection", title: HI.t("menuSelection"), contexts: ["selection"] });
   });
 }
 api.runtime.onInstalled.addListener(createMenus);

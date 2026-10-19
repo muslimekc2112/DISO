@@ -87,11 +87,25 @@ test("buildPayload keeps only what the app understands", () => {
 });
 
 test("describeResult explains the app's answer", () => {
-  assert.equal(HI.describeResult(null), "Uygulamaya ulaşılamadı");
-  assert.equal(HI.describeResult({ added: 3, duplicates: 0 }), "3 bağlantı eklendi");
-  assert.equal(HI.describeResult({ added: 1, duplicates: 2 }), "1 eklendi, 2 zaten listedeydi");
-  assert.equal(HI.describeResult({ added: 0, duplicates: 1 }), "Zaten listede");
-  assert.equal(HI.describeResult({ added: 0, duplicates: 0 }), "Eklenmedi");
+  assert.equal(HI.describeResult(null, "tr"), "Uygulamaya ulaşılamadı");
+  assert.equal(HI.describeResult({ added: 3, duplicates: 0 }, "tr"), "3 bağlantı eklendi");
+  assert.equal(HI.describeResult({ added: 1, duplicates: 2 }, "tr"), "1 eklendi, 2 zaten listedeydi");
+  assert.equal(HI.describeResult({ added: 0, duplicates: 1 }, "tr"), "Zaten listede");
+  assert.equal(HI.describeResult({ added: 0, duplicates: 0 }, "tr"), "Eklenmedi");
+  assert.equal(HI.describeResult({ added: 1, duplicates: 2 }, "en"), "1 added, 2 were already in the list");
+  assert.equal(HI.describeResult(null, "en"), "Could not reach the app");
+});
+
+test("the language follows the browser: Turkish for Turkish, English for the rest", () => {
+  assert.equal(HI.language({ language: "tr-TR" }), "tr");
+  assert.equal(HI.language({ language: "en-US" }), "en");
+  assert.equal(HI.language({ language: "de" }), "en");
+  assert.equal(HI.language({}), "tr");                     // nothing known (the tests' pretend browser)
+  assert.equal(HI.t("appRuns", ["0.10.0"], "en"), "The app is running (v0.10.0)");
+});
+
+test("both languages have every text", () => {
+  assert.deepEqual(Object.keys(HI.TEXTS.en).sort(), Object.keys(HI.TEXTS.tr).sort());
 });
 
 test("the defaults are sane", () => {

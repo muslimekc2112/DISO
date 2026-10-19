@@ -183,7 +183,8 @@ PLAIN = {
     "Klavye kısayolları": "Keyboard shortcuts", "F1 ile her yerden açılır": "F1 opens it from anywhere",
     "Bitince": "When finished", "Tüm indirmeler bitince": "When all downloads finish", "Bir kere çalışır, kaydedilmez": "Runs once, not saved",
     "Oynatma listesi": "Playlist", "Bağlantı bilgisi": "Link details", "MP3 indir": "Download MP3",
-    "Detaylar panoya kopyalandı, mesaja yapıştırabilirsin": "Details copied; paste them into a message",
+    "Detaylar panoya kopyalandı, “Bize ulaş” ile açılan sayfaya yapıştırabilirsin":
+        "Details copied; paste them into the page “Contact us” opens",
     "Ne indirilecek": "What to download", "Video kalitesi": "Video quality", "MP3 kalitesi (kbps)": "MP3 quality (kbps)",
     "Bağlantı sayısı (hız)": "Connections (speed)", "Giriş çerezleri": "Login cookies", "Altyazı (video)": "Subtitles (video)",
     "Oynatma listesi okunuyor…": "Reading the playlist…", "Bağlantı eklendi": "Link added",
@@ -228,8 +229,6 @@ PLAIN = {
     "Henüz bakmadım": "Not checked yet", "Başlangıç": "Start", "Bitiş": "End", "🔔 Bildirimi dene": "🔔 Test notification",
     "İptal": "Cancel", "Hiçbirini seçme": "Select none", "Bu link hakkında bilgi alamadım": "Could not get details about this link",
     "Video kaliteleri": "Video qualities", "Dosya, video ve müzik indirme yöneticisi": "File, video and music download manager",
-    "Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse aşağıdaki “Detayları kopyala”ya bas, çıkan metni bana yolla; ne olduğunu hemen anlarım.":
-        "This is a beta: everything works, but some corners may be rough. If something goes wrong press “Copy details” below and send me the text; I'll see right away what happened.",
     "📂 Veri klasörü": "📂 Data folder", "📜 Günlük": "📜 Log",
     "Linki yapıştır, gerisini bana bırak • Dosya, video, MP3 • YouTube, Instagram, TikTok, X…":
         "Paste the link, leave the rest to me • Files, video, MP3 • YouTube, Instagram, TikTok, X…",
@@ -267,6 +266,55 @@ PLAIN = {
         "The language changes when the program restarts.\n\nRestart now?",
     "Tamam, dil bir sonraki açılışta değişecek": "OK, the language changes with the next start",
     "🔄 Sözler yanlış, yeniden bul": "🔄 Wrong lyrics, look again", "🔄 Yanlışsa yeniden bul": "🔄 Wrong? Look again",
+    # ---- texts that were still Turkish in English
+    "Ad (A→Z)": "Name (A→Z)", "Tamamlanan": "Finished", "Ses (MP3)": "Audio (MP3)", "Kur": "Install",
+    "Sadece ses (MP3)": "Audio only (MP3)", "⏸ Beklemede": "⏸ Paused",
+    "Güncellendi — yeniden başlatınca tam etkin olur": "Updated — fully active after a restart",
+    "Çalmaya hazırlanıyor… (bu dosyayı ilk kez açıyorum, birkaç saniye sürer)":
+        "Getting ready to play… (opening this file for the first time, it takes a few seconds)",
+    # ---- the installer and the uninstaller (hizli_setup)
+    "DISO'yu Kaldır.lnk": "Uninstall DISO.lnk", "DISO'yu kaldır": "Uninstall DISO",
+    "Kurulum zaten açık.": "Setup is already open.", "Kaldırma zaten açık.": "The uninstaller is already open.",
+    "Kurulu bir DISO bulunamadı.": "No installed DISO was found.",
+    "Dosyalara bakıyorum…": "Checking the files…", "Çalışan uygulama kapatılıyor…": "Closing the running app…",
+    "Kurulum bitti, hazırız": "Setup finished, all set", "Başlangıç kaydı temizleniyor…": "Removing the startup entry…",
+    "Kısayollar siliniyor…": "Deleting the shortcuts…", "Uygulamalar listesinden kaldırılıyor…": "Removing it from the apps list…",
+    "Kaldırıldı": "Removed", "Kurulum klasörünü yaz.": "Type the install folder.",
+    "Klasörü tam yol olarak yaz, bu bilgisayardaki bir sürücüde olsun (örn. C:\\Programlar\\DISO).":
+        "Type the full path of the folder, on a drive of this PC (e.g. C:\\Programs\\DISO).",
+    "Bir klasör seç; sürücünün kendisi olmaz.": "Choose a folder; the drive itself won't do.",
+    "Klasör yolu çok uzun; daha kısa bir klasör seç.": "The folder path is too long; choose a shorter one.",
+    "Seçtiğin yol bir dosya; bir klasör seç.": "That path is a file; choose a folder.",
+    "Önceki kurulum kaldırılıyor…": "Removing the previous install…", "Kısayolları koyuyorum…": "Adding the shortcuts…",
+    "Uygulamalar listesine yazıyorum…": "Adding it to the apps list…",
+    "Ayarlar ve çalma listeleri siliniyor…": "Deleting settings and playlists…",
+    "Seçtiğin klasörde aynı adlı bir dosya var; başka klasör seç.":
+        "There is a file with the same name in that folder; choose another folder.",
+    "Kurulum paketi eksik ya da bozuk (payload.json okunamadı). Kurulum dosyasını yeniden indir.":
+        "The setup package is incomplete or damaged (payload.json could not be read). Download the setup file again.",
+    "Eski sürüm kaldırılıyor…": "Removing the old version…", "Hazırlanıyor…": "Getting ready…",
+    "Kaldırma sihirbazı": "Uninstall wizard", "Kaldırılıyor…": "Removing…",
+    "İşlem sürüyor, bitmesini bekle.": "Still working; please wait until it's done.",
+    "Kurulum klasörünü seç": "Choose the install folder", "Kurulumu yapamadım": "Could not install",
+    "Bilgisayarında hiçbir değişiklik bırakmadım.": "Nothing on your PC was changed.",
+    "Kaldırmayı tamamlayamadım": "Could not finish removing", "Kurulum paketi okunamadı": "Could not read the setup package",
+    "Masaüstüne kısayol koy": "Add a desktop shortcut", "Başlat menüsüne kısayol koy": "Add a Start menu shortcut",
+    "Windows açılınca kendiliğinden başlasın (tepside)": "Start with Windows (in the tray)",
+    "Kurulum bitince uygulamayı aç": "Open the app when setup finishes", "Kaldır": "Uninstall", "Vazgeç": "Cancel",
+    "Bitene kadar pencereyi kapatma, az kaldı.": "Don't close this window until it's done; almost there.",
+    "Gözat…": "Browse…", "Bitir": "Finish", "Tekrar dene": "Try again",
+    "Ayarlarımı ve çalma listelerimi de sil": "Also delete my settings and playlists",
+    "Kapalı bırakırsan ayarların, çalma listelerin ve müzik çalardan bulup indirdiğin şarkılar kalır; DISO'yu tekrar "
+    "kurarsan olduğu gibi gelir. Açarsan bunlar da silinir. İndirme klasörüne indirdiklerine hiç dokunmam.":
+        "If you leave this off, your settings, playlists and the songs you found and downloaded in the music player "
+        "stay; reinstall DISO and they are all back. Turn it on and they are deleted too. What you downloaded to "
+        "your download folder is never touched.",
+    # ---- contact
+    "✉ Bize ulaş": "✉ Contact us",
+    "Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse aşağıdaki "
+    "“Detayları kopyala”ya bas, sonra “Bize ulaş” ile GitHub'da yeni bir sorun aç ve metni oraya yapıştır.":
+        "This is a beta: everything works, but some corners may be rough. If something goes wrong, press “Copy details” "
+        "below, then “Contact us” to open a new issue on GitHub and paste the text there.",
 }
 
 TEMPLATES = [
@@ -354,6 +402,40 @@ TEMPLATES = [
     ("Sunucuya ulaşamadım: {}", "Could not reach the server: {}"), ("Yeni sürüm: {}", "New version: {}"),
     ("{}% • {}", "{}% • {}"), ("Kalan {}", "{} left"), ("● {} sn", "● {} s"), ("   {} sn", "   {} s"),
     ("{}. {}   ✖", "{}. {}   ✖"), ("🔁 Tekrar: {}", "🔁 Repeat: {}"),
+    ("toplam {}", "{} in total"), ("Bugün {}", "Today {}"), ("Dün {}", "Yesterday {}"), ("En çok: {}", "Most from: {}"),
+    ("Dosya: {}", "Files: {}"), ("{} altyazı kaydedildi (videonun içinde de var)", "{} subtitles saved (also inside the video)"),
+    ("Arayamadım: {}", "Could not search: {}"), ("Önizlemeyi hazırlayamadım: {}", "Could not prepare the preview: {}"),
+    ("Çalamadım, sıradakine geçtim: {}", "Could not play it, went on to the next one: {}"),
+    ("Altyazı: {}  (+{} otomatik dil)", "Subtitles: {}  (+{} automatic languages)"), ("Altyazı: {}", "Subtitles: {}"),
+    ("Sadece ses (MP3) • ~{}", "Audio only (MP3) • ~{}"), ("Son kontrol: {}", "Last check: {}"),
+    ("⏸ Beklemede • {}", "⏸ Paused • {}"),
+    # the installer and the uninstaller
+    ("Kaldırıcı başlatılamadı: {}", "The uninstaller could not start: {}"), ("{} Kurulumu", "{} Setup"),
+    ("{} - Kaldır", "Uninstall {}"), ("Sürüm {} • Kurulum", "Version {} • Setup"),
+    ("Diskte yeterli yer yok: yaklaşık {} MB lazım. Başka bir sürücü seç.",
+     "Not enough disk space: about {} MB is needed. Choose another drive."),
+    ("Klasör adında geçersiz karakter var: “{}”", "The folder name has an invalid character: “{}”"),
+    ("Kurulum paketinde “{}” yok. Kurulum dosyasını yeniden indir.", "“{}” is missing from the setup package. Download the setup file again."),
+    ("“{}” bozulmuş (kurulum dosyası eksik inmiş olabilir). Yeniden indir.",
+     "“{}” is damaged (the setup file may not have downloaded fully). Download it again."),
+    ("“{}” klasörüne yazma iznim yok ya da bir dosya kullanımda (DISO açıksa kapat). Başka bir klasör seçmeyi dene.",
+     "I can't write to “{}”, or a file is in use (close DISO if it's open). Try another folder."),
+    ("Dosyalar yazılamadı: {}. Disk dolu olabilir; başka bir sürücü seçmeyi dene.",
+     "The files could not be written: {}. The disk may be full; try another drive."),
+    ("“{}” diske doğru yazılamadı (disk dolu ya da bir güvenlik programı engelledi).",
+     "“{}” was not written correctly (the disk is full or a security program blocked it)."),
+    ("Kopyalanıyor: {}", "Copying: {}"), ("Kısayol oluşturulamadı ({}): {}", "Could not create a shortcut ({}): {}"),
+    ("DISO {} bu bilgisayarda kurulu; {} sürümüne güncelleyeceğim.", "DISO {} is installed on this PC; I'll update it to {}."),
+    ("DISO {} bu bilgisayara kurulacak. Python ya da başka bir şey kurmana gerek yok, her şey içinde.",
+     "DISO {} will be installed on this PC. No need to install Python or anything else; it's all inside."),
+    ("Yaklaşık {} MB yer kaplar. Bu bilgisayardaki herkes için kurulur.", "Takes about {} MB. Installed for everyone on this PC."),
+    ("DISO {} kuruldu.\n{}", "DISO {} is installed.\n{}"),
+    ("Şu dosyalar kullanımda olduğu için bilgisayar yeniden başlayınca silinecek:\n{}",
+     "These files are in use and will be deleted when the PC restarts:\n{}"),
+    ("{} bu bilgisayardan kaldırıldı. Görüşmek üzere!", "{} was removed from this PC. See you!"),
+    ("{} bu bilgisayardan kaldırılsın mı?", "Remove {} from this PC?"),
+    ("Uygulama dosyaları, kısayollar ve kayıt girdileri silinir.\n{}", "The app's files, shortcuts and registry entries are deleted.\n{}"),
+    ("Hoppala, beklenmedik bir şey oldu: {}", "Oops, something unexpected happened: {}"),
 ]
 
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,
@@ -362,5 +444,5 @@ TRANSLATE_PARTS = {
     "Liste {} göre sıralandı (tersten)", "Liste {} göre sıralandı", "🔁 Tekrar: {}",
     "{} altyazıyı YouTube vermedi; videonun kendi dilindeki ({}) altyazıyı kaydettim",
     "Tüm indirmeler bitince: {}", "  •  Bitince: {}", "Tüm indirmeler bitti 🎉\n{}", "{}\n\n{} saniye sonra",
-    "🗑 Dosyası silinen {} parça {} çıkarıldı",
+    "🗑 Dosyası silinen {} parça {} çıkarıldı", "Altyazı: {}  (+{} otomatik dil)", "Altyazı: {}",
 }

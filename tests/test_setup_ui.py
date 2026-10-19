@@ -344,6 +344,70 @@ def test_a_failing_removal_is_shown(windows, installed, env, monkeypatch):
     assert pump(w, lambda: has_text(w, "Kaldırmayı tamamlayamadım") and has_text(w, "Bir dosya silinemedi"))
 
 
+ENGLISH = r'''
+import json, os, sys, time
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+os.environ["HIZLI_SETUP_TEST_ROOT"] = WORLD
+from setup_support import Closer, make_payload
+from pathlib import Path
+from app import look
+from hizli_setup import cli, core, ui
+env = core.test_env(WORLD)
+os.makedirs(env.user_data_dir, exist_ok=True)
+json.dump({"language": "English"}, open(os.path.join(env.user_data_dir, "settings.json"), "w"))
+cli.use_language(env)
+look.apply("Yeni")
+out = {}
+def texts(w):
+    found = []
+    def walk(x):
+        for c in x.winfo_children():
+            try:
+                t = c.cget("text")
+                if t: found.append(str(t))
+            except Exception:
+                pass
+            walk(c)
+    walk(w)
+    return found
+w = ui.SetupWindow(str(make_payload(Path(WORLD) / "paket")), env, closer=Closer(), on_launch=lambda exe: None)
+w.withdraw(); w.update()
+out["title"] = w.title(); out["options"] = texts(w)
+w.dir_var.set(os.path.join(WORLD, "Prog")); w.launch_var.set(False); w.start_install()
+end = time.time() + 30
+while w.result is None and w.exit_code != 2 and time.time() < end:
+    w.update(); time.sleep(0.02)
+out["done"] = texts(w); out["links"] = sorted(os.listdir(env.start_menu_dir))
+w.destroy()
+json.dump(out, open(sys.argv[1], "w", encoding="utf-8"), ensure_ascii=False)
+'''
+
+
+def test_the_installer_speaks_english_when_diso_does(tmp_path):
+    """A process of its own: the English layer changes the widget classes for the whole process."""
+    import json
+    import subprocess
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    world = str(tmp_path / "dunya")
+    script = tmp_path / "en_setup.py"
+    script.write_text(ENGLISH.replace("ROOT", repr(root)).replace("WORLD", repr(world)), encoding="utf-8")
+    out = tmp_path / "out.json"
+    done = subprocess.run([sys.executable, str(script), str(out)], capture_output=True, text=True, timeout=120)
+    try:
+        assert done.returncode == 0, done.stderr[-3000:]
+        data = json.load(open(out, encoding="utf-8"))
+        assert data["title"] == "DISO Setup"
+        assert any("will be installed on this PC" in t for t in data["options"]) and "Install" in data["options"]
+        assert any("Setup finished" in t for t in data["done"]) and "Uninstall DISO.lnk" in data["links"]
+        turkish = [t for t in data["options"] + data["done"] if any(c in t for c in "çğıöşüÇĞİÖŞÜ") and world not in t]
+        assert turkish == []
+    finally:
+        env = core.test_env(world)
+        core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
+
+
 @pytest.mark.parametrize("which", ["setup", "uninstall"])
 def test_both_windows_fit_on_a_small_screen(windows, package, env, installed, which):
     # one window per test: customtkinter ties its pictures to the first window of the process, and a real run has one

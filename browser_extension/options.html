@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8">
-  <title>DISO — Ayarlar</title>
+  <title data-i18n="optionsTitle">DISO — Ayarlar</title>
   <style>
     :root { color-scheme: light dark; --bg:#fff; --fg:#1d1f23; --muted:#6b7280; --card:#f1f3f6; --accent:#2f7de1; }
     @media (prefers-color-scheme: dark) { :root { --bg:#25272b; --fg:#eceff4; --muted:#9aa3b2; --card:#2f3238; } }
@@ -17,25 +17,25 @@
   </style>
 </head>
 <body>
-  <h1>⚡ DISO — Ayarlar</h1>
+  <h1>⚡ <span data-i18n="optionsTitle">DISO — Ayarlar</span></h1>
   <div class="card">
-    <label for="port">Bağlantı noktası</label>
+    <label for="port" data-i18n="port">Bağlantı noktası</label>
     <input id="port" type="number" min="1024" max="65535">
-    <small>Uygulamadaki Ayarlar → "Eklenti bağlantı noktası" ile aynı olmalı.</small>
+    <small data-i18n="portHint">Uygulamadaki Ayarlar → "Eklenti bağlantı noktası" ile aynı olmalı.</small>
   </div>
   <div class="card">
-    <label><input id="intercept" type="checkbox"> Tarayıcı indirmelerini DISO'ye yönlendir</label>
-    <small>Uygulama kapalıysa indirme tarayıcıda normal şekilde devam eder.</small>
-    <label for="minSizeMB" style="margin-top:12px">En az boyut (MB)</label>
+    <label><input id="intercept" type="checkbox"> <span data-i18n="redirect">Tarayıcı indirmelerini DISO'ya yönlendir</span></label>
+    <small data-i18n="redirectHint">Uygulama kapalıysa indirme tarayıcıda normal şekilde devam eder.</small>
+    <label for="minSizeMB" style="margin-top:12px" data-i18n="minSize">En az boyut (MB)</label>
     <input id="minSizeMB" type="number" min="0">
-    <small>Bu boyuttan büyük indirmeler yakalanır. 0: yalnızca aşağıdaki dosya türleri.</small>
-    <label for="extensions" style="margin-top:12px">Her zaman yakalanacak dosya türleri</label>
+    <small data-i18n="minSizeHint">Bu boyuttan büyük indirmeler yakalanır. 0: yalnızca aşağıdaki dosya türleri.</small>
+    <label for="extensions" style="margin-top:12px" data-i18n="types">Her zaman yakalanacak dosya türleri</label>
     <textarea id="extensions" rows="3"></textarea>
   </div>
   <div class="card">
-    <label><input id="badge" type="checkbox"> Gönderince araç çubuğu simgesinde ✓ göster</label>
+    <label><input id="badge" type="checkbox"> <span data-i18n="badge">Gönderince araç çubuğu simgesinde ✓ göster</span></label>
   </div>
-  <button id="save">Kaydet</button><button id="test">Bağlantıyı dene</button>
+  <button id="save" data-i18n="save">Kaydet</button><button id="test" data-i18n="test">Bağlantıyı dene</button>
   <div id="msg"></div>
   <script src="lib.js"></script>
   <script src="options.js"></script>

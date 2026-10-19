@@ -24,6 +24,29 @@ def set_language(name_or_code):
         install()
 
 
+def windows_language():
+    """'Türkçe' when Windows itself speaks Turkish, 'English' for every other language."""
+    try:
+        import ctypes
+        lang_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+    except Exception:  # noqa: BLE001 - not Windows
+        return "Türkçe"
+    return "Türkçe" if lang_id & 0x3FF == 0x1F else "English"
+
+
+def saved_language(settings_path, fallback=None):
+    """The language chosen in DISO's settings file; when nothing is chosen yet, `fallback` (or Windows' own)."""
+    try:
+        import json
+        with open(settings_path, encoding="utf-8") as f:
+            name = json.load(f).get("language")
+        if name in LANGUAGES:
+            return name
+    except Exception:  # noqa: BLE001 - no settings yet, or a broken file
+        pass
+    return fallback or windows_language()
+
+
 def _load():
     if _plain:
         return

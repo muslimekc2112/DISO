@@ -12,7 +12,7 @@ import time
 import winreg
 from dataclasses import dataclass, field
 
-from app import brand
+from app import brand, i18n
 
 from . import winapi
 
@@ -23,6 +23,7 @@ EXE_NAME = brand.EXE_NAME
 LEGACY_IDS = tuple(brand.LEGACY_APP_IDS)
 SHORTCUT_NAME = DISPLAY_NAME + ".lnk"
 UNINSTALL_SHORTCUT = DISPLAY_NAME + "'yu Kaldır.lnk"
+UNINSTALL_SHORTCUT_EN = "Uninstall " + DISPLAY_NAME + ".lnk"     # the same, made by an English install
 UNINSTALLER_NAME = "Uninstall.exe"
 MANIFEST_NAME = "install.json"
 PAYLOAD_NAME = "payload.json"
@@ -433,12 +434,14 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
         exe = os.path.join(target, EXE_NAME)
         uninstaller = os.path.join(target, UNINSTALLER_NAME)
         wanted = []
+        about = i18n.tr("Dosya, video ve müzik indirme yöneticisi")
         if options.start_menu:
-            wanted.append((os.path.join(env.start_menu_dir, SHORTCUT_NAME), exe, "", "Dosya, video ve müzik indirme yöneticisi"))
+            wanted.append((os.path.join(env.start_menu_dir, SHORTCUT_NAME), exe, "", about))
             if os.path.isfile(uninstaller):
-                wanted.append((os.path.join(env.start_menu_dir, UNINSTALL_SHORTCUT), uninstaller, "", "DISO'yi kaldır"))
+                wanted.append((os.path.join(env.start_menu_dir, i18n.tr(UNINSTALL_SHORTCUT)), uninstaller, "",
+                               i18n.tr(f"{DISPLAY_NAME}'yu kaldır")))
         if options.desktop_shortcut:
-            wanted.append((os.path.join(env.desktop_dir, SHORTCUT_NAME), exe, "", "Dosya, video ve müzik indirme yöneticisi"))
+            wanted.append((os.path.join(env.desktop_dir, SHORTCUT_NAME), exe, "", about))
         for link, link_target, args, text in wanted:
             try:
                 shortcut(link, link_target, arguments=args, workdir=target, description=text, icon=exe, icon_index=0)
@@ -559,6 +562,7 @@ def uninstall(install_dir, env: Env, remove_data=False, progress=_noop, closer=w
     dirs = list(manifest.get("dirs") or ["deno"])
     links = list(manifest.get("shortcuts") or [os.path.join(env.start_menu_dir, SHORTCUT_NAME),
                                                os.path.join(env.start_menu_dir, UNINSTALL_SHORTCUT),
+                                               os.path.join(env.start_menu_dir, UNINSTALL_SHORTCUT_EN),
                                                os.path.join(env.desktop_dir, SHORTCUT_NAME)])
     menu_dir = manifest.get("start_menu_dir") or env.start_menu_dir
 

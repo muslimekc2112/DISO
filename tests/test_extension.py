@@ -49,6 +49,22 @@ def test_every_file_the_manifest_and_pages_mention_exists():
     assert 'importScripts("lib.js", "background.js")' in sw
 
 
+def test_the_extension_speaks_turkish_and_english():
+    assert manifest()["default_locale"] == "en" and manifest()["description"] == "__MSG_description__"
+    for lang in ("en", "tr"):
+        with open(os.path.join(EXT, "_locales", lang, "messages.json"), encoding="utf-8") as f:
+            assert json.load(f)["description"]["message"]
+    lib = open(os.path.join(EXT, "lib.js"), encoding="utf-8").read()
+    for page in ("popup.html", "options.html"):
+        html = open(os.path.join(EXT, page), encoding="utf-8").read()
+        for key in re.findall(r'data-i18n="(\w+)"', html):
+            assert lib.count(f"{key}: ") >= 2, (page, key)                                     # in both languages
+    for name in ("background.js", "popup.js", "options.js"):
+        code = open(os.path.join(EXT, name), encoding="utf-8").read()
+        strings = re.findall(r'"([^"\n]*)"', code)
+        assert not [s for s in strings if re.search("[çğıöşüÇĞİÖŞÜ]", s)], name    # every text comes from lib.js
+
+
 def test_the_icons_are_real_pngs_of_the_declared_sizes():
     from PIL import Image
     for size, name in manifest()["icons"].items():

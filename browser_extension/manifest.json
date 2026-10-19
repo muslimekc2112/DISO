@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "DISO",
-  "version": "0.10.0",
-  "version_name": "0.10.0 beta",
-  "description": "Linkleri ve tarayıcı indirmelerini DISO'ya yollar, gerisini DISO halleder.",
+  "version": "0.10.1",
+  "version_name": "0.10.1 beta",
+  "description": "__MSG_description__",
+  "default_locale": "en",
   "permissions": ["contextMenus", "downloads", "storage", "cookies", "activeTab"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*", "<all_urls>"],
   "background": {

@@ -11,6 +11,8 @@ import tempfile
 import time
 import uuid
 
+from app import i18n
+
 from . import core, winapi
 
 CREATE_NO_WINDOW = 0x08000000
@@ -67,9 +69,16 @@ def _message(title, text, error=True):
     """A message box for the case where there is no window of our own to show it in."""
     try:
         import ctypes
-        ctypes.windll.user32.MessageBoxW(None, text, title, 0x10 if error else 0x40)
+        ctypes.windll.user32.MessageBoxW(None, i18n.tr(text), title, 0x10 if error else 0x40)
     except Exception:  # noqa: BLE001
         pass
+
+
+def use_language(env):
+    """Speak the language DISO speaks: the one chosen in its settings, or else Windows' own.
+    Tests (a test root) stay Turkish unless their settings say otherwise."""
+    fallback = "Türkçe" if os.environ.get(core.TEST_ROOT_ENV) else None
+    i18n.set_language(i18n.saved_language(os.path.join(env.user_data_dir, "settings.json"), fallback))
 
 
 # ----------------------------------------------------------------------------------- administrator
@@ -99,6 +108,7 @@ def setup_main(argv=None, payload_dir=None, env=None, closer=winapi.close_progra
     env = env or core.production_env()
     if env.needs_admin and not winapi.is_admin():
         return relaunch_elevated(raw, args.silent)
+    use_language(env)
     payload_dir = args.payload or payload_dir or default_payload_dir()
     lock = winapi.single_instance("Local\\DISO-Setup")
     if lock is None:
@@ -205,6 +215,7 @@ def uninstall_main(argv=None, env=None, closer=None, self_path=None, launcher=st
     closer = closer or close_others
     self_path = self_path or sys.executable
     log.info("uninstall started: stage2=%s silent=%s dir=%s", args.stage2, args.silent, args.dir)
+    use_language(env)
 
     if not args.stage2:
         if env.needs_admin and not winapi.is_admin():

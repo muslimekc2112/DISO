@@ -34,7 +34,10 @@ def main(argv) -> int:
     from app.ui import App
 
     from app import i18n, look
-    i18n.set_language(Config().get("language"))   # the interface language; before the first window exists
+    cfg = Config()
+    if "language" not in cfg.saved:       # the first start: Windows' own language (Turkish, or else English)
+        cfg.set("language", i18n.windows_language())
+    i18n.set_language(cfg.get("language"))   # the interface language; before the first window exists
     look.apply(Config().get("look"))      # colours and shapes; before the first window exists
     app = App(minimized="--minimized" in argv)
     app.mainloop()

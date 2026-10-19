@@ -9,6 +9,7 @@ import re
 import threading
 import time
 import tkinter as tk
+import webbrowser
 from tkinter import TclError, filedialog, messagebox
 
 import customtkinter as ctk
@@ -858,7 +859,7 @@ class AboutDialog(ctk.CTkToplevel):
         set_window_icon(self)
         self.app = app
         self.title(f"{brand.NAME} hakkında")
-        w, h = fit_geometry(self, 580, 660)
+        w, h = fit_geometry(self, 660, 660)
         self.minsize(min(500, w), min(460, h))
         self.transient(app)
         self.columnconfigure(0, weight=1)
@@ -875,8 +876,9 @@ class AboutDialog(ctk.CTkToplevel):
         ctk.CTkLabel(head, text="Dosya, video ve müzik indirme yöneticisi", text_color="gray").grid(
             row=2, column=1, sticky="nw")
         ctk.CTkLabel(self, text="Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse "
-                                "aşağıdaki “Detayları kopyala”ya bas, çıkan metni bana yolla; ne olduğunu hemen anlarım.",
-                     wraplength=520, justify="left", anchor="w", text_color="gray").grid(
+                                "aşağıdaki “Detayları kopyala”ya bas, sonra “Bize ulaş” ile GitHub'da yeni bir sorun aç "
+                                "ve metni oraya yapıştır.",
+                     wraplength=600, justify="left", anchor="w", text_color="gray").grid(
             row=1, column=0, sticky="ew", padx=28, pady=(0, 8))
         self.body = ctk.CTkScrollableFrame(self)
         self.body.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 6))
@@ -886,12 +888,14 @@ class AboutDialog(ctk.CTkToplevel):
 
         foot = ctk.CTkFrame(self, fg_color="transparent")
         foot.grid(row=3, column=0, sticky="ew", padx=24, pady=(6, 18))
-        foot.columnconfigure(3, weight=1)
-        self.copy_btn = ctk.CTkButton(foot, text="📋 Detayları kopyala", width=160, state="disabled", command=self.copy_details)
+        foot.columnconfigure(4, weight=1)
+        self.copy_btn = ctk.CTkButton(foot, text="📋 Detayları kopyala", width=150, state="disabled", command=self.copy_details)
         self.copy_btn.grid(row=0, column=0)
-        ctk.CTkButton(foot, text="📂 Veri klasörü", width=130, command=self.open_data).grid(row=0, column=1, padx=8)
-        ctk.CTkButton(foot, text="📜 Günlük", width=100, command=app.open_log).grid(row=0, column=2)
-        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=4)
+        self.contact_btn = ctk.CTkButton(foot, text="✉ Bize ulaş", width=110, command=self.contact)
+        self.contact_btn.grid(row=0, column=1, padx=(8, 0))
+        ctk.CTkButton(foot, text="📂 Veri klasörü", width=120, command=self.open_data).grid(row=0, column=2, padx=8)
+        ctk.CTkButton(foot, text="📜 Günlük", width=90, command=app.open_log).grid(row=0, column=3)
+        ctk.CTkButton(foot, text="Kapat", width=90, command=self.destroy).grid(row=0, column=5)
 
         threading.Thread(target=self._collect, args=(provider,), daemon=True, name="about-facts").start()
         self.after(100, self._poll)
@@ -928,7 +932,10 @@ class AboutDialog(ctk.CTkToplevel):
             return
         self.clipboard_clear()
         self.clipboard_append(about.as_text(self.rows))
-        self.app.notice("Detaylar panoya kopyalandı, mesaja yapıştırabilirsin")
+        self.app.notice("Detaylar panoya kopyalandı, “Bize ulaş” ile açılan sayfaya yapıştırabilirsin")
+
+    def contact(self):
+        webbrowser.open(brand.CONTACT_URL)
 
     def open_data(self):
         open_in_file_manager(app_data_dir())

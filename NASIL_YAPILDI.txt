@@ -1,0 +1,303 @@
+==============================================================================
+  DISO - NASIL YAPILDI
+==============================================================================
+
+(İngilizcesi: HOW_IT_WAS_MADE.txt)
+
+Bu dosya programın NE yaptığını ve bunu NASIL yaptığını sade bir dille
+anlatır; böylece herkes (yazarı, arkadaşları, başka geliştiriciler) onu sonra
+anlayabilir, düzeltebilir ya da geliştirebilir. DISO'nun ilk adı "Hızlı
+İndirici" idi.
+
+
+------------------------------------------------------------------------------
+1. PROGRAM NE YAPAR
+------------------------------------------------------------------------------
+
+DISO, IDM (Internet Download Manager) ya da FDM (Free Download Manager) gibi
+bir Windows indirme yöneticisidir, içinde bir de müzik çalar vardır. Dört iş
+yapar:
+
+  A) DOSYA İNDİRME  (.zip .rar .7z .exe .iso .mp4 ... her doğrudan link)
+     Dosya 8, 16 ya da 32 paralel bağlantıyla indirilir; bu genellikle
+     tarayıcının normal indirmesinden çok daha hızlıdır.
+
+  B) VİDEO İNDİRME (YouTube, Instagram, TikTok, X/Twitter, Facebook, Vimeo
+     ve 1000 kadar başka site)
+     Video seçtiğin kalitede MP4 olarak kaydedilir. İndirmenin kendisi de
+     hızlı, çok bağlantılı motoru kullanır.
+
+  C) MÜZİK / SES İNDİRME
+     Videonun sesi kapak resmiyle birlikte MP3 olarak (128 - 320 kbps)
+     kaydedilir, yine hızlı motorla.
+
+  D) MÜZİK ÇALAR
+     Çalma listeleri, YouTube'da şarkı arayıp MP3 olarak indirme, şarkı
+     sözleri, sıra, şarkılar arası geçiş, mini oynatıcı, klavye medya tuşları.
+
+İndirme yöneticisi özellikleri (IDM / FDM gibi):
+  * ilerleme çubuğu, hız ve kalan süreyle canlı bir indirme listesi
+  * aynı anda 1 ile 8 arası indirme (Ayarlar), diğerleri sırada bekler
+  * her indirme için Duraklat / Devam (program kapansa bile çalışır)
+  * İptal / Kaldır, "Klasörü aç" düğmesi
+  * birden fazla linki tek seferde yapıştırma
+  * "Panoyu izle" anahtarı: kopyaladığın her link eklenir
+  * oynatma listesi indirme (her video için bir satır)
+  * bağlantı koparsa kendi kendine yeniden deneme; sunucu çok fazla paralel
+    bağlantıyı reddederse kendiliğinden yavaşlama
+  * "Otomatik" mod: program linke bakar ve normal bir dosya mı yoksa bir video
+    sayfası mı olduğuna kendisi karar verir
+  * FFmpeg ilk gerektiğinde kendiliğinden kurulur
+  * Chrome / Edge / Brave / Firefox için tarayıcı eklentisi
+  * Türkçe ve İngilizce arayüz
+
+
+------------------------------------------------------------------------------
+2. NASIL ÇALIŞTIRILIR
+------------------------------------------------------------------------------
+
+  1. Python 3.10 ya da daha yenisini kur (kurulumda "Add Python to PATH"
+     işaretli olsun).
+  2. run.bat'a çift tıkla (kütüphaneleri kurar ve programı açar)
+     ya da elle:
+         pip install -r requirements.txt
+         python main.py
+  3. Tek dosyalık taşınabilir DISO.exe için build.bat'a çift tıkla.
+     exe "dist" klasöründe çıkar.
+  4. Kurulum paketi için:  python tools/build_installer.py
+     dist\DISO-Kurulum-<sürüm>.exe dosyasını yazar.
+
+FFmpeg: kurman GEREKMEZ. Bir MP3 (ya da görüntüsü ve sesi ayrı gelen bir
+video) indirdiğinde program FFmpeg'i bir kere  %LOCALAPPDATA%\DISO\tools
+klasörüne indirir ve sonra hep onu kullanır. İstersen ffmpeg.exe ve
+ffprobe.exe dosyalarını main.py'nin yanındaki "ffmpeg" klasörüne koy, onlar
+kullanılır.
+
+
+------------------------------------------------------------------------------
+3. DOSYALAR VE HER BİRİNİN İŞİ
+------------------------------------------------------------------------------
+
+  main.py                     Programı başlatır (PATH'i ayarlar, dili ve
+                              görünümü seçer, pencereyi açar).
+  run.bat / build.bat         Kaynaktan başlat / .exe derle.
+  requirements.txt            Gereken Python kütüphaneleri.
+
+  app/ui.py                   Ana pencere (customtkinter): link kutusu, seçenek
+                              çubuğu, araç çubuğu, kayan indirme listesi, durum
+                              çubuğu, Ayarlar, Hakkında, Güncellemeler. Yalnızca
+                              GÖSTERİR ve düğme tıklamalarını yöneticiye iletir.
+  app/manager.py              DownloadManager: listenin, sıranın ve çalışan
+                              iş parçacıklarının sahibi. Duraklat / devam /
+                              iptal / kaldır. Listeyi
+                              %LOCALAPPDATA%\DISO\downloads.json dosyasına kaydeder.
+  app/models.py               Küçük veri sınıfları: Settings (kullanıcının
+                              seçtikleri), Item (listedeki bir satır) ve durum
+                              adları (queued, resolving, downloading,
+                              processing, done, paused, error, cancelled).
+  app/jobs.py                 Bir satırın asıl işi: link türünü anlamak, dosya
+                              indirmek ya da video indirip birleştirmek.
+  app/segmented_downloader.py Hızlı, çok bağlantılı indirme motoru.
+  app/video_engine.py         yt-dlp yardımcıları, biçim seçimi, FFmpeg komutları.
+  app/ffmpeg_setup.py         FFmpeg'i indirir, SHA-256'sını denetler, açar.
+  app/updater.py              Her açılışta yt-dlp, yt-dlp-ejs ve FFmpeg'e bakar,
+                              yeni sürümleri kurar (SHA-256 denetimli). Yeni
+                              yt-dlp'nin kazanmasını sağlayan içe aktarma kancası
+                              da burada.
+  app/music_ui.py, player.py, playlists.py, playable.py, tags.py, lyrics.py,
+  music_search.py             Müzik çalar: pencere, çalma (Windows MCI),
+                              çalma listeleri, çalınabilir kopyalar, etiketler
+                              ve kapaklar, şarkı sözleri, şarkı arama.
+  app/i18n.py, lang_en.py     Arayüzün dili (bkz. bölüm 9).
+  app/bridge.py               Tarayıcı eklentisinin yerel kapısı (127.0.0.1).
+  app/brand.py                Ad, yayıncı, sürüm ve GitHub adresi.
+  app/utils.py                Yollar, dosya adı temizleme, boyut/süre biçimleme.
+  hizli_setup/                Kurulum ve kaldırma programı.
+  browser_extension/          Tarayıcı eklentisi.
+
+
+------------------------------------------------------------------------------
+4. HIZLI MOTOR NASIL ÇALIŞIR  (app/segmented_downloader.py)
+------------------------------------------------------------------------------
+
+IDM'in kullandığı fikrin aynısı.
+
+  Adım 1 - YOKLAMA.
+     Program küçücük bir istek yollar: "bana yalnızca 0. baytı ver"
+     (HTTP başlığı  Range: bytes=0-0).
+       * Sunucu "206 Partial Content" derse aralıkları destekliyordur ve
+         Content-Range: bytes 0-0/123456 başlığı dosyanın toplam boyutunu
+         (123456 bayt) söyler. Çok bağlantılı indirme mümkündür.
+       * Sunucu "200 OK" derse aralıkları yok sayıyordur. O zaman tek, normal
+         bir bağlantı kullanılır (listede bununla ilgili bir not çıkar).
+     Yoklama dosyanın gerçek adını da bulur (Content-Disposition başlığı ya da
+     adres) ve yönlendirmeleri izler.
+
+  Adım 2 - HAZIRLIK.
+     Diskte tam boyutta boş bir dosya açılır: ad.uzantı.part
+     Dosya 256 KB - 8 MB'lık BLOKLARA bölünür (bağlantı başına 4 blok kadar).
+     Bütün blok numaraları bir bekleme sırasına konur.
+
+  Adım 3 - PARALEL İNDİRME.
+     N çalışan başlar (N = 8, 16 ya da 32, senin seçimin). Her çalışan
+       - sıradaki blok numarasını alır,
+       - tam o bayt aralığını ister (Range: bytes=başlangıç-bitiş),
+       - veriyi .part dosyasının içinde doğru yere yazar,
+       - bloğu bitti diye işaretler ve bir sonrakini alır.
+     Bloklar küçük olduğu için hızlı bir bağlantı yavaş olandan daha çok blok
+     indirir; böylece bütün çalışanlar neredeyse aynı anda biter. (Eski sürüm
+     dosyayı N sabit parçaya bölüyordu, yavaş bir parça her şeyi geciktiriyordu.)
+
+  Adım 4 - DEVAM.
+     Biten blok numaraları 2 saniyede bir ad.uzantı.part.json dosyasına
+     kaydedilir. Duraklatma, çökme ya da programı kapatmadan sonra Devam'a
+     basınca bu dosya okunur ve yalnızca eksik bloklar indirilir.
+
+  Adım 5 - HATALAR.
+     * Başarısız olan bir blok, gittikçe uzayan beklemelerle 6 kereye kadar
+       yeniden denenir ve durduğu bayttan devam eder.
+     * Bir bağlantı hata vermeye devam ederse (örneğin çok fazla bağlantı
+       açtığımız için sunucu "429 Too Many Requests" derse) o çalışan bırakır,
+       işi kalan çalışanlar bitirir. Böylece program sunucunun sınırına
+       kendiliğinden uyar.
+     * Hiç çalışan kalmazsa ve eksik blok varsa indirme hatayla durur (yarım
+       dosya saklanır, tekrar deneyebilirsin).
+
+  Adım 6 - BİTİŞ.
+     .part dosyasının boyutu denetlenir, sonra dosya asıl adını alır ve .json
+     dosyası silinir.
+
+
+------------------------------------------------------------------------------
+5. VİDEO VE MP3 İNDİRME NASIL ÇALIŞIR  (app/jobs.py + app/video_engine.py)
+------------------------------------------------------------------------------
+
+  1. yt-dlp (iyi bilinen açık kaynaklı bir kütüphane) YALNIZCA sayfayı anlamak
+     için kullanılır. Başlığı, en iyi görüntü ve en iyi ses akışının doğrudan
+     adreslerini ve sitenin görmek istediği başlıkları ve çerezleri verir.
+
+  2. Kendi hızlı motorumuz (bölüm 4) bu adresleri sırayla, 8/16/32
+     bağlantıyla indirir. Video/MP3 indirmeyi "IDM kadar hızlı" yapan budur.
+     İlerleme çubuğu iki akışı birlikte gösterir.
+
+  3. FFmpeg dosyayı bitirir:
+       MP4 : görüntü ve ses akışı YENİDEN KODLANMADAN birleştirilir (görüntü
+             kopyalanır, bir saniye sürer). Ses AAC değilse (örneğin Opus) her
+             oynatıcı çalabilsin diye AAC'ye çevrilir.
+       MP3 : ses, seçilen bit hızında libmp3lame kodlayıcıyla çevrilir;
+             başlık, sanatçı ve kapak resmi dosyaya yazılır.
+     Geçici dosyalar sonra silinir.
+
+  4. Kalite seçenekleri: "En iyi" (4K'ya kadar), 2160p, 1440p, 1080p, 720p,
+     480p, 360p. 1080p ve altında program H.264 + AAC'yi tercih eder, çünkü
+     her cihazda oynar.
+
+  5. YEDEK YOL: bazı siteler videoyu yüzlerce küçük parça halinde verir
+     (HLS / DASH listeleri). Bunlar aralıklara bölünemez; program onlarda
+     indirmeyi 16 parça paralel olacak şekilde yt-dlp'nin kendisine bırakır.
+     Hızlı yol başka bir nedenle başarısız olursa da aynı yedek yol
+     kendiliğinden kullanılır.
+
+  6. "Giriş çerezleri" seçeneği: giriş yapmanı isteyen siteler için (yaş
+     sınırlı videolar, bazı Instagram içerikleri) giriş yaptığın tarayıcıyı seç
+     (Firefox en sorunsuzu), yt-dlp onun çerezlerini okur. Tarayıcı eklentisi
+     de tarayıcının oturumunu iletebilir.
+
+
+------------------------------------------------------------------------------
+6. İNDİRME YÖNETİCİSİ  (app/manager.py)
+------------------------------------------------------------------------------
+
+  * Her link durumu olan bir Item olur. Yeni satırlar sıraya girer.
+  * Çalışan iş parçacıkları sıradan satır alır; aynı anda kaç indirme
+    yapılacağı Ayarlar'da seçilir (1 ile 8 arası).
+  * Duraklat, çalışan motordan durmasını ister ama .part dosyasını ve biten
+    blok listesini SAKLAR. İptal onu durdurur ve geçici dosyaları SİLER.
+  * Liste her değişiklikten sonra  %LOCALAPPDATA%\DISO\downloads.json
+    dosyasına kaydedilir. Bir sonraki açılışta çalışmakta olan satırlar
+    "duraklatılmış" olarak geri gelir ve sürdürülebilir.
+  * Pencere asla ağla konuşmaz. Çalışan iş parçacıkları yalnızca Item
+    nesnelerinin alanlarını değiştirir; pencere bunları saniyede birkaç kez
+    okur ve yalnızca değişeni yeniden çizer. Böylece çok sayıda bağlantı
+    çalışırken pencere akıcı kalır.
+
+
+------------------------------------------------------------------------------
+7. SINIRLAR / BİLMEKTE FAYDA VAR
+------------------------------------------------------------------------------
+
+  * Bazı siteler (özellikle YouTube) sık değişir. Bir video birden hata
+    verirse program her açılışta yt-dlp'yi kendisi günceller (app/updater.py),
+    kurulu .exe'de de; "Güncellemeler" penceresi durumu gösterir ve istediğin
+    zaman yeniden bakabilir.
+  * Yeni YouTube sürümleri Deno adında bir JavaScript çalıştırıcısı da ister.
+    Kurulum paketi onu birlikte getirir. Kaynaktan çalıştırırken YouTube
+    videoları "biçim yok" hatası verirse bir kere kur:
+    winget install DenoLand.Deno   (program onu kendisi bulur).
+  * Tıklama, captcha ya da giriş isteyen dosya barındırma sayfalarındaki
+    linkler (Google Drive sayfaları, Mega, MediaFire sayfaları...) doğrudan
+    link değildir. Program bir web sayfasının düğmelerine basamaz.
+  * DRM korumalı videolar (Netflix, Disney+, ...) indirilemez.
+  * Lütfen yalnızca indirme hakkın olan içerikleri indir.
+  * Windows için yazıldı; motor ve yönetici Linux/macOS'ta da çalışır, ama
+    FFmpeg'in kendiliğinden kurulması, kurulum programı ve müzik çalar
+    yalnızca Windows'ta vardır.
+
+
+------------------------------------------------------------------------------
+8. KULLANILAN TEKNOLOJİ
+------------------------------------------------------------------------------
+
+  Python 3.10+       programlama dili
+  customtkinter      modern görünümlü pencere (koyu / açık tema)
+  requests           hızlı motorun HTTP bağlantıları
+  yt-dlp             video sitelerini anlar, doğrudan medya adreslerini verir
+  ytmusicapi         YouTube Music'ten şarkı sözleri
+  FFmpeg             görüntü+sesi birleştirir, MP3'e çevirir, çalınabilir
+                     kopyalar hazırlar
+  Windows MCI        müzik çalar (ek kütüphane gerekmez)
+  pywinrt            Windows ses paneli (şarkı, sanatçı, kapak)
+  PyInstaller        programı DISO.exe yapar (tek dosya, ya da kurulum için
+                     klasör)
+  threading          paralel bağlantılar ve arka plan işleri
+
+
+------------------------------------------------------------------------------
+9. İKİ DİL  (app/i18n.py + app/lang_en.py)
+------------------------------------------------------------------------------
+
+  * Programın metinleri Türkçe yazılmıştır. İngilizce seçilince her metin
+    ekrana giderken çevrilir: yazılar, düğmeler, menüler, pencere başlıkları,
+    mesaj kutuları, dosya pencereleri, bildirimler. Kodun kendisi hiç
+    değişmez.
+  * İngilizcesi app/lang_en.py'dedir: bütün metinler için PLAIN, değişen
+    parçası olan metinler için TEMPLATES ("{} şarkı"). Menülerdeki seçimler
+    programın içinde Türkçe değerlerini korur; yalnızca ekranda görünen
+    İngilizcedir.
+  * İlk açılışta dil Windows'tan gelir (Türkçe Windows -> Türkçe, diğerleri
+    -> İngilizce). Ayarlar -> Dil ile değişir.
+  * Kurulum programı aynı katmanı ve DISO'da seçilen dili kullanır. Tarayıcı
+    eklentisinin iki dili lib.js'tedir ve tarayıcının dilini izler.
+  * Bir test gerçek programı ve gerçek kurulum programını İngilizce açar (her
+    biri kendi sürecinde) ve ekranda Türkçe yazı kalmadığını denetler.
+
+
+------------------------------------------------------------------------------
+10. NASIL TEST EDİLDİ
+------------------------------------------------------------------------------
+
+Testler tests/ klasöründedir ve "python -m pytest" (ya da run_tests.bat) ile
+çalışır; bkz. README.tr.md'deki "Testler" bölümü. Binden fazla test şunları
+kapsar:
+
+İndirme motoru ve yönetici, Range isteklerini destekleyen yerel bir test
+sunucusuna karşı: normal 16 bağlantılı indirme (dosyanın özeti
+karşılaştırılarak), duraklat + devam, rastgele kopan bağlantılar, yalnızca 3
+bağlantıya izin veren bir sunucu, Range desteği olmayan bir sunucu, iptal
+(bütün geçici dosyalar silinir), olmayan bir dosya (404), 32 bağlantıyla
+küçücük bir dosya, görüntü + ses birleştirme, Opus ses dönüştürme, MP3
+dönüştürme, sıra yönetimi, listeyi kaydetme/yükleme ve FFmpeg yokken
+davranış. Pencereler gizli açılır ve bir insanın kullanacağı gibi sürülür;
+kurulum programı geçici bir yerde çalıştırılır; tarayıcı eklentisi sahte bir
+tarayıcıya ve gerçek yerel köprüye karşı çalışır. Gerçek web siteleri
+(YouTube vb.) yalnızca kendi bilgisayarında denenebilir.

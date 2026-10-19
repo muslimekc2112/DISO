@@ -19,7 +19,7 @@ import requests
 from conftest import wait_for
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EXE = os.path.join(ROOT, "dist", "DISO.exe")
+EXE = os.environ.get("DISO_TEST_EXE") or os.path.join(ROOT, "dist", "DISO.exe")     # another build can be tested too
 WINDOWS = sys.platform.startswith("win")
 pytestmark = [pytest.mark.exe,
               pytest.mark.skipif(not (WINDOWS and os.path.exists(EXE)), reason="dist/DISO.exe not built")]

@@ -6,10 +6,13 @@ PUBLISHER = "ISO"                     # the folder it installs under: C:\\Progra
 APP_ID = "DISO"                       # in file names, the registry, locks; the browser extension looks for it
 EXE_NAME = APP_ID + ".exe"
 
-VERSION = "0.10.0"                    # numbers only (Windows and Chrome want that)
+VERSION = "0.10.1"                    # numbers only (Windows and Chrome want that)
 CHANNEL = "beta"
-VERSION_LABEL = f"{VERSION} {CHANNEL}"          # what the user sees: 0.10.0 beta
+VERSION_LABEL = f"{VERSION} {CHANNEL}"          # what the user sees: 0.10.1 beta
 
-DATA_DIR_NAME = APP_ID                          # %LOCALAPPDATA%\\DISO: settings, playlists, downloads list, tools
+HOME_URL = "https://github.com/muslimekc2112/DISO"
+CONTACT_URL = HOME_URL + "/issues/new"          # "Contact us": a new issue on GitHub
+
+DATA_DIR_NAME = APP_ID                         # %LOCALAPPDATA%\\DISO: settings, playlists, downloads list, tools
 LEGACY_DATA_DIR_NAMES = (".hizli_indirici",)    # where earlier versions kept them (in the user's home folder)
 LEGACY_APP_IDS = ("HizliIndirici",)             # earlier names of the program in the registry and in shortcuts

@@ -9,12 +9,77 @@
   const APP_ID = "DISO";
 
   const DEFAULTS = {
-    port: 17653,           // must be the same as "Eklenti bağlantı noktası" in the app's settings
+    port: 17653,           // must be the same as "Extension port" in the app's settings
     intercept: false,      // take over the browser's own downloads
     minSizeMB: 5,          // ... of this size or bigger (0 = only by file type)
     extensions: "zip,rar,7z,tar,gz,iso,exe,msi,apk,dmg,mp4,mkv,avi,mov,webm,mp3,flac,wav,pdf",
     badge: true,           // show a short tick on the toolbar button after sending
   };
+
+  // Every text the extension shows, in Turkish and English; "{0}", "{1}" are the changing parts.
+  const TEXTS = {
+    tr: {
+      checking: "Kontrol ediliyor…", sendTab: "⬇ Bu sekmeyi indir", sendTabAudio: "🎵 Bu sekmeyi MP3 olarak indir",
+      catchDownloads: "Tarayıcı indirmelerini yakala", settings: "⚙ Ayarlar",
+      appRuns: "Uygulama çalışıyor (v{0})", appClosed: "Uygulama kapalı — DISO'yu aç", noAnswer: "Cevap yok",
+      optionsTitle: "DISO — Ayarlar", port: "Bağlantı noktası",
+      portHint: "Uygulamadaki Ayarlar → \"Eklenti bağlantı noktası\" ile aynı olmalı.",
+      redirect: "Tarayıcı indirmelerini DISO'ya yönlendir",
+      redirectHint: "Uygulama kapalıysa indirme tarayıcıda normal şekilde devam eder.",
+      minSize: "En az boyut (MB)", minSizeHint: "Bu boyuttan büyük indirmeler yakalanır. 0: yalnızca aşağıdaki dosya türleri.",
+      types: "Her zaman yakalanacak dosya türleri", badge: "Gönderince araç çubuğu simgesinde ✓ göster",
+      save: "Kaydet", test: "Bağlantıyı dene", badPort: "Port 1024 ile 65535 arasında bir sayı olsun.", saved: "Kaydedildi.",
+      connected: "✓ Uygulamaya bağlanıldı (v{0})", otherApp: "Bu portta başka bir şey çalışıyor.",
+      unreachableLong: "Uygulamaya ulaşılamadı. DISO açık mı, port doğru mu?",
+      unreachable: "Uygulamaya ulaşılamadı", unreachableOpen: "Uygulamaya ulaşılamadı: DISO açık mı?",
+      bridgeOff: "Uygulamada tarayıcı eklentisi kapalı", refused: "Uygulama reddetti: {0}",
+      addedAndDuplicates: "{0} eklendi, {1} zaten listedeydi", added: "{0} bağlantı eklendi",
+      alreadyListed: "Zaten listede", notAdded: "Eklenmedi",
+      menuLink: "DISO ile indir", menuPage: "Bu sayfayı DISO ile indir (video)",
+      menuSelection: "Seçilen bağlantıları DISO ile indir",
+    },
+    en: {
+      checking: "Checking…", sendTab: "⬇ Download this tab", sendTabAudio: "🎵 Download this tab as MP3",
+      catchDownloads: "Catch browser downloads", settings: "⚙ Settings",
+      appRuns: "The app is running (v{0})", appClosed: "The app is closed — open DISO", noAnswer: "No answer",
+      optionsTitle: "DISO — Settings", port: "Port",
+      portHint: "Must be the same as Settings → \"Extension port\" in the app.",
+      redirect: "Send browser downloads to DISO",
+      redirectHint: "If the app is closed, the download goes on in the browser as usual.",
+      minSize: "Minimum size (MB)", minSizeHint: "Downloads bigger than this are caught. 0: only the file types below.",
+      types: "File types that are always caught", badge: "Show ✓ on the toolbar button after sending",
+      save: "Save", test: "Test the connection", badPort: "The port must be a number from 1024 to 65535.", saved: "Saved.",
+      connected: "✓ Connected to the app (v{0})", otherApp: "Something else is running on this port.",
+      unreachableLong: "Could not reach the app. Is DISO open, is the port right?",
+      unreachable: "Could not reach the app", unreachableOpen: "Could not reach the app: is DISO open?",
+      bridgeOff: "The browser extension is switched off in the app", refused: "The app refused: {0}",
+      addedAndDuplicates: "{0} added, {1} were already in the list", added: "{0} links added",
+      alreadyListed: "Already in the list", notAdded: "Not added",
+      menuLink: "Download with DISO", menuPage: "Download this page with DISO (video)",
+      menuSelection: "Download the selected links with DISO",
+    },
+  };
+
+  // Turkish when the browser speaks Turkish, English otherwise ("tr" when nothing is known, as in the tests).
+  function language(nav) {
+    const n = nav !== undefined ? nav : (typeof navigator !== "undefined" ? navigator : null);
+    const lang = String((n && n.language) || "").toLowerCase();
+    return !lang || lang.startsWith("tr") ? "tr" : "en";
+  }
+
+  function t(key, args, lang) {
+    const texts = TEXTS[lang || language()] || TEXTS.tr;
+    const text = key in texts ? texts[key] : TEXTS.tr[key];
+    return String(text).replace(/\{(\d)\}/g, (m, i) => String((args || [])[Number(i)]));
+  }
+
+  // Puts the texts into a page: <x data-i18n="key"> gets t(key) as its text.
+  function translatePage(doc, lang) {
+    doc.documentElement.lang = lang || language();
+    doc.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n, [], lang); });
+    const title = doc.querySelector("title[data-i18n]");
+    if (title) doc.title = title.textContent;
+  }
 
   function appBase(port) {
     return "http://127.0.0.1:" + Number(port || DEFAULTS.port);
@@ -85,14 +150,14 @@
     return p;
   }
 
-  function describeResult(r) {
-    if (!r) return "Uygulamaya ulaşılamadı";
-    if (r.added && r.duplicates) return r.added + " eklendi, " + r.duplicates + " zaten listedeydi";
-    if (r.added) return r.added + " bağlantı eklendi";
-    if (r.duplicates) return "Zaten listede";
-    return "Eklenmedi";
+  function describeResult(r, lang) {
+    if (!r) return t("unreachable", [], lang);
+    if (r.added && r.duplicates) return t("addedAndDuplicates", [r.added, r.duplicates], lang);
+    if (r.added) return t("added", [r.added], lang);
+    if (r.duplicates) return t("alreadyListed", [], lang);
+    return t("notAdded", [], lang);
   }
 
-  return { APP_ID, DEFAULTS, appBase, isHttpUrl, parseExtensions, fileExtension, extractUrls,
-           cookieHeader, shouldIntercept, buildPayload, describeResult };
+  return { APP_ID, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
+           extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult };
 });
