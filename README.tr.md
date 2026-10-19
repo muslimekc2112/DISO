@@ -2,19 +2,19 @@
 
 **[English](README.md) | Türkçe**
 
-Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows için. **Sürüm 0.11.2 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
+Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows için. **Sürüm 0.11.3 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
 
 Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
 
 ## Kurulum (Python'u olmayan bir bilgisayar için)
-`DISO-Setup-0.11.2-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
+`DISO-Setup-0.11.3-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
 - **Yönetici izni ister:** DISO bu bilgisayardaki herkes için `C:\Program Files\ISO\DISO` klasörüne kurulur. Windows "izin ver?" diye sorar, **Evet** de.
 - Başlat menüsüne ve masaüstüne kısayol koyar, "Uygulamalar" listesine yazılır. İstersen Windows ile birlikte başlar.
 - **Hangi tarayıcılara eklenti kurulacağını sorar** (linke sağ tık → "DISO ile indir", IDM gibi) ve eklemene yardım eder; bkz. [Tarayıcı eklentisi](#-tarayıcı-eklentisi).
 - **Güncelleme:** yeni kurulum dosyasını çalıştırman yeter. Çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
 - **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
 - **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır (ya da Başlat menüsündeki "DISO'yu Kaldır"). Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Setup-0.11.2-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
+- **Sessiz kurulum:** `DISO-Setup-0.11.3-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
 - Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
 
 ## 🌐 Dil
@@ -65,7 +65,7 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarıyla ayr
 - Desteklenen biçimler Windows'un çalabildikleridir: mp3, wav, wma, m4a, aac. Windows'un doğrudan açamadığı dosyaların (kapak resmi büyük MP3'ler, Opus sesli videolar) çalınabilir bir kopyası ilk çalışta arka planda hazırlanır.
 
 #### 🔍 Şarkı bul
-Müzik çaların üstündeki **🔍 Şarkı bul** sekmesine şarkı ya da sanatçı adı yaz (YouTube linki de olur), Enter'a bas. Sonuçlarda başlık, kanal ve süre görünür.
+Müzik çaların üstündeki **🔍 Şarkı bul** sekmesine şarkının adını yaz (YouTube linki de olur), istersen yanındaki **Sanatçı / kanal** kutusuna sanatçıyı yaz (boş da olur; tek başına sanatçı da yeter), Enter'a bas. Arama YouTube Music'te yapılır, shorts gelmez; yazdığına uyan şarkılar en üstte, en çok dinlenen önce. Sonuçlarda başlık, sanatçı, dinlenme ve süre görünür.
 - Beğendiğine **çift tıkla** ya da seçip **⬇ İndir (MP3)**'e bas. Şarkı arka planda MP3 olarak (kapak resmiyle) iner, sen bu arada dinlemeye devam edersin. Ekranda yalnızca yüzdesi görünür.
 - İnince **"Hangi listeye ekleyeyim?"** diye sorar: var olan bir liste, yeni bir liste ya da "Şimdilik ekleme". Aynı anda biten şarkılar için tek soru gelir; son seçtiğin liste bir dahaki sefere önce önerilir.
 - Bulup indirdiğin şarkılar `%LOCALAPPDATA%\DISO\Müzik` klasöründe durur (**📂 İnenler** düğmesi açar). İndirme listesinde de görünürler, oradan duraklatıp sürdürebilirsin.

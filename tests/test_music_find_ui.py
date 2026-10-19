@@ -82,10 +82,36 @@ def test_searching_shows_the_results_and_how_many(music_app):
     music._show_view(VIEW_FIND)
     search(music, found(3))
     assert music.searcher.asked == ["tarkan"]
-    assert results(music) == [("Şarkı 0", "Kanal", "3:20", "⬇"), ("Şarkı 1", "Kanal", "3:21", "⬇"),
-                              ("Şarkı 2", "Kanal", "3:22", "⬇")]
+    assert music.searcher.more == ()                                 # no artist: the search is not narrowed
+    assert results(music) == [("Şarkı 0", "Kanal", "", "3:20", "⬇"), ("Şarkı 1", "Kanal", "", "3:21", "⬇"),
+                              ("Şarkı 2", "Kanal", "", "3:22", "⬇")]
     assert "3 sonuç" in music.find_label.cget("text") and music.search_btn.cget("state") == "normal"
     assert music.find_hint.winfo_manager() == ""
+
+
+def test_an_artist_narrows_the_search_and_is_enough_alone(music_app):
+    app, music = music_app
+    music._show_view(VIEW_FIND)
+    music.artist_entry.insert(0, "  Barış   Manço ")
+    music.search_entry.insert(0, "gülpembe")
+    music._search()
+    assert music.searcher.asked == ["gülpembe"] and music.searcher.more == ("Barış Manço",)
+    assert "gülpembe (Barış Manço)" in music.find_label.cget("text")
+    music.searcher.give([dict(found(1)[0], views=105_000_000)])
+    music._tick()
+    assert results(music) == [("Şarkı 0", "Kanal", "105 Mn", "3:20", "⬇")]
+    music.search_entry.delete(0, "end")                              # only the artist: their songs
+    music._search()
+    assert music.searcher.asked[-1] == "" and music.searcher.more == ("Barış Manço",)
+    assert music.store.state["searches"] == ["gülpembe"]             # an empty search is not remembered
+
+
+def test_a_link_ignores_the_artist(music_app):
+    app, music = music_app
+    music.artist_entry.insert(0, "Tarkan")
+    music.search_entry.insert(0, "https://www.youtube.com/playlist?list=PL1")
+    music._search()
+    assert music.searcher.more == ()
 
 
 def test_an_empty_box_is_not_searched(music_app):
@@ -136,7 +162,7 @@ def test_a_found_song_is_queued_as_mp3_into_the_music_folder(music_app):
     assert it.kind == "audio" and it.origin == "music" and it.folder == music_search.music_dir()
     assert it.cover and not it.sort_folders
     assert "İniyor" in music.note_label.cget("text")
-    assert results(music)[1][3] == "Sırada" and results(music)[0][3] == "⬇"
+    assert results(music)[1][4] == "Sırada" and results(music)[0][4] == "⬇"
 
 
 def test_only_the_percentage_is_shown_while_it_downloads(music_app):
@@ -147,11 +173,11 @@ def test_only_the_percentage_is_shown_while_it_downloads(music_app):
     [it] = app.song_items()
     it.state, it.fraction = DOWNLOADING, 0.456
     music._tick()
-    assert results(music)[0][3] == "%45"
+    assert results(music)[0][4] == "%45"
     assert music.dl_label.cget("text") == "⬇ Şarkı 0 • %45"
     it.state = PROCESSING
     music._tick()
-    assert results(music)[0][3] == "%99"
+    assert results(music)[0][4] == "%99"
 
 
 def test_two_songs_at_once_show_one_line(music_app):

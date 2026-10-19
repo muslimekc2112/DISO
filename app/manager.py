@@ -120,7 +120,7 @@ class DownloadManager:
         if skip_duplicates and self.find_duplicate(url):
             return False
         folder = s.folder or default_download_dir()
-        if s.playlist and s.kind in ("auto", "video", "audio"):
+        if s.playlist and s.kind in ("auto", "video", "audio") and not jobs.is_plain_file_link(url):
             threading.Thread(target=self._add_playlist, args=(url, s, folder, start, skip_duplicates),
                              daemon=True).start()
             return True
@@ -353,6 +353,8 @@ class DownloadManager:
         try:
             if item.kind == "auto":
                 jobs.classify(item)
+            elif item.kind in ("video", "audio") and item.origin != "music":
+                jobs.keep_files_as_they_are(item)
             if item.stop_reason:
                 raise DownloadStopped(item.stop_reason)
             if item.kind == "file":

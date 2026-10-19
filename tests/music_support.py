@@ -120,8 +120,9 @@ class FakeSearcher:
         self.busy = False
         self.query = ""
 
-    def search(self, query):
+    def search(self, query, *more):
         self.asked.append(query)
+        self.more = more
         self.query = query
         self.busy = True
 

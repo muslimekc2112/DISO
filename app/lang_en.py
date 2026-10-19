@@ -146,7 +146,7 @@ PLAIN = {
     # ---- download window
     "Bekliyor": "Waiting", "Kontrol ediliyor…": "Checking…", "✓ Güncel": "✓ Up to date",
     "⬆ Güncelleme var": "⬆ Update available", "⟳ Güncelleniyor": "⟳ Updating", "✓ Güncellendi": "✓ Updated",
-    "✖ Hata": "✖ Error", "Kurulu değil": "Not installed", "Kendi kurulumun": "Your own install",
+    "✖ Hata": "✖ Error", "Kurulu değil": "Not installed", "Ayrıca kurulu": "Installed separately",
     "Linki buraya yapıştır (birden fazlaysa araya boşluk koy)…": "Paste the link here (put spaces between several)…",
     "Yeni görünüm programı yeniden açınca uygulanır.\n\nŞimdi yeniden açılsın mı?\n(İndirmeler duraklatılır ve açılışta kaldığı yerden devam eder; çalan müzik durur.)":
         "The new look is used when the program restarts.\n\nRestart now?\n(Downloads pause and go on where they were; the music stops.)",
@@ -253,7 +253,8 @@ PLAIN = {
     "SHA-256 eşleşmedi, dosya kullanılmadı": "SHA-256 did not match; the file was not used", "İndiriliyor…": "Downloading…",
     "Kuruluyor…": "Installing…", "Güncellendi": "Updated",
     "Kurulu değil; MP3 ya da video birleştirirken kendim kurarım": "Not installed; I install it when MP3s or videos need it",
-    "Senin kendi kurulumun; ona dokunmam": "Your own install; I leave it alone", "Yeni FFmpeg derlemesi var": "A new FFmpeg build is out",
+    "Bu bilgisayarda ayrıca kurulu olan FFmpeg; onu sen güncelliyorsun":
+        "The FFmpeg installed separately on this PC; you keep it up to date", "Yeni FFmpeg derlemesi var": "A new FFmpeg build is out",
     "Bir işlem FFmpeg kullanıyor; bitince tekrar dene": "Something is using FFmpeg; try again when it's done",
     "FFmpeg güncellendi": "FFmpeg updated",
     "Sitelerin videolarını çözer. YouTube vb. değişince güncellenir.": "Reads the sites' videos. Updated when YouTube etc. change.",
@@ -361,6 +362,10 @@ PLAIN = {
     "“Detayları kopyala”ya bas, sonra “Bize ulaş” ile GitHub'da yeni bir sorun aç ve metni oraya yapıştır.":
         "This is a beta: everything works, but some corners may be rough. If something goes wrong, press “Copy details” "
         "below, then “Contact us” to open a new issue on GitHub and paste the text there.",
+    # ---- song search by artist
+    "Şarkı adı ya da YouTube linki yaz…": "Type a song name or a YouTube link…",
+    "Sanatçı / kanal (boş da olur)": "Artist / channel (optional)",
+    "Sanatçı / kanal": "Artist / channel", "Dinlenme": "Plays",
 }
 
 TEMPLATES = [

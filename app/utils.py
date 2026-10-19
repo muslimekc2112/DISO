@@ -61,13 +61,20 @@ def user_tools_dir() -> str:
     return str(d)
 
 
-def tool_dirs() -> list:
+def bundled_ffmpeg_dirs() -> list:
+    """Where the FFmpeg that comes with DISO is: inside the program, or beside the installed DISO.exe."""
     dirs = [resource_path("ffmpeg")]
     if getattr(sys, "frozen", False):
-        beside = os.path.dirname(sys.executable)
-        dirs.append(os.path.join(beside, "ffmpeg"))
-        dirs.append(os.path.join(beside, "deno"))      # put there by the installer: YouTube needs a JavaScript runtime
-    dirs.append(user_tools_dir())
+        dirs.append(os.path.join(os.path.dirname(sys.executable), "ffmpeg"))
+    return dirs
+
+
+def tool_dirs() -> list:
+    # the tools folder first: an FFmpeg that DISO updated there is newer than the one it came with
+    dirs = [user_tools_dir()] + bundled_ffmpeg_dirs()
+    if getattr(sys, "frozen", False):
+        # put there by the installer: YouTube needs a JavaScript runtime
+        dirs.append(os.path.join(os.path.dirname(sys.executable), "deno"))
     return dirs
 
 

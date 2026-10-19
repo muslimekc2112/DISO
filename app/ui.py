@@ -55,7 +55,7 @@ STATUS_STYLE = {  # updater status -> (text, colour)
     "done": ("✓ Güncellendi", GOOD),
     "error": ("✖ Hata", BAD),
     "missing": ("Kurulu değil", "gray"),
-    "manual": ("Kendi kurulumun", "gray"),
+    "manual": ("Ayrıca kurulu", "gray"),
 }
 
 # list filter -> states it shows (None = everything)

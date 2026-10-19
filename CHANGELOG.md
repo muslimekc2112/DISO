@@ -2,6 +2,13 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 0.11.3 beta
+- **Find songs now searches YouTube Music:** shorts and ordinary videos no longer fill the results, songs do (up to 50). The ones that match what you typed come first, the most listened to first; a new **Plays** column shows how much each song is listened to. When few songs are found, YouTube Music's music videos are added. If YouTube Music cannot be reached, YouTube is searched (without shorts).
+- **Artist / channel box:** type an artist's or a channel's name next to the search box to get only their songs. It works together with a song name or on its own (that artist's most popular songs); left empty it changes nothing. Case and Turkish letters do not matter ("simarik" = "Şımarık").
+- **Fixed:** with MP4 or MP3 chosen as the download type, a plain file (zip, rar, exe, pdf…) was "converted" to video / sound. DISO now looks at what the link is and downloads such a file as it is; video sites, pages and sound / video files follow the choice.
+- **The browser extension says what a link is:** file links and caught browser downloads go to DISO as files (the MP3 / MP4 choice in the app does not change them), page links are left for DISO to look at. The extension's button has **🎬 Download as MP4** and **🎵 Download as MP3** ("Download this tab" is gone); the page's right-click menu has both too.
+- **Fixed:** Updates showed FFmpeg as "Your own install" although it came with DISO. The FFmpeg that comes with DISO is now DISO's own: when a newer one is out, DISO updates it itself. "Installed separately" is shown only for another FFmpeg installed separately on the PC.
+
 ## 0.11.2 beta
 - **Fixed:** Chrome showed the warning "'background.scripts' requires manifest version of 2 or lower" on the extensions page (harmless, but it looked like an error). Chrome and Firefox now have separate manifests: `manifest.json` holds only what Chrome understands, `manifest.firefox.json` is Firefox's. The guide's Firefox button prepares a Firefox copy by itself; the release also has a separate Firefox zip.
 - **Fixed:** with the portable `DISO.exe` the extension's folder (`%LOCALAPPDATA%\DISO\browser_extension`) was only brought up to date when the guide was opened; now at every start, so a newer DISO.exe also updates the extension (press the extension's reload button in the browser, or restart the browser).

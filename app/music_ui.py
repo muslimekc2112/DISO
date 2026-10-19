@@ -18,7 +18,7 @@ from .logs import log
 from .playlists import FADE_CHOICES
 from .player import AUDIO_EXTENSIONS, REPEAT_MODES, artist_and_title, track_label
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon
-from .utils import open_in_file_manager
+from .utils import is_url, open_in_file_manager
 
 MODE_DOWNLOAD = "İndirme modu"
 MODE_MUSIC = "Müzik çalar modu"
@@ -286,7 +286,7 @@ class MusicWindow(ctk.CTkToplevel):
         # finding songs on the internet
         bar = self.find_bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.columnconfigure(0, weight=1)
-        self.search_entry = ctk.CTkEntry(bar, placeholder_text="Şarkı, sanatçı ya da YouTube linki yaz…", height=34)
+        self.search_entry = ctk.CTkEntry(bar, placeholder_text="Şarkı adı ya da YouTube linki yaz…", height=34)
         self.search_entry.grid(row=0, column=0, sticky="ew")
         self.search_entry.bind("<Return>", self._on_search_return)
         self.search_entry.bind("<KeyRelease>", self._on_search_key, add="+")
@@ -296,8 +296,13 @@ class MusicWindow(ctk.CTkToplevel):
         self.search_entry.bind("<Up>", lambda e: self._move_suggestion(-1) or "break")
         self.search_entry.bind("<Escape>", lambda e: self._hide_suggestions() or "break")
         self.suggest_box = ctk.CTkFrame(self, corner_radius=10, border_width=1)
+        # only that singer's / channel's songs; left empty it changes nothing
+        self.artist_entry = ctk.CTkEntry(bar, placeholder_text="Sanatçı / kanal (boş da olur)", width=220, height=34)
+        self.artist_entry.grid(row=0, column=1, padx=(8, 0))
+        self.artist_entry.bind("<Return>", lambda e: self._search() or "break")
+        self.artist_entry.bind("<FocusIn>", lambda e: self._hide_suggestions(), add="+")
         self.search_btn = ctk.CTkButton(bar, text="Ara", width=90, height=34, command=self._search)
-        self.search_btn.grid(row=0, column=1, padx=(8, 0))
+        self.search_btn.grid(row=0, column=2, padx=(8, 0))
 
     def _make_tree(self, parent, columns):
         tree = ttk.Treeview(parent, columns=[c[0] for c in columns], show="headings",
@@ -331,8 +336,9 @@ class MusicWindow(ctk.CTkToplevel):
         box = self.find_box = ctk.CTkFrame(self)
         box.columnconfigure(0, weight=1)
         box.rowconfigure(0, weight=1)
-        self.results_tree = self._make_tree(box, (("title", "Şarkı", 380, "w", True),
-                                                  ("channel", "Kanal", 180, "w", False),
+        self.results_tree = self._make_tree(box, (("title", "Şarkı", 340, "w", True),
+                                                  ("channel", "Sanatçı / kanal", 170, "w", False),
+                                                  ("views", "Dinlenme", 80, "e", False),
                                                   ("time", "Süre", 64, "e", False),
                                                   ("state", "Durum", 84, "center", False)))
         self.results_tree.bind("<Double-Button-1>", self._on_result_double_click)
@@ -1281,16 +1287,22 @@ class MusicWindow(ctk.CTkToplevel):
 
     # ------------------------------------------------------------------ finding songs
     def _search(self):
-        query = self.search_entry.get().strip()
-        if not query:
+        query = " ".join(self.search_entry.get().split())
+        artist = "" if is_url(query) else " ".join(self.artist_entry.get().split())   # a link is opened as it is
+        if not query and not artist:
             self.find_label.configure(text="Önce ne arayacağımı yaz 🙂")
             return
         self._hide_suggestions()
-        self.store.remember_search(query)
-        self.searcher.search(query)
+        if query:
+            self.store.remember_search(query)
+        if artist:
+            self.searcher.search(query, artist)
+        else:
+            self.searcher.search(query)
         self._search_started = time.time()
         self.search_btn.configure(state="disabled", text="Arıyor…")
-        self.find_label.configure(text=f"“{query}” aranıyor…")
+        shown = f"{query} ({artist})" if query and artist else query or artist
+        self.find_label.configure(text=f"“{shown}” aranıyor…")
 
     def _take_answer(self):
         answer = self.searcher.poll()
@@ -1537,7 +1549,8 @@ class MusicWindow(ctk.CTkToplevel):
     def _result_values(self, r, statuses):
         from .manager import url_key
         length = fmt_time(r["duration"] * 1000) if r.get("duration") else ""
-        return (r["title"], r.get("channel", ""), length, i18n.tr(statuses.get(url_key(r["url"]), "⬇")))
+        return (r["title"], r.get("channel", ""), music_search.short_views(r.get("views")), length,
+                i18n.tr(statuses.get(url_key(r["url"]), "⬇")))
 
     def _refresh_results(self):
         tree = self.results_tree

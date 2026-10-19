@@ -31,7 +31,7 @@ async function openApp() {
 }
 
 HI.translatePage(document);
-$("page").addEventListener("click", () => sendTab("auto"));
+$("video").addEventListener("click", () => sendTab("video"));
 $("audio").addEventListener("click", () => sendTab("audio"));
 $("open").addEventListener("click", openApp);
 $("intercept").addEventListener("change", (e) => api.storage.local.set({ intercept: e.target.checked }));

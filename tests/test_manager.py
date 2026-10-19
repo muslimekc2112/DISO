@@ -271,6 +271,40 @@ def test_auto_mode_treats_an_unreachable_page_as_a_video_site():
     assert item.kind == "video"
 
 
+@pytest.mark.parametrize("kind", ["video", "audio"])
+def test_a_plain_file_is_downloaded_as_it_is_even_with_mp4_or_mp3_chosen(manager, server, settings, kind,
+                                                                          monkeypatch):
+    import dataclasses
+    from app import video_engine as ve
+    monkeypatch.setattr(ve, "resolve", lambda *a, **k: pytest.fail("a zip was handed to yt-dlp"))
+    name = server.add(os.urandom(50_000), ".zip", "application/zip")
+    hidden = server.add(os.urandom(20_000), ".bin", "application/octet-stream")    # no telling name
+    manager.add_url(server.url("f", name), dataclasses.replace(settings, kind=kind, playlist=True))
+    manager.add_url(server.url("f", hidden) + "?get=1", dataclasses.replace(settings, kind=kind))
+    assert wait_for(lambda: states(manager) == [DONE, DONE])
+    assert [i.kind for i in manager.items] == ["file", "file"]
+    assert open(manager.items[0].final_path, "rb").read() == server.state.files[name]
+    assert os.path.basename(manager.items[0].final_path) == name
+
+
+def test_media_links_and_pages_keep_the_mp4_or_mp3_choice(server):
+    page = server.add(b"<html></html>", ".html", "text/html")
+    sound = server.add(b"ID3", ".bin", "audio/mpeg")
+    for url in (server.url("f", page), server.url("f", sound), "https://www.youtube.com/watch?v=1",
+                "http://127.0.0.1:9/clip.mp4", "http://127.0.0.1:9/unreachable"):
+        item = Item(url, kind="audio")
+        jobs.keep_files_as_they_are(item)
+        assert item.kind == "audio" and item.message == "", url
+
+
+@pytest.mark.parametrize("url,plain", [
+    ("http://a.com/x.zip", True), ("http://a.com/Setup.EXE?v=2", True), ("http://a.com/g%C3%BCzel.pdf", True),
+    ("http://a.com/watch?v=1", False), ("http://a.com/clip.mp4", False), ("http://a.com/", False),
+    ("https://www.youtube.com/x.zip", False)])
+def test_plain_file_links_are_known_by_their_name(url, plain):
+    assert jobs.is_plain_file_link(url) is plain
+
+
 # ------------------------------------------------------------- redownload / delete with file
 def test_redownload_fetches_the_file_again_from_the_start(manager, server, settings, folder):
     name, data = server.file(100_000)

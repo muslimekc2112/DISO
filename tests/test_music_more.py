@@ -139,25 +139,117 @@ def fake_ytdlp(monkeypatch):
     return FakeYDL
 
 
-def test_a_search_asks_youtube_flat_and_keeps_only_songs(fake_ytdlp):
+class FakeYTMusic:
+    """Same `search` as ytmusicapi.YTMusic; answers per filter."""
+
+    def __init__(self, songs=(), videos=()):
+        self.answers = {"songs": list(songs), "videos": list(videos)}
+        self.asked = []
+
+    def search(self, query, filter=None, limit=20):
+        self.asked.append((query, filter, limit))
+        return self.answers[filter]
+
+
+def song(vid, title, artist, views="", seconds=200, **more):
+    return dict({"videoId": vid, "title": title, "artists": [{"name": artist, "id": "x"}], "views": views,
+                 "duration_seconds": seconds, "album": {"name": "Albüm", "id": "a"}, "resultType": "song"}, **more)
+
+
+@pytest.fixture
+def fake_ytmusic(monkeypatch):
+    api = FakeYTMusic()
+    monkeypatch.setattr(music_search, "_ytmusic", lambda: api)
+    return api
+
+
+def test_a_search_asks_youtube_music_for_songs_and_puts_the_popular_matches_first(fake_ytmusic):
+    fake_ytmusic.answers["songs"] = [
+        song("a1", "Kuzu Kuzu", "Tarkan", "238M", 234),
+        song("b2", "Dudu", "Tarkan", "546M"),
+        song("c3", "Kuzu Kuzu (Akustik)", "Tarkan", "1.1M"),
+        song("d4", "Kuzu Kuzu", "Biri", "2.5B"),
+        song("a1", "Kuzu Kuzu", "Tarkan", "238M"),                       # the same twice
+        song("e5", "Kuzu Kuzu", "Tarkan", "9K"),                          # the same song again (another id)
+        song("", "Videosuz", "Tarkan"), song("f6", "Gone", "Tarkan", isAvailable=False), None]
+    found = music_search.search("  kuzu   kuzu ")
+    assert ("kuzu kuzu", "songs", music_search.LIMIT) in fake_ytmusic.asked
+    assert [(r["url"][-2:], r["views"]) for r in found] == [
+        ("d4", 2_500_000_000), ("a1", 238_000_000), ("c3", 1_100_000), ("b2", 546_000_000)]
+    assert found[1] == {"url": "https://www.youtube.com/watch?v=a1", "title": "Kuzu Kuzu", "channel": "Tarkan",
+                        "duration": 234, "views": 238_000_000, "album": "Albüm"}
+
+
+def test_an_artist_keeps_only_their_songs(fake_ytmusic):
+    fake_ytmusic.answers["songs"] = [song("a1", "Şımarık", "Tarkan", "10M"), song("b2", "Simarik", "Cover Grup", "90M"),
+                                     song("c3", "Dudu", "TARKAN", "50M"),
+                                     song("d4", "Hadi O Zaman", "Nazan Öncel, Tarkan", "1M")]
+    found = music_search.search("simarik", "  tarkan ")
+    assert fake_ytmusic.asked[0][0] == "simarik tarkan"
+    assert [r["url"][-2:] for r in found] == ["a1", "c3", "d4"]          # "Şımarık" matches "simarik" too
+    assert [r["url"][-2:] for r in music_search.search("", "tarkan")] == ["c3", "a1", "d4"]
+    # an artist nobody matches does not empty the results
+    assert len(music_search.search("dudu", "yok böyle biri")) == 4
+
+
+def test_music_videos_are_added_only_when_few_songs_match_and_never_shorts(fake_ytmusic):
+    fake_ytmusic.answers["songs"] = [song("a1", "Nadir Şarkı", "Biri", "5K")]
+    fake_ytmusic.answers["videos"] = [song("v1", "Nadir Şarkı (Canlı)", "Biri", "80K", 240),
+                                      song("v2", "Nadir Şarkı #shorts", "Biri", "9M", 30)]
+    assert [r["url"][-2:] for r in music_search.search("nadir şarkı")] == ["v1", "a1"]
+    fake_ytmusic.answers["songs"] = [song(f"s{i}", f"Çok Şarkı {i}", "Biri", f"{i}K") for i in range(6)]
+    assert all(r["url"][-2] == "s" for r in music_search.search("çok şarkı"))
+
+
+def test_a_short_answer_is_asked_once_more_and_both_are_used(fake_ytmusic):
+    answers = [[song("a1", "Bir", "Biri", "1K")], [song("a1", "Bir", "Biri", "1K"), song("b2", "Bir daha", "Biri", "9M")]]
+    fake_ytmusic.search = lambda q, filter=None, limit=20: answers.pop(0) if filter == "songs" else []
+    assert [r["url"][-2:] for r in music_search.search("bir")] == ["b2", "a1"] and answers == []
+
+
+def test_listen_counts_are_read_and_shown_short():
+    assert [music_search.views_count(t) for t in ("238M", "1.1M", "447K", "2.7B", "12,345", "1.234.567",
+                                                  "", None, "çok")] == [
+        238_000_000, 1_100_000, 447_000, 2_700_000_000, 12345, 1234567, 0, 0, 0]
+    assert [music_search.short_views(n) for n in (0, 950, 447_000, 1_100_000, 238_000_000, 2_700_000_000)] == [
+        "", "950", "447 B", "1,1 Mn", "238 Mn", "2,7 Mr"]
+
+
+def test_without_youtube_music_youtube_is_searched_without_shorts(fake_ytdlp, monkeypatch):
+    def broken():
+        raise ConnectionError("no YouTube Music")
+    monkeypatch.setattr(music_search, "_ytmusic", broken)
     fake_ytdlp.answer = {"entries": [
-        {"id": "a1", "url": "https://www.youtube.com/watch?v=a1", "title": "Şarkı 1", "channel": "Kanal", "duration": 215.0},
-        {"id": "b2", "url": "b2", "ie_key": "Youtube", "title": "Şarkı 2", "uploader": "Biri", "duration": None},
+        {"id": "a1", "url": "https://www.youtube.com/watch?v=a1", "title": "Şımarık", "channel": "Kanal",
+         "duration": 215.0, "view_count": 10},
+        {"id": "b2", "url": "b2", "ie_key": "Youtube", "title": "Tarkan Şımarık", "uploader": "Biri",
+         "duration": None, "view_count": 500},
+        {"id": "s1", "url": "https://www.youtube.com/shorts/s1", "title": "Şımarık kısa", "duration": 20},
+        {"id": "s2", "url": "s2", "title": "Şımarık kısa 2", "duration": 45},
         {"id": "live", "title": "Canlı yayın", "live_status": "is_live"},
         {"id": "ch", "title": "Bir kanal", "ie_key": "YoutubeTab", "url": "https://www.youtube.com/@kanal"},
         {"id": "a1", "url": "https://www.youtube.com/watch?v=a1", "title": "Şarkı 1 tekrar"},
         {"title": ""}, None]}
     found = music_search.search("  tarkan   şımarık ")
     url, opts = fake_ytdlp.asked[-1]
-    assert url == "ytsearch20:tarkan şımarık" and opts["extract_flat"] is True
+    assert url == f"ytsearch{music_search.FALLBACK_LIMIT}:tarkan şımarık" and opts["extract_flat"] is True
     assert opts["socket_timeout"] == music_search.SEARCH_TIMEOUT < 30
     assert found == [
-        {"url": "https://www.youtube.com/watch?v=a1", "title": "Şarkı 1", "channel": "Kanal", "duration": 215},
-        {"url": "https://www.youtube.com/watch?v=b2", "title": "Şarkı 2", "channel": "Biri", "duration": 0}]
+        {"url": "https://www.youtube.com/watch?v=b2", "title": "Tarkan Şımarık", "channel": "Biri", "duration": 0,
+         "views": 500},
+        {"url": "https://www.youtube.com/watch?v=a1", "title": "Şımarık", "channel": "Kanal", "duration": 215,
+         "views": 10}]
 
 
-def test_an_empty_search_asks_nothing(fake_ytdlp):
-    assert music_search.search("   ") == [] and fake_ytdlp.asked == []
+def test_an_empty_search_asks_nothing(fake_ytdlp, fake_ytmusic):
+    assert music_search.search("   ") == [] and music_search.search("", "  ") == []
+    assert fake_ytdlp.asked == [] and fake_ytmusic.asked == []
+
+
+def test_the_searcher_passes_the_artist_on():
+    s = music_search.Searcher(find=lambda q, artist="": [{"url": "u", "title": f"{q}/{artist}"}])
+    s.search("a", "b")
+    assert wait_for(s) == ("a", [{"url": "u", "title": "a/b"}], "")
 
 
 def test_a_link_is_opened_not_searched(monkeypatch):

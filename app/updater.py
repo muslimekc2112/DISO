@@ -32,6 +32,7 @@ import zipfile
 import requests
 
 from . import ffmpeg_setup
+from .logs import log
 from .segmented_downloader import (TIMEOUT, DownloadError, FastDownloader, build_headers,
                                    get_proxies)
 from .utils import app_data_dir, find_ffmpeg, human_size
@@ -451,11 +452,14 @@ class Updater:
             comp.status, comp.installed = "missing", ""
             comp.message = "Kurulu değil; MP3 ya da video birleştirirken kendim kurarım"
             return
-        if not ffmpeg_setup.is_managed(path):
+        managed = ffmpeg_setup.is_managed(path)
+        if not managed and not ffmpeg_setup.is_bundled(path):
+            # installed by the user somewhere else (and first on PATH): not DISO's to replace
             comp.status, comp.installed = "manual", ffmpeg_setup.ffmpeg_version(path)
-            comp.message = "Senin kendi kurulumun; ona dokunmam"
+            comp.message = "Bu bilgisayarda ayrıca kurulu olan FFmpeg; onu sen güncelliyorsun"
             return
-        info = ffmpeg_setup.read_info()
+        # DISO's own: the one it updated (tools folder) or the one it came with (bundled)
+        info = ffmpeg_setup.read_info() if managed else {}
         comp.installed = info.get("version") or ffmpeg_setup.ffmpeg_version(path)
         comp.status, comp.message = "checking", ""
         try:
@@ -464,6 +468,15 @@ class Updater:
             comp.status, comp.message = "error", f"Sunucuya ulaşamadım: {_short(e)}"
             return
         comp.checked_at = time.time()
+        if not managed:
+            seen = ffmpeg_setup.bundled_build(comp.installed)
+            if not seen:
+                try:
+                    ffmpeg_setup.remember_bundled(comp.installed, sha)
+                except OSError as e:
+                    log.info("could not note the bundled FFmpeg: %s", e)
+                seen = sha
+            info = {"sha256": seen}
         if sha == info.get("sha256"):
             comp.status, comp.message = "current", ""
             return

@@ -2,6 +2,13 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 0.11.3 beta
+- **Şarkı bul artık YouTube Music'ten arar:** shorts ve sıradan videolar sonuçları doldurmaz, şarkılar gelir (50'ye kadar). Yazdığına uyanlar en üstte, en çok dinlenen önce; yeni **Dinlenme** sütunu her şarkının ne kadar dinlendiğini gösterir. Az şarkı bulunursa YouTube Music'in müzik videoları da eklenir. YouTube Music'e ulaşılamazsa YouTube'da aranır (shorts olmadan).
+- **Sanatçı / kanal kutusu:** arama kutusunun yanına sanatçının ya da kanalın adını yaz, yalnızca onun şarkıları gelsin. Şarkı adıyla birlikte ya da tek başına (o sanatçının en popüler şarkıları) kullanılır; boş bırakılırsa aramayı etkilemez. Büyük-küçük harf ve Türkçe harfler fark etmez ("simarik" = "Şımarık").
+- **Düzeltildi:** indirme türü MP4 ya da MP3 seçiliyken normal bir dosya (zip, rar, exe, pdf…) videoya/sese çevrilmeye çalışılıyordu. Artık DISO linkin ne olduğuna bakar ve dosyayı olduğu gibi indirir; video siteleri, sayfalar ve ses/video dosyaları seçime göre iner.
+- **Tarayıcı eklentisi linkin ne olduğunu kendisi söyler:** dosya linkleri ve yakalanan tarayıcı indirmeleri DISO'ya "dosya" olarak gider (uygulamadaki MP3/MP4 seçimi onları değiştirmez), sayfa linklerine DISO bakar. Eklenti düğmesinde **🎬 MP4 olarak indir** ve **🎵 MP3 olarak indir** var ("Bu sekmeyi indir" kalktı); sayfanın sağ tık menüsünde de ikisi var.
+- **Düzeltildi:** Güncellemeler'de FFmpeg, DISO ile geldiği hâlde "Kendi kurulumun" görünüyordu. DISO ile gelen FFmpeg artık DISO'nundur: yenisi çıkınca DISO onu kendisi günceller. "Ayrıca kurulu" yalnızca bilgisayarda ayrıca kurulmuş başka bir FFmpeg için görünür.
+
 ## 0.11.2 beta
 - **Düzeltildi:** Chrome eklentiler sayfasında "'background.scripts' requires manifest version of 2 or lower" uyarısı gösteriyordu (zararsızdı ama hata gibi görünüyordu). Artık Chrome ve Firefox'un ayrı manifest dosyaları var: `manifest.json` yalnızca Chrome'un anladıklarını içerir, `manifest.firefox.json` Firefox'unkidir. Rehberdeki Firefox düğmesi Firefox kopyasını kendisi hazırlar; sürümde ayrıca bir Firefox zip'i de var.
 - **Düzeltildi:** taşınabilir `DISO.exe` ile eklentinin klasörü (`%LOCALAPPDATA%\DISO\browser_extension`) yalnızca rehber açılınca güncelleniyordu; artık her açılışta. Böylece yeni DISO.exe eklentiyi de günceller (tarayıcıda eklentinin yenile düğmesine bas ya da tarayıcıyı yeniden aç).

@@ -23,7 +23,7 @@ import requests
 
 from .segmented_downloader import (TIMEOUT, DownloadError, FastDownloader, build_headers,
                                    get_proxies)
-from .utils import find_ffmpeg, subprocess_flags, user_tools_dir
+from .utils import bundled_ffmpeg_dirs, find_ffmpeg, subprocess_flags, user_tools_dir
 
 # (archive, checksum file). The checksum file is either a bare hash (gyan.dev) or
 # "<hash>  <file name>" lines (BtbN). Both are fetched from the same mirror as the archive.
@@ -34,6 +34,7 @@ FFMPEG_SOURCES = [
      "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256"),
 ]
 INFO_FILE = "ffmpeg.json"      # what was installed: sha256, source, version
+BUNDLED_FILE = "ffmpeg-bundled.json"   # the FFmpeg DISO came with: its version, the mirror's build then
 _HASH = re.compile(r"\b([0-9a-fA-F]{64})\b")
 _lock = threading.Lock()
 last_error = ""
@@ -97,6 +98,34 @@ def _write_info(data: dict) -> None:
 def is_managed(path) -> bool:
     """True if this ffmpeg is the one this app installed (not the user's own copy)."""
     return bool(path) and os.path.dirname(os.path.abspath(path)) == os.path.abspath(user_tools_dir())
+
+
+def is_bundled(path) -> bool:
+    """True if this ffmpeg came with DISO (inside the program or beside the installed DISO.exe)."""
+    if not path:
+        return False
+    here = os.path.normcase(os.path.dirname(os.path.abspath(path)))
+    return any(here == os.path.normcase(os.path.abspath(d)) for d in bundled_ffmpeg_dirs())
+
+
+def bundled_build(version: str) -> str:
+    """The mirror's build (its SHA-256) that the bundled FFmpeg of this version was first compared
+    with; "" before the first check, or after DISO came with another version."""
+    try:
+        with open(os.path.join(user_tools_dir(), BUNDLED_FILE), encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("sha256", "") if data.get("version") == version else ""
+    except Exception:
+        return ""
+
+
+def remember_bundled(version: str, sha256: str) -> None:
+    """The bundled FFmpeg is as new as the mirror's build of the day it is first checked (it is put
+    into DISO when DISO is built); a later build on the mirror is an update."""
+    path = os.path.join(user_tools_dir(), BUNDLED_FILE)
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump({"version": version, "sha256": sha256}, f)
+    os.replace(path + ".tmp", path)
 
 
 def ffmpeg_version(path) -> str:

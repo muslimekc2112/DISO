@@ -87,7 +87,13 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
   } else if (scenario === "media") {
     answer = await click({ menuItemId: "hi-media", srcUrl: "http://shop.example/v.mp4" }, { url: page });
   } else if (scenario === "page") {
-    answer = await click({ menuItemId: "hi-page", pageUrl: "http://video.example/watch?v=1" }, { url: "http://video.example/watch?v=1" });
+    answer = await click({ menuItemId: "hi-page-video", pageUrl: "http://video.example/watch?v=1" }, { url: "http://video.example/watch?v=1" });
+  } else if (scenario === "page-audio") {
+    answer = await click({ menuItemId: "hi-page-audio", pageUrl: "http://video.example/watch?v=1" }, { url: "http://video.example/watch?v=1" });
+  } else if (scenario === "page-link") {
+    answer = await click({ menuItemId: "hi-link", linkUrl: "http://video.example/watch?v=2" }, { url: page });
+  } else if (scenario === "mixed-selection") {
+    answer = await click({ menuItemId: "hi-selection", selectionText: "http://a.com/setup.exe http://a.com/watch?v=1 http://a.com/b.rar" }, { url: page });
   } else if (scenario === "selection") {
     answer = await click({ menuItemId: "hi-selection", selectionText: "a http://a.com/1 b (https://b.org/2). http://a.com/1" }, { url: page });
   } else if (scenario === "empty-selection") {

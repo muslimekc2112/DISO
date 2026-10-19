@@ -166,7 +166,8 @@ PAGE = "http://shop.example/page"
 @needs_node
 def test_the_context_menu_entries_are_created(app):
     api, b = app
-    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page", "hi-all-links", "hi-selection"]
+    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page-video", "hi-page-audio",
+                                                    "hi-all-links", "hi-selection"]
 
 
 @needs_node
@@ -174,7 +175,7 @@ def test_a_link_goes_to_the_app_with_the_browsers_session(app):
     api, b = app
     out = run(b.port, "link")
     assert out["answer"]["ok"] is True and out["answer"]["text"] == "1 bağlantı eklendi"
-    assert api.added == [{"urls": [SESSION], "kind": None,
+    assert api.added == [{"urls": [SESSION], "kind": "file",                   # report.zip: a file, as it is
                           "extra": {"referer": PAGE, "user_agent": "TestBrowser/1.0", "cookie": "sid=1; theme=dark"}}]
     assert out["log"]["cookiesAsked"] == [SESSION] and out["log"]["badge"] == ["✓"]
 
@@ -188,18 +189,36 @@ def test_a_media_element_is_sent_with_the_page_as_referer(app):
 
 
 @needs_node
-def test_the_page_entry_asks_for_a_video_download_of_the_page(app):
+def test_the_page_entries_ask_for_the_video_as_mp4_or_mp3(app):
     api, b = app
     run(b.port, "page")
     assert api.added[0]["urls"] == ["http://video.example/watch?v=1"] and api.added[0]["kind"] == "video"
     assert api.added[0]["extra"]["referer"] == ""
+    run(b.port, "page-audio")
+    assert api.added[1]["urls"] == ["http://video.example/watch?v=1"] and api.added[1]["kind"] == "audio"
+
+
+@needs_node
+def test_a_page_link_is_left_for_diso_to_look_at(app):
+    api, b = app
+    run(b.port, "page-link")
+    assert api.added[0]["urls"] == ["http://video.example/watch?v=2"] and api.added[0]["kind"] == "auto"
+
+
+@needs_node
+def test_mixed_links_go_with_what_each_one_is(app):
+    api, b = app
+    out = run(b.port, "mixed-selection")
+    assert out["answer"]["text"] == "3 bağlantı eklendi"
+    assert [(a["kind"], a["urls"]) for a in api.added] == [
+        ("file", ["http://a.com/setup.exe", "http://a.com/b.rar"]), ("auto", ["http://a.com/watch?v=1"])]
 
 
 @needs_node
 def test_selected_text_sends_every_link_once_and_no_cookies(app):
     api, b = app
     run(b.port, "selection")
-    assert api.added[0]["urls"] == ["http://a.com/1", "https://b.org/2"]
+    assert api.added[0]["urls"] == ["http://a.com/1", "https://b.org/2"] and api.added[0]["kind"] == "auto"
     assert api.added[0]["extra"]["cookie"] == "" and api.added[0]["extra"]["referer"] == PAGE
 
 
@@ -215,7 +234,7 @@ def test_taking_over_a_browser_download(app):
     api, b = app
     out = run(b.port, "intercept")
     assert out["log"]["cancelled"] == [7] and out["log"]["erased"] == [7]      # the browser lets go of it
-    assert api.added[0]["urls"] == [SESSION]
+    assert api.added[0]["urls"] == [SESSION] and api.added[0]["kind"] == "file"     # never turned into MP4 / MP3
     assert api.added[0]["extra"] == {"referer": PAGE, "user_agent": "TestBrowser/1.0", "cookie": "sid=1; theme=dark"}
     assert out["log"]["badge"] == ["✓"] and out["log"]["downloaded"] == []
 
@@ -356,6 +375,7 @@ def test_all_file_links_of_a_page_go_to_diso_once_each(app):
     out = run(b.port, "all-links")
     assert out["log"]["scripted"] == [5]
     assert api.added[0]["urls"] == ["http://shop.example/a.zip", "http://shop.example/b.mp4"]
+    assert api.added[0]["kind"] == "file"
 
 
 @needs_node

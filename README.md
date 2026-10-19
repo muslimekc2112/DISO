@@ -2,19 +2,19 @@
 
 **English | [Türkçe](README.tr.md)**
 
-A download manager for files, videos and music, with a music player built in. For Windows. **Version 0.11.2 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
+A download manager for files, videos and music, with a music player built in. For Windows. **Version 0.11.3 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
 
 Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
 ## Installing (on a PC without Python)
-Double-click `DISO-Setup-0.11.2-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
+Double-click `DISO-Setup-0.11.3-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
 - **It asks for administrator rights:** DISO is installed for everyone on the PC, in `C:\Program Files\ISO\DISO`. Windows asks "allow?"; say **Yes**.
 - It adds Start menu and desktop shortcuts and appears in the "Apps" list. If you like, it starts together with Windows.
 - It asks **which browsers should get the extension** (right-click a link → "Download with DISO", like IDM) and helps you add it; see [Browser extension](#-browser-extension).
 - **Updating:** just run the new setup file. It closes a running DISO and installs into the same folder; your settings and playlists stay.
 - **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
 - **Uninstalling:** Settings → Apps → DISO → Uninstall (or "Uninstall DISO" in the Start menu). Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
-- **Silent install:** `DISO-Setup-0.11.2-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- **Silent install:** `DISO-Setup-0.11.3-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
 - Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
 ## 🌐 Language
@@ -65,7 +65,7 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 - Supported formats are the ones Windows can play: mp3, wav, wma, m4a, aac. For files Windows cannot open directly (MP3s with large cover art, videos with Opus sound) a playable copy is made in the background the first time they play.
 
 #### 🔍 Find songs
-Type a song or artist name (or a YouTube link) in the **🔍 Find songs** tab at the top of the music player and press Enter. The results show title, channel and length.
+Type a song name (or a YouTube link) in the **🔍 Find songs** tab at the top of the music player, optionally an artist in the **Artist / channel** box next to it (it may stay empty; an artist alone is enough too), and press Enter. The search is done on YouTube Music, without shorts; the songs that match what you typed come first, the most listened to first. The results show title, artist, plays and length.
 - **Double-click** the one you like, or select it and press **⬇ Download (MP3)**. The song downloads in the background as an MP3 (with cover art) while you keep listening. Only its percentage is shown.
 - When it's done DISO asks **which list it should go into**: an existing list, a new list or "Not now". Songs that finish together get one question; the list you chose last is offered first next time.
 - Songs you find and download are kept in `%LOCALAPPDATA%\DISO\Müzik` (the **📂 Downloaded** button opens it). They also show in the download list, where you can pause and resume them.

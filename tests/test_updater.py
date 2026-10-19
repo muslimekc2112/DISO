@@ -401,6 +401,40 @@ def test_the_users_own_ffmpeg_is_never_touched(monkeypatch, tmp_path, local_ffmp
     assert own.read_bytes() == b"mine"
 
 
+def test_the_ffmpeg_diso_came_with_is_its_own_and_is_updated_when_the_mirror_has_a_newer_build(
+        monkeypatch, tmp_path, local_ffmpeg):
+    local_ffmpeg()
+    bundled = tmp_path / "program" / "ffmpeg"
+    bundled.mkdir(parents=True)
+    (bundled / "ffmpeg.exe").write_bytes(b"came with DISO")
+    monkeypatch.setattr(ff, "bundled_ffmpeg_dirs", lambda: [str(bundled)])
+    monkeypatch.setattr(ff, "ffmpeg_version", lambda path: "2026-09-24-git" if "program" in str(path) else "new")
+    on_path = {"ffmpeg": str(bundled / "ffmpeg.exe")}
+    monkeypatch.setattr(updater, "find_ffmpeg", lambda: on_path["ffmpeg"])
+    u = updater.Updater()
+    u.run(install=True)                                   # first look: as new as the mirror's build
+    comp = u.components["ffmpeg"]
+    assert comp.status == "current" and comp.installed == "2026-09-24-git" and comp.message == ""
+    u.run(install=True)
+    assert comp.status == "current"
+    new = local_ffmpeg()                                  # later the mirror has a newer build
+    u.run(install=False)
+    assert comp.status == "available" and "Yeni FFmpeg" in comp.message
+    u.run(install=True)
+    assert comp.status == "done" and ff.read_info()["sha256"] == new
+    assert os.path.isfile(os.path.join(user_tools_dir(), "ffmpeg.exe"))
+    assert (bundled / "ffmpeg.exe").read_bytes() == b"came with DISO"      # the program's files are not touched
+    on_path["ffmpeg"] = os.path.join(user_tools_dir(), "ffmpeg.exe")    # the updated one is found first now
+    u.run(install=True)
+    assert comp.status == "current"
+
+
+def test_the_updated_ffmpeg_comes_before_the_bundled_one_on_path():
+    from app import utils
+    dirs = utils.tool_dirs()
+    assert dirs[0] == utils.user_tools_dir() and utils.bundled_ffmpeg_dirs()[0] in dirs[1:]
+
+
 def test_ffmpeg_installed_by_the_app_is_current_when_the_mirror_has_nothing_newer(monkeypatch, server, local_ffmpeg):
     sha = local_ffmpeg()
     ff.ensure_ffmpeg(force=True)

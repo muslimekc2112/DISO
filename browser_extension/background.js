@@ -78,9 +78,26 @@ async function flash(text, ok) {
   } catch (e) { /* no toolbar button in this browser */ }
 }
 
+// Links with what each one is (HI.linkKind): files go as "file", pages as "auto", one request per kind.
+async function sendLinks(urls, extra) {
+  const groups = new Map();
+  urls.forEach((u) => {
+    const kind = HI.linkKind(u);
+    groups.set(kind, (groups.get(kind) || []).concat([u]));
+  });
+  const total = { added: 0, duplicates: 0 };
+  for (const [kind, group] of groups) {
+    const r = await sendToApp(group, Object.assign({}, extra, { kind }));
+    total.added += r.added || 0;
+    total.duplicates += r.duplicates || 0;
+  }
+  return total;
+}
+
 async function sendAndShow(urls, extra) {
   try {
-    const result = await sendToApp(urls, extra);
+    // a kind given by the user (MP4 / MP3 of a page) is kept; otherwise each link says what it is
+    const result = extra && extra.kind ? await sendToApp(urls, extra) : await sendLinks(urls, extra || {});
     await flash(result.added ? "✓" : "=", true);
     return { ok: true, result, text: HI.describeResult(result) };
   } catch (e) {
@@ -111,7 +128,8 @@ function createMenus() {
   api.contextMenus.removeAll(() => {
     api.contextMenus.create({ id: "hi-link", title: HI.t("menuLink"), contexts: ["link"] });
     api.contextMenus.create({ id: "hi-media", title: HI.t("menuLink"), contexts: ["video", "audio", "image"] });
-    api.contextMenus.create({ id: "hi-page", title: HI.t("menuPage"), contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-page-video", title: HI.t("menuPageVideo"), contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-page-audio", title: HI.t("menuPageAudio"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-all-links", title: HI.t("menuAllLinks"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-selection", title: HI.t("menuSelection"), contexts: ["selection"] });
   });
@@ -122,7 +140,8 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   const referer = (tab && tab.url) || info.pageUrl || "";
   if (info.menuItemId === "hi-link") return sendAndShow([info.linkUrl], { referer });
   if (info.menuItemId === "hi-media") return sendAndShow([info.srcUrl], { referer });
-  if (info.menuItemId === "hi-page") return sendAndShow([info.pageUrl || referer], { referer: "", kind: "video" });
+  if (info.menuItemId === "hi-page-video") return sendAndShow([info.pageUrl || referer], { referer: "", kind: "video" });
+  if (info.menuItemId === "hi-page-audio") return sendAndShow([info.pageUrl || referer], { referer: "", kind: "audio" });
   if (info.menuItemId === "hi-all-links") {
     const urls = tab ? await fileLinksOf(tab) : [];
     if (!urls.length) { await flash("0", false); return { ok: false, text: HI.t("noFileLinks") }; }
@@ -154,7 +173,8 @@ api.downloads.onCreated.addListener(async (item) => {
   try {
     await api.downloads.cancel(item.id);
     await api.downloads.erase({ id: item.id });
-    const result = await sendToApp([url], { referer: item.referrer || "" });
+    // the browser was downloading it: it is a file, never something to turn into MP4 / MP3
+    const result = await sendToApp([url], { referer: item.referrer || "", kind: "file" });
     await flash(result.added ? "✓" : "=", true);
   } catch (e) {                                    // could not hand it over: give it back to the browser
     bypass.add(url);

@@ -20,7 +20,7 @@
   // Every text the extension shows, in Turkish and English; "{0}", "{1}" are the changing parts.
   const TEXTS = {
     tr: {
-      checking: "Kontrol ediliyor…", sendTab: "⬇ Bu sekmeyi indir", sendTabAudio: "🎵 Bu sekmeyi MP3 olarak indir",
+      checking: "Kontrol ediliyor…", sendTabVideo: "🎬 MP4 olarak indir (video)", sendTabAudio: "🎵 MP3 olarak indir (ses)",
       catchDownloads: "Tarayıcı indirmelerini yakala", settings: "⚙ Ayarlar",
       appRuns: "DISO çalışıyor (v{0})", appClosed: "DISO kapalı — bir şey indirince kendisi açılır", noAnswer: "Cevap yok",
       openApp: "▶ DISO'yu aç", opening: "DISO açılıyor…", openFailed: "DISO açılamadı. DISO'yu bir kez kendin aç; sonra eklenti onu kapalıyken de açabilir.",
@@ -40,11 +40,12 @@
       bridgeOff: "Uygulamada tarayıcı eklentisi kapalı", refused: "Uygulama reddetti: {0}",
       addedAndDuplicates: "{0} eklendi, {1} zaten listedeydi", added: "{0} bağlantı eklendi",
       alreadyListed: "Zaten listede", notAdded: "Eklenmedi",
-      menuLink: "DISO ile indir", menuPage: "Bu sayfayı DISO ile indir (video)",
+      menuLink: "DISO ile indir", menuPageVideo: "🎬 Bu videoyu DISO ile MP4 indir",
+      menuPageAudio: "🎵 Bu videoyu DISO ile MP3 indir",
       menuSelection: "Seçilen bağlantıları DISO ile indir",
     },
     en: {
-      checking: "Checking…", sendTab: "⬇ Download this tab", sendTabAudio: "🎵 Download this tab as MP3",
+      checking: "Checking…", sendTabVideo: "🎬 Download as MP4 (video)", sendTabAudio: "🎵 Download as MP3 (sound)",
       catchDownloads: "Catch browser downloads", settings: "⚙ Settings",
       appRuns: "DISO is running (v{0})", appClosed: "DISO is closed — it opens by itself when you download", noAnswer: "No answer",
       openApp: "▶ Open DISO", opening: "Opening DISO…", openFailed: "Could not open DISO. Open DISO yourself once; after that the extension can open it while it is closed.",
@@ -64,7 +65,8 @@
       bridgeOff: "The browser extension is switched off in the app", refused: "The app refused: {0}",
       addedAndDuplicates: "{0} added, {1} were already in the list", added: "{0} links added",
       alreadyListed: "Already in the list", notAdded: "Not added",
-      menuLink: "Download with DISO", menuPage: "Download this page with DISO (video)",
+      menuLink: "Download with DISO", menuPageVideo: "🎬 Download this video as MP4 with DISO",
+      menuPageAudio: "🎵 Download this video as MP3 with DISO",
       menuSelection: "Download the selected links with DISO",
     },
   };
@@ -175,6 +177,24 @@
     return Number(opts.minSizeMB) > 0 && size >= Number(opts.minSizeMB) * 1024 * 1024;
   }
 
+  // What DISO should make of a link: "file" when its name says it is a file (report.zip, setup.exe,
+  // clip.mp4: downloaded as it is, whatever MP3 / MP4 is chosen in the app), "auto" for a page or a
+  // stream (DISO looks at it and downloads the video, or the file it turns out to be).
+  const PAGE_EXTENSIONS = ["html", "htm", "xhtml", "shtml", "php", "asp", "aspx", "jsp", "cgi", "pl", "m3u8", "mpd"];
+  function linkKind(url) {
+    let path = "";
+    try {
+      path = new URL(url).pathname;
+    } catch (e) {
+      return "auto";
+    }
+    try {
+      path = decodeURIComponent(path);
+    } catch (e) { /* a broken %-escape: read the name as it is */ }
+    const ext = fileExtension(path);
+    return /^[a-z0-9]{1,5}$/.test(ext) && !PAGE_EXTENSIONS.includes(ext) ? "file" : "auto";
+  }
+
   // the body of POST /add
   function buildPayload({ urls, referer, userAgent, cookies, kind }) {
     const p = { urls: (urls || []).filter(isHttpUrl) };
@@ -196,5 +216,6 @@
   const HOST = "com.iso.diso";       // the native host (app/native_host.py) that starts DISO when it is closed
 
   return { APP_ID, HOST, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
-           extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult, pageFileLinks, sizeText, statusText };
+           extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult, pageFileLinks, sizeText, statusText,
+           linkKind };
 });

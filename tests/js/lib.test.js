@@ -128,3 +128,15 @@ test("the defaults are sane", () => {
   assert.equal(HI.DEFAULTS.intercept, false);            // taking over downloads is opt-in
   assert.ok(HI.parseExtensions(HI.DEFAULTS.extensions).includes("zip"));
 });
+
+test("linkKind: a file's link is a file, a page or a stream is left for DISO to look at", () => {
+  for (const u of ["https://a.com/report.zip", "https://a.com/dl/Setup.EXE?x=1", "https://a.com/clip.mp4#t=3",
+                   "https://a.com/g%C3%BCzel%20dosya.7z", "https://a.com/a.tar.gz", "https://a.com/song.mp3"]) {
+    assert.equal(HI.linkKind(u), "file", u);
+  }
+  for (const u of ["https://www.youtube.com/watch?v=1", "https://a.com", "https://a.com/", "https://a.com/page.html",
+                   "https://a.com/index.php?file=a.zip", "https://a.com/live.m3u8", "https://a.com/v1.2/download",
+                   "https://a.com/download", "not a link", "https://a.com/%E0%A4%A.zip?"]) {
+    assert.equal(HI.linkKind(u), u.endsWith(".zip?") ? "file" : "auto", u);
+  }
+});

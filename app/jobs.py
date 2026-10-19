@@ -2,6 +2,7 @@
 The actual work for one list item:
 
   classify()   - "Auto" mode: decide whether a link is a plain file or a video page
+  keep_files_as_they_are() - MP4 / MP3 chosen for a plain file (a zip ...): download it as it is
   run_file()   - plain file (zip/rar/7z/exe/iso/mp4 ...) with the multi-connection engine
   run_media()  - video / MP3: yt-dlp finds the URLs, our engine downloads them fast,
                  ffmpeg merges / converts. Falls back to yt-dlp's downloader if needed.
@@ -12,6 +13,7 @@ from urllib.parse import urlsplit
 
 from . import video_engine as ve
 from .ffmpeg_setup import ensure_ffmpeg
+from .logs import log
 from .models import DOWNLOADING, PROCESSING, RESOLVING, Item
 from .segmented_downloader import (DownloadStopped, FastDownloader, TransientError, is_transient,
                                    probe)
@@ -75,6 +77,47 @@ def classify(item: Item):
     else:
         item.kind = "file"
         item._probe = pr
+
+
+# a direct link with one of these is something yt-dlp / FFmpeg can turn into MP4 / MP3
+MEDIA_EXTENSIONS = (".mp4", ".m4v", ".mkv", ".webm", ".avi", ".mov", ".flv", ".wmv", ".ts", ".3gp", ".mpg", ".mpeg",
+                    ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".oga", ".opus", ".wma", ".m3u8", ".mpd")
+
+
+def is_plain_file_link(url: str) -> bool:
+    """A link whose name says it is an archive, a program, a document or a picture (never a video page)."""
+    from urllib.parse import unquote
+
+    from .utils import category_for
+    if is_video_site(url):
+        return False
+    name = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
+    return category_for(name) in ("Arşiv", "Program", "Belge", "Resim")
+
+
+def keep_files_as_they_are(item: Item):
+    """MP4 / MP3 was chosen, but the link is a plain file (a zip, an exe, a pdf ...): it is downloaded
+    as it is, not handed to yt-dlp to be "converted". Video sites, pages and sound / video files keep
+    the choice; when the server cannot be asked the choice is kept too."""
+    if is_video_site(item.url):
+        return
+    path = item.url.lower().split("?")[0].split("#")[0]
+    if path.endswith(MEDIA_EXTENSIONS):
+        return
+    item.message = "Bu linkin ne olduğuna bakıyorum…"
+    try:
+        pr = probe(item.url, item.request_headers(), timeout=12)
+    except Exception:  # noqa: BLE001 - a page that blocks plain requests: let yt-dlp try it
+        item.message = ""
+        return
+    item.message = ""
+    ct = (pr.content_type or "").lower()
+    if (ct.startswith(("text/html", "application/xhtml", "application/json", "text/xml", "video/", "audio/"))
+            or "mpegurl" in ct or "dash+xml" in ct or (pr.filename or "").lower().endswith(MEDIA_EXTENSIONS)):
+        return
+    log.info("%s is a plain file (%s), downloading it as it is instead of as %s", item.url, ct, item.kind)
+    item.kind = "file"
+    item._probe = pr
 
 
 # ------------------------------------------------------------------------------- file
