@@ -348,7 +348,8 @@ PLAIN = {
     "imzasız eklentileri kalıcı kurmadığı için Firefox kapanınca eklenti de kalkar.":
         "Firefox: on the about:debugging page press “Load Temporary Add-on” and choose manifest.json in the folder. "
         "Firefox does not keep unsigned add-ons, so the extension goes away when Firefox closes.",
-    "🧩 Tarayıcıya ekle": "🧩 Add to browser", "Tarayıcı eklentisi": "Browser extension",
+    "🧩 Tarayıcıya ekle": "🧩 Add to browser",
+    "Firefox için eklenti klasörünü hazırlayamadım.": "Could not prepare the extension folder for Firefox.", "Tarayıcı eklentisi": "Browser extension",
     "Chrome, Edge, Brave, Opera, Firefox: linke sağ tık → DISO ile indir. DISO kapalıysa kendisi açılır":
         "Chrome, Edge, Brave, Opera, Firefox: right-click a link → Download with DISO. When DISO is closed, it opens by itself",
     "Tarayıcı eklentisi için hazırlanıyor…": "Getting ready for the browser extension…",

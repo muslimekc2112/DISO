@@ -2,6 +2,10 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 0.11.2 beta
+- **Düzeltildi:** Chrome eklentiler sayfasında "'background.scripts' requires manifest version of 2 or lower" uyarısı gösteriyordu (zararsızdı ama hata gibi görünüyordu). Artık Chrome ve Firefox'un ayrı manifest dosyaları var: `manifest.json` yalnızca Chrome'un anladıklarını içerir, `manifest.firefox.json` Firefox'unkidir. Rehberdeki Firefox düğmesi Firefox kopyasını kendisi hazırlar; sürümde ayrıca bir Firefox zip'i de var.
+- **Düzeltildi:** taşınabilir `DISO.exe` ile eklentinin klasörü (`%LOCALAPPDATA%\DISO\browser_extension`) yalnızca rehber açılınca güncelleniyordu; artık her açılışta. Böylece yeni DISO.exe eklentiyi de günceller (tarayıcıda eklentinin yenile düğmesine bas ya da tarayıcıyı yeniden aç).
+
 ## 0.11.1 beta
 - **DISO tarayıcı eklentisini kendisi önerir:** açıldıktan birkaç saniye sonra, eklenti henüz bir tarayıcıda değilse "DISO'yu tarayıcına ekleyelim mi?" diye sorar. **Eklentiyi ekle** adım adım rehberi açar, **Sonra hatırlat** üç gün sonra tekrar sorar, **Bir daha sorma** hiç sormaz. Eklenti DISO'ya bir kez bağlanınca soru tamamen kalkar. DISO simge olarak başlarsa, tarayıcıdan link alma kapalıysa ya da bilgisayarda desteklenen tarayıcı yoksa sorulmaz.
 - Kurulumda, rehberde ve eklentinin ayarlarında eklentiyle ilgili daha açık metinler.

@@ -36,8 +36,11 @@ Installing — Chrome / Edge / Brave / Opera / Vivaldi
   DISO.exe in %LOCALAPPDATA%\DISO\browser_extension.
 
 Installing — Firefox
+  Firefox needs its own manifest (manifest.firefox.json; manifest.json is Chrome's). Easiest: use the
+  guide in DISO (Settings -> "Add to browser" -> Firefox): it makes a Firefox copy of this folder. Or
+  take DISO-firefox-extension-<version>.zip from the GitHub release.
   1. Type  about:debugging#/runtime/this-firefox  in the address bar.
-  2. "Load Temporary Add-on" -> choose the manifest.json file in this folder.
+  2. "Load Temporary Add-on" -> choose manifest.json in the Firefox copy (or the Firefox zip itself).
      (Firefox removes temporary add-ons when it closes; a lasting install needs a signed add-on.)
 
 Opening DISO from the browser
@@ -89,8 +92,11 @@ Kurulum — Chrome / Edge / Brave / Opera / Vivaldi
   DISO.exe ise %LOCALAPPDATA%\DISO\browser_extension içinde.
 
 Kurulum — Firefox
+  Firefox kendi manifest dosyasını ister (manifest.firefox.json; manifest.json Chrome'unki). En kolayı:
+  DISO'daki rehberi kullan (Ayarlar -> "Tarayıcıya ekle" -> Firefox): bu klasörün Firefox kopyasını
+  hazırlar. Ya da GitHub sürümündeki DISO-firefox-extension-<sürüm>.zip dosyasını al.
   1. Adres çubuğuna  about:debugging#/runtime/this-firefox  yaz.
-  2. "Geçici eklenti yükle" -> bu klasördeki manifest.json dosyasını seç.
+  2. "Geçici eklenti yükle" -> Firefox kopyasındaki manifest.json'u (ya da Firefox zip'inin kendisini) seç.
      (Firefox geçici eklentileri kapanınca siler; kalıcı kurulum için eklenti imzalanmalıdır.)
 
 DISO'yu tarayıcıdan açmak

@@ -84,8 +84,21 @@ def extension_folder(data_dir=None, frozen=None, executable=None, bundled=None) 
         return bundled
     target = os.path.join(data_dir or app_data_dir(), "browser_extension")
     if _manifest_text(target) != _manifest_text(bundled):          # missing, or an older version
-        shutil.rmtree(target, ignore_errors=True)
-        shutil.copytree(bundled, target)
+        # written over in place (the browser may be reading it right now); the manifest last, so a copy
+        # cut short is tried again at the next start
+        shutil.copytree(bundled, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns("manifest.json"))
+        shutil.copyfile(os.path.join(bundled, "manifest.json"), os.path.join(target, "manifest.json"))
+    return target
+
+
+def firefox_folder(folder, data_dir=None) -> str:
+    """Firefox needs a manifest of its own (background scripts instead of Chrome's service worker, its
+    add-on id): a copy of the extension with manifest.firefox.json as its manifest.json, made fresh."""
+    from .utils import app_data_dir
+    target = os.path.join(data_dir or app_data_dir(), "browser_extension_firefox")
+    shutil.rmtree(target, ignore_errors=True)
+    shutil.copytree(folder, target, ignore=shutil.ignore_patterns("manifest.json", "manifest.firefox.json", "sw.js"))
+    shutil.copyfile(os.path.join(folder, "manifest.firefox.json"), os.path.join(target, "manifest.json"))
     return target
 
 
@@ -215,9 +228,16 @@ class ExtensionGuide(ctk.CTkToplevel):
         self.after(150, self.lift)
 
     def add_to(self, browser, program):
+        folder = self.folder
+        if browser == "firefox":
+            try:
+                folder = firefox_folder(self.folder)
+            except OSError:
+                self.status.configure(text="Firefox için eklenti klasörünü hazırlayamadım.")
+                return
         self.clipboard_clear()
-        self.clipboard_append(self.folder)
-        if open_for(browser, program, self.folder, start=self.start):
+        self.clipboard_append(folder)
+        if open_for(browser, program, folder, start=self.start):
             self.status.configure(text="Eklentiler sayfası açıldı, klasörün yolu panoya kopyalandı. Şimdi 2. ve 3. adım.")
         else:
             self.status.configure(text="Tarayıcıyı açamadım; klasörün yolu panoya kopyalandı, eklentiler sayfasını elle aç.")

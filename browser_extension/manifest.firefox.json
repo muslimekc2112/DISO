@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "DISO",
+  "version": "0.11.2",
+  "version_name": "0.11.2 beta",
+  "description": "__MSG_description__",
+  "default_locale": "en",
+  "permissions": ["contextMenus", "downloads", "storage", "cookies", "activeTab", "scripting", "nativeMessaging"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*", "<all_urls>"],
+  "background": {
+    "scripts": ["lib.js", "background.js"]
+  },
+  "action": {
+    "default_title": "DISO",
+    "default_popup": "popup.html",
+    "default_icon": {"16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png"}
+  },
+  "options_ui": {"page": "options.html", "open_in_tab": true},
+  "icons": {"16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png"},
+  "browser_specific_settings": {
+    "gecko": {"id": "diso@iso.local", "strict_min_version": "121.0"}
+  }
+}

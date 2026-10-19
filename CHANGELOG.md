@@ -2,6 +2,10 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 0.11.2 beta
+- **Fixed:** Chrome showed the warning "'background.scripts' requires manifest version of 2 or lower" on the extensions page (harmless, but it looked like an error). Chrome and Firefox now have separate manifests: `manifest.json` holds only what Chrome understands, `manifest.firefox.json` is Firefox's. The guide's Firefox button prepares a Firefox copy by itself; the release also has a separate Firefox zip.
+- **Fixed:** with the portable `DISO.exe` the extension's folder (`%LOCALAPPDATA%\DISO\browser_extension`) was only brought up to date when the guide was opened; now at every start, so a newer DISO.exe also updates the extension (press the extension's reload button in the browser, or restart the browser).
+
 ## 0.11.1 beta
 - **DISO offers the browser extension itself:** a few seconds after it starts, if the extension is not in a browser yet, DISO asks "Shall we add DISO to your browser?" — **Add the extension** opens the step-by-step guide, **Remind me later** asks again in three days, **Don't ask again** never asks. Once the extension has talked to DISO, the question goes away for good. Not asked when DISO starts in the tray, when links from the browser are switched off, or on a PC without a supported browser.
 - Clearer wording about the extension in setup, the guide and the extension's settings.

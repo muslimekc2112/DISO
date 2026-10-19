@@ -2,19 +2,19 @@
 
 **[English](README.md) | Türkçe**
 
-Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows için. **Sürüm 0.11.1 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
+Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows için. **Sürüm 0.11.2 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
 
 Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
 
 ## Kurulum (Python'u olmayan bir bilgisayar için)
-`DISO-Setup-0.11.1-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
+`DISO-Setup-0.11.2-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
 - **Yönetici izni ister:** DISO bu bilgisayardaki herkes için `C:\Program Files\ISO\DISO` klasörüne kurulur. Windows "izin ver?" diye sorar, **Evet** de.
 - Başlat menüsüne ve masaüstüne kısayol koyar, "Uygulamalar" listesine yazılır. İstersen Windows ile birlikte başlar.
 - **Hangi tarayıcılara eklenti kurulacağını sorar** (linke sağ tık → "DISO ile indir", IDM gibi) ve eklemene yardım eder; bkz. [Tarayıcı eklentisi](#-tarayıcı-eklentisi).
 - **Güncelleme:** yeni kurulum dosyasını çalıştırman yeter. Çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
 - **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
 - **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır (ya da Başlat menüsündeki "DISO'yu Kaldır"). Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Setup-0.11.1-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
+- **Sessiz kurulum:** `DISO-Setup-0.11.2-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
 - Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
 
 ## 🌐 Dil
@@ -95,7 +95,7 @@ DISO'nun IDM'deki gibi bir tarayıcı eklentisi var: **Chrome, Edge, Brave, Oper
 
 **Tarayıcına eklemek:** eklenti henüz bir tarayıcıda değilse DISO açıldıktan sonra bir kez sorar: "DISO'yu tarayıcına ekleyelim mi?" (**Eklentiyi ekle** / **Sonra hatırlat**: üç gün sonra / **Bir daha sorma**); eklenti DISO'ya bir kez bağlanınca bir daha sormaz. Ayrıca kurulum **hangi tarayıcılara** eklenti kurulacağını sorar (bilgisayarındakiler işaretli gelir) ve sonunda kısa bir rehber açar; aynı rehber sonra da DISO'da: Ayarlar → **🧩 Tarayıcıya ekle**. Tarayıcılar kendi mağazaları dışından eklentiyi kendiliğinden kurmadığı için üç tık sürer: rehber tarayıcının eklentiler sayfasını ve eklenti klasörünü açar, klasörün yolunu panoya kopyalar; **Geliştirici modu**nu aç, **Paketlenmemiş öğe yükle**'ye bas, yolu yapıştır (`Ctrl+V`) ve **Klasör seç**'e bas (ya da klasörü sayfaya sürükle). Klasör `C:\Program Files\ISO\DISO\browser_extension` (taşınabilir `DISO.exe` onu `%LOCALAPPDATA%\DISO\browser_extension` içinde tutar). DISO güncellenince eklenti de aynı klasörde güncellenir, tarayıcı yeniden açılınca yenisini kullanır.
 
-**Firefox:** `about:debugging` → "Bu Firefox" → **Geçici eklenti yükle** → klasördeki `manifest.json`. Firefox yalnızca imzalı eklentileri kalıcı tuttuğu için Firefox kapanınca eklenti de kalkar.
+**Firefox:** Firefox kendi manifest dosyasını istediği için rehberi kullan (eklentinin Firefox kopyasını hazırlar) ya da sürümdeki `DISO-firefox-extension-<sürüm>.zip` dosyasını al; sonra `about:debugging` → "Bu Firefox" → **Geçici eklenti yükle** → onun `manifest.json`'u (ya da zip'in kendisi). Firefox yalnızca imzalı eklentileri kalıcı tuttuğu için Firefox kapanınca eklenti de kalkar.
 
 ## Testler (geliştirenler için)
 `run_tests.bat` (ya da `python -m pytest`) tüm testleri çalıştırır. İnternet gerekmez: testler yerel bir sunucuyla Range desteği olmayan, bağlantısı kopan, bağlantı sınırı koyan sunucuları, sahte bir proxy'yi ve sahte bir PyPI'yi taklit eder. Eklentinin mantığı `node` ile de sınanır. İngilizce arayüz ve İngilizce kurulum ayrı bir süreçte gerçekten açılıp ekranda Türkçe yazı kalmadığı denetlenir. Gerçek FFmpeg gerektiren testler `ffmpeg/` klasöründe (veya PATH'te) ffmpeg yoksa, pencere testleri ekran yoksa, eklenti testleri node yoksa atlanır. Kurulum paketi testleri (`-m installer`) paket derlenmişse gerçek `DISO-Setup` dosyasını geçici bir yerde çalıştırır, gerçek Başlat menüne ya da kayıt defterine dokunmaz.

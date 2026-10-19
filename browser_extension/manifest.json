@@ -1,16 +1,15 @@
 {
   "manifest_version": 3,
   "name": "DISO",
-  "version": "0.11.1",
-  "version_name": "0.11.1 beta",
+  "version": "0.11.2",
+  "version_name": "0.11.2 beta",
   "description": "__MSG_description__",
   "default_locale": "en",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs98prIPbzslehdvXGSrzvgI0xlYgwQo+fNOAgFvRfb0QUJhUgiKnfdpXXgUZr0TwtaDvV0v/a0PNJakbxsrz137LGOQIdR2Q4Iegw8Do4I/zxd59/f/lrfxkg3xh/X/Wu1NnJFnq6DKZl3wZnsUZP5JvG61CVl8jNldAaPhvKasaJ9rElJAi4ae5l4apfL3f/ykrqpsiRff9UPSUWETaUck22BkBNPN+WbWJAtPQUO85AuujXBCWDk19GZ48hHZFOVyAxKnuqwjar2ES/T/7WahYNp2Lkvzc1Txkizs196aYmuSUiHn+J3438EUytucrI6tp1X1BcWtraj8fVFEnFwIDAQAB",
   "permissions": ["contextMenus", "downloads", "storage", "cookies", "activeTab", "scripting", "nativeMessaging"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*", "<all_urls>"],
   "background": {
-    "service_worker": "sw.js",
-    "scripts": ["lib.js", "background.js"]
+    "service_worker": "sw.js"
   },
   "action": {
     "default_title": "DISO",
@@ -18,8 +17,5 @@
     "default_icon": {"16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png"}
   },
   "options_ui": {"page": "options.html", "open_in_tab": true},
-  "icons": {"16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png"},
-  "browser_specific_settings": {
-    "gecko": {"id": "diso@iso.local", "strict_min_version": "121.0"}
-  }
+  "icons": {"16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png"}
 }

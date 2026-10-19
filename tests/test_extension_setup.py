@@ -50,7 +50,31 @@ def test_a_portable_exe_copies_its_extension_somewhere_that_stays_and_keeps_it_c
     (bundled / "lib.js").write_text("two")
     es.extension_folder(data_dir=str(data), frozen=True, executable=str(tmp_path / "x" / "DISO.exe"), bundled=str(bundled))
     assert (data / "browser_extension" / "lib.js").read_text() == "two"
+    assert (data / "browser_extension" / "manifest.json").read_text() == '{"version": "2"}'
 
+
+def test_main_brings_a_portable_extension_up_to_date_at_every_start(monkeypatch):
+    import main
+    calls = []
+    monkeypatch.setattr(es, "extension_folder", lambda: calls.append("folder"))
+
+    class Host:
+        @staticmethod
+        def register_for_user():
+            calls.append("host")
+    main._register_host(Host)
+    assert calls == ["host", "folder"]
+
+
+def test_firefox_gets_a_copy_with_its_own_manifest(tmp_path):
+    import json
+    src = os.path.join(ROOT, "browser_extension")
+    got = es.firefox_folder(src, data_dir=str(tmp_path))
+    m = json.load(open(os.path.join(got, "manifest.json"), encoding="utf-8"))
+    assert m["background"] == {"scripts": ["lib.js", "background.js"]} and m["browser_specific_settings"]["gecko"]
+    assert not os.path.exists(os.path.join(got, "manifest.firefox.json")) and not os.path.exists(os.path.join(got, "sw.js"))
+    assert os.path.isfile(os.path.join(got, "_locales", "tr", "messages.json")) and os.path.isfile(os.path.join(got, "lib.js"))
+    es.firefox_folder(src, data_dir=str(tmp_path))                          # again: made fresh, no error
 
 def test_opening_a_browser_opens_its_extensions_page_and_the_folder():
     calls = []
@@ -61,18 +85,23 @@ def test_opening_a_browser_opens_its_extensions_page_and_the_folder():
 
 @pytest.mark.gui
 def test_the_guide_has_a_button_per_browser_and_copies_the_folder(app, tmp_path):
+    import shutil
     calls = []
+    ext = tmp_path / "ext"
+    shutil.copytree(os.path.join(ROOT, "browser_extension"), ext)
     guide = es.ExtensionGuide(app, browsers={"chrome": r"C:\c\chrome.exe", "firefox": r"C:\f\firefox.exe"},
-                              folder=str(tmp_path), start=lambda exe, args: calls.append((exe, args)))
+                              folder=str(ext), start=lambda exe, args: calls.append((exe, args)))
     guide.withdraw()
     try:
         assert set(guide.buttons) == {"chrome", "firefox"}
         assert guide.buttons["chrome"].cget("text") == "🧩 Chrome'a ekle"
         guide.buttons["chrome"].invoke()
-        assert calls[0] == (r"C:\c\chrome.exe", ["chrome://extensions/"]) and app.clipboard_get() == str(tmp_path)
+        assert calls[0] == (r"C:\c\chrome.exe", ["chrome://extensions/"]) and app.clipboard_get() == str(ext)
         assert "panoya kopyalandı" in guide.status.cget("text")
         texts = " ".join(str(w.cget("text")) for w in guide.winfo_children() if isinstance(w, es.ctk.CTkLabel))
         assert "Geliştirici modu" in texts and "about:debugging" in texts                   # Firefox has its own note
+        guide.buttons["firefox"].invoke()                                  # Firefox opens a copy with its manifest
+        assert calls[-2][0] == r"C:\f\firefox.exe" and calls[-1][1][0].endswith("browser_extension_firefox")
     finally:
         guide.destroy()
 

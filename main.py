@@ -55,12 +55,18 @@ def main(argv) -> int:
 
 
 def _register_host(native_host):
-    """The browser extension may start this copy of DISO when it is closed (see app/native_host.py)."""
+    """The browser extension may start this copy of DISO when it is closed (see app/native_host.py), and a
+    portable DISO.exe brings the extension's folder up to date (the browser loads it from there)."""
+    from app.logs import log
     try:
         native_host.register_for_user()
     except Exception:  # noqa: BLE001 - only the "open DISO from the browser" part is missing then
-        from app.logs import log
         log.exception("could not register the browser's native host")
+    try:
+        from app import extension_setup
+        extension_setup.extension_folder()
+    except Exception:  # noqa: BLE001 - the browser keeps the extension it has
+        log.exception("could not bring the extension's folder up to date")
 
 
 if __name__ == "__main__":

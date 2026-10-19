@@ -18,9 +18,13 @@ needs_node = pytest.mark.skipif(NODE is None, reason="node is not installed")
 
 
 # ----------------------------------------------------------------------------- package
-def manifest():
-    with open(os.path.join(EXT, "manifest.json"), encoding="utf-8") as f:
+def manifest(name="manifest.json"):
+    with open(os.path.join(EXT, name), encoding="utf-8") as f:
         return json.load(f)
+
+
+def firefox_manifest():
+    return manifest("manifest.firefox.json")
 
 
 def test_the_manifest_is_a_valid_manifest_v3_for_chrome_and_firefox():
@@ -30,14 +34,32 @@ def test_the_manifest_is_a_valid_manifest_v3_for_chrome_and_firefox():
     assert set(m["permissions"]) == {"contextMenus", "downloads", "storage", "cookies", "activeTab", "scripting",
                                       "nativeMessaging"}
     assert "http://127.0.0.1/*" in m["host_permissions"]
-    assert m["background"]["service_worker"] == "sw.js"      # Chrome
-    assert m["background"]["scripts"] == ["lib.js", "background.js"]   # Firefox
-    assert m["browser_specific_settings"]["gecko"]["id"]
+    assert m["background"] == {"service_worker": "sw.js"}                       # Chrome
+    assert firefox_manifest()["background"] == {"scripts": ["lib.js", "background.js"]}   # Firefox
+    assert firefox_manifest()["browser_specific_settings"]["gecko"]["id"]
+
+
+# Chrome warns about every key of a manifest it does not know ("background.scripts requires manifest
+# version 2 or lower" ...): the Chrome manifest holds only what Chrome understands, Firefox has its own.
+CHROME_KEYS = {"manifest_version", "name", "version", "version_name", "description", "default_locale", "key",
+               "permissions", "host_permissions", "background", "action", "options_ui", "icons"}
+
+
+def test_chrome_gets_no_key_it_would_warn_about_and_firefox_gets_no_chrome_key():
+    assert set(manifest()) <= CHROME_KEYS
+    assert "key" not in firefox_manifest() and "service_worker" not in firefox_manifest()["background"]
+
+
+def test_the_two_manifests_say_the_same_about_everything_else():
+    chrome, firefox = manifest(), firefox_manifest()
+    for k in set(chrome) | set(firefox):
+        if k not in ("key", "background", "browser_specific_settings"):
+            assert chrome.get(k) == firefox.get(k), k
 
 
 def test_every_file_the_manifest_and_pages_mention_exists():
     m = manifest()
-    files = [m["background"]["service_worker"], *m["background"]["scripts"], m["action"]["default_popup"],
+    files = [m["background"]["service_worker"], *firefox_manifest()["background"]["scripts"], m["action"]["default_popup"],
              m["options_ui"]["page"], *m["icons"].values(), *m["action"]["default_icon"].values()]
     for name in files:
         assert os.path.isfile(os.path.join(EXT, name)), name
@@ -292,7 +314,7 @@ def test_the_extension_id_is_the_one_the_native_host_allows():
     from app import native_host
     digest = hashlib.sha256(base64.b64decode(manifest()["key"])).hexdigest()[:32]
     assert "".join(chr(ord("a") + int(c, 16)) for c in digest) == native_host.EXTENSION_ID
-    assert manifest()["browser_specific_settings"]["gecko"]["id"] == native_host.FIREFOX_ID
+    assert firefox_manifest()["browser_specific_settings"]["gecko"]["id"] == native_host.FIREFOX_ID
     lib = open(os.path.join(EXT, "lib.js"), encoding="utf-8").read()
     assert f'const HOST = "{native_host.HOST_NAME}"' in lib
 
