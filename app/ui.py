@@ -16,7 +16,7 @@ import customtkinter as ctk
 
 from . import __version__, about, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import backup, history, i18n, look, lyrics, music_search, playable, player, playlists
+from . import backup, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists
 from .extra_ui import HistoryWindow, ShortcutsWindow
 from . import video_engine as ve
 from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
@@ -518,6 +518,9 @@ class SettingsPanel(ctk.CTkToplevel):
         self._set_switch(self.bridge_switch, cfg.get("bridge_on"))
         self._add(card, "Tarayıcı eklentisinden link al", "Sadece bu bilgisayardaki eklentiyi dinlerim; dışarıdan kimse link gönderemez",
                   self.bridge_switch)
+        self.guide_button = ctk.CTkButton(card, text="🧩 Tarayıcıya ekle", width=150, command=app.open_extension_guide)
+        self._add(card, "Tarayıcı eklentisi", "Chrome, Edge, Brave, Opera, Firefox: linke sağ tık → DISO ile indir. "
+                                              "DISO kapalıysa kendisi açılır", self.guide_button)
 
         port_box = ctk.CTkFrame(card, fg_color="transparent")
         self.bridge_port_entry = ctk.CTkEntry(port_box, width=70, justify="center")
@@ -1769,11 +1772,29 @@ class App(ctk.CTk):
         open_file(path)
 
     def open_extension_folder(self):
-        folder = resource_path("browser_extension")
+        try:
+            folder = extension_setup.extension_folder()
+        except OSError:
+            folder = ""
         if os.path.isdir(folder):
             open_in_file_manager(folder)
         else:
             self.notice("Eklenti klasörünü bulamadım", 8)
+
+    def open_extension_guide(self):
+        """'Add DISO to your browser' (one window at a time)."""
+        win = getattr(self, "extension_guide", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.lift()
+                return
+        except TclError:
+            pass
+        try:
+            self.extension_guide = extension_setup.ExtensionGuide(self._dialog_parent())
+        except OSError as e:
+            log.exception("extension guide")
+            self.notice(f"Eklenti klasörünü hazırlayamadım: {e}", 10)
 
     # ------------------------------------------------------------------ notifications
     def _notify(self, kind, text):

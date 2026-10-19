@@ -390,6 +390,28 @@ def launch_unelevated(exe) -> bool:
         return False
 
 
+def start_as_user(exe, args=(), admin=None, popen=None, temp_dir=None) -> bool:
+    """Start a program WITH arguments as the normal user (the installer opens the browser's extensions
+    page). From an administrator process the shell starts only a bare file, so a shortcut that carries
+    the arguments is made and the shell starts that."""
+    import subprocess
+    import tempfile
+    import uuid
+    popen = popen or subprocess.Popen
+    admin = is_admin() if admin is None else admin
+    try:
+        if not admin:
+            popen([exe, *args], close_fds=True, creationflags=0x00000008 | 0x00000200,
+                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        link = os.path.join(temp_dir or tempfile.gettempdir(), f"DISO-ac-{uuid.uuid4().hex[:8]}.lnk")
+        create_shortcut(link, exe, arguments=subprocess.list2cmdline(list(args)), workdir=os.path.dirname(exe))
+        popen(["explorer.exe", link], close_fds=True, creationflags=0x00000008)
+        return True
+    except OSError:
+        return False
+
+
 def free_space(path) -> int:
     """Free bytes on the drive that holds `path` (the nearest folder that exists is asked)."""
     probe = os.path.abspath(path)

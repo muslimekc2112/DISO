@@ -40,6 +40,7 @@ def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("LOCALAPPDATA", str(home / "AppData" / "Local"))      # where the program keeps its data now
     monkeypatch.setenv("PATH", os.environ.get("PATH", ""))  # restored after the test
+    monkeypatch.setenv("DISO_NO_NATIVE_HOST", "1")          # no copy started by a test points the real browsers at itself
     return home
 
 

@@ -2,6 +2,16 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 0.11.0 beta
+**New: the browser extension works like IDM's**
+- **DISO opens by itself:** "Download with DISO" in the browser starts DISO when it is closed (through the browser's native messaging, as IDM does), waits until it is ready and the download starts at once. Setup registers it for every browser; DISO itself also registers for the current user at every start, so a portable `DISO.exe` works too. Uninstalling removes it.
+- **Setup asks which browsers** should get the extension (Chrome, Edge, Brave, Opera, Vivaldi, Firefox — the ones on the PC are found and ticked) and then opens a guide: it opens the browser's extensions page and the extension's folder and copies the folder's path. The same guide is in DISO: Settings → **🧩 Add to browser**.
+- The extension is installed next to DISO (`C:\Program Files\ISO\DISO\browser_extension`) and gets a fixed id, so it stays the same extension through updates.
+- **"Download all file links on this page with DISO"** in the right-click menu of a page.
+- The toolbar button shows **what DISO is downloading** (count, speed, queue) and has **▶ Open DISO**; its buttons work while DISO is closed too.
+- Caught browser downloads wait while DISO starts and move over to it; if DISO cannot start they go on in the browser.
+- A new setting in the extension: "Open DISO when it is closed" (on by default).
+
 ## 0.10.1 beta
 **New**
 - **Two languages everywhere:** the app, the setup and uninstall windows, the browser extension and every document on GitHub (README, version history, the technical description, the extension and FFmpeg notes) are in English and Turkish.

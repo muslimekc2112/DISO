@@ -21,7 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def _find_setup():
     """The newest dist/DISO-Setup-<version>.exe (the file name carries the version)."""
     found = sorted(glob.glob(os.path.join(ROOT, "dist", "DISO-Setup-*.exe")), key=os.path.getmtime)
-    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Setup-0.10.1-beta.exe")
+    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Setup-0.11.0-beta.exe")
 
 
 SETUP = _find_setup()
@@ -45,7 +45,7 @@ class World:
                      "SystemDrive": WINDIR[:2], "TEMP": self.temp, "TMP": self.temp, "USERPROFILE": self.profile,
                      "HOME": self.profile, "LOCALAPPDATA": os.path.join(self.profile, "AppData", "Local"),
                      "APPDATA": os.path.join(self.profile, "AppData", "Roaming"), core.TEST_ROOT_ENV: self.root,
-                     "HIZLI_NO_UPDATE": "1",
+                     "HIZLI_NO_UPDATE": "1", "DISO_NO_NATIVE_HOST": "1",
                      # a computer with nothing on it: only Windows' own folders
                      "PATH": os.pathsep.join([os.path.join(WINDIR, "System32"), WINDIR, os.path.join(WINDIR, "System32", "Wbem")])}
         data = os.path.join(self.profile, "AppData", "Local", "DISO")

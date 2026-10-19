@@ -27,7 +27,8 @@ def test_the_manifest_is_a_valid_manifest_v3_for_chrome_and_firefox():
     m = manifest()
     assert m["manifest_version"] == 3 and m["name"] == "DISO"
     assert m["version"] == __version__                       # extension and app move together
-    assert set(m["permissions"]) == {"contextMenus", "downloads", "storage", "cookies", "activeTab"}
+    assert set(m["permissions"]) == {"contextMenus", "downloads", "storage", "cookies", "activeTab", "scripting",
+                                      "nativeMessaging"}
     assert "http://127.0.0.1/*" in m["host_permissions"]
     assert m["background"]["service_worker"] == "sw.js"      # Chrome
     assert m["background"]["scripts"] == ["lib.js", "background.js"]   # Firefox
@@ -127,9 +128,9 @@ def app():
     b.stop()
 
 
-def run(port, scenario):
-    r = subprocess.run([NODE, os.path.join(JS, "harness.js"), str(port), scenario], capture_output=True,
-                       text=True, timeout=60)
+def run(port, scenario, live=None):
+    args = [NODE, os.path.join(JS, "harness.js"), str(port), scenario] + ([str(live)] if live else [])
+    r = subprocess.run(args, capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr
     data = json.loads(r.stdout.strip().splitlines()[-1])
     assert "error" not in data, data
@@ -143,7 +144,7 @@ PAGE = "http://shop.example/page"
 @needs_node
 def test_the_context_menu_entries_are_created(app):
     api, b = app
-    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page", "hi-selection"]
+    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page", "hi-all-links", "hi-selection"]
 
 
 @needs_node
@@ -212,6 +213,7 @@ def test_with_the_app_closed_the_browser_keeps_the_download(app):
     b.stop()
     out = run(port, "intercept")
     assert out["log"]["cancelled"] == [] and out["log"]["erased"] == [] and out["log"]["downloaded"] == []
+    assert out["log"]["paused"] == [7] and out["log"]["resumed"] == [7]      # held while DISO could not be started
 
 
 @needs_node
@@ -254,8 +256,10 @@ def test_the_popup_sees_a_closed_app_and_reports_it_when_sending(app):
     port = b.port
     b.stop()
     assert run(port, "status")["answer"]["app"] is None
-    sent = run(port, "send")["answer"]
+    out = run(port, "send")
+    sent = out["answer"]
     assert sent["ok"] is False and "açık mı" in sent["text"]
+    assert [n["message"]["type"] for n in out["log"]["native"]] == ["launch"]       # it tried to start DISO first
 
 
 @needs_node
@@ -270,3 +274,77 @@ def test_a_switched_off_bridge_says_so_to_the_user(app):
 def test_an_unknown_message_is_ignored(app):
     api, b = app
     assert run(b.port, "unknown-message")["answer"] is None
+
+
+def free_port():
+    import socket
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def test_the_extension_id_is_the_one_the_native_host_allows():
+    import base64
+    import hashlib
+
+    from app import native_host
+    digest = hashlib.sha256(base64.b64decode(manifest()["key"])).hexdigest()[:32]
+    assert "".join(chr(ord("a") + int(c, 16)) for c in digest) == native_host.EXTENSION_ID
+    assert manifest()["browser_specific_settings"]["gecko"]["id"] == native_host.FIREFOX_ID
+    lib = open(os.path.join(EXT, "lib.js"), encoding="utf-8").read()
+    assert f'const HOST = "{native_host.HOST_NAME}"' in lib
+
+
+@needs_node
+def test_a_closed_diso_is_started_and_then_gets_the_link(app):
+    api, b = app
+    dead = free_port()
+    out = run(dead, "link", live=b.port)
+    assert out["log"]["native"] == [{"host": "com.iso.diso", "message": {"type": "launch", "port": dead}}]
+    assert out["answer"]["ok"] is True and api.added[0]["urls"] == [SESSION]
+
+
+@needs_node
+def test_a_running_diso_is_not_started_again(app):
+    api, b = app
+    out = run(b.port, "link", live=b.port)
+    assert out["log"]["native"] == [] and api.added
+
+
+@needs_node
+def test_without_permission_to_start_diso_the_native_host_is_left_alone(app):
+    api, b = app
+    out = run(free_port(), "launch-off", live=b.port)
+    assert out["log"]["native"] == [] and out["answer"]["ok"] is False and api.added == []
+
+
+@needs_node
+def test_a_browser_download_waits_while_diso_starts_then_moves_over(app):
+    api, b = app
+    out = run(free_port(), "intercept", live=b.port)
+    assert out["log"]["paused"] == [7] and out["log"]["cancelled"] == [7] and out["log"]["resumed"] == []
+    assert api.added[0]["urls"] == [SESSION]
+
+
+@needs_node
+def test_all_file_links_of_a_page_go_to_diso_once_each(app):
+    api, b = app
+    out = run(b.port, "all-links")
+    assert out["log"]["scripted"] == [5]
+    assert api.added[0]["urls"] == ["http://shop.example/a.zip", "http://shop.example/b.mp4"]
+
+
+@needs_node
+def test_the_popup_opens_diso_and_brings_it_forward(app):
+    api, b = app
+    out = run(free_port(), "open", live=b.port)
+    assert out["answer"]["ok"] is True and api.shown == 1 and len(out["log"]["native"]) == 1
+
+
+@needs_node
+def test_the_popup_says_when_diso_cannot_be_opened(app):
+    api, b = app
+    out = run(free_port(), "open")
+    assert out["answer"]["ok"] is False and "bir kez" in out["answer"]["text"]

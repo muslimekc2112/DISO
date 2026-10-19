@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from app import brand, look
+from app import brand, extension_setup, look
 from app.ui_common import logo_image, set_if_changed
 from app.utils import resource_path
 
@@ -175,9 +175,14 @@ class _Window(ctk.CTk):
 
 
 class SetupWindow(_Window):
-    def __init__(self, payload_dir, env, closer=winapi.close_programs_in, preset_dir=None, on_launch=launch):
+    def __init__(self, payload_dir, env, closer=winapi.close_programs_in, preset_dir=None, on_launch=launch,
+                 browsers=None, start=winapi.start_as_user):
         super().__init__(f"{core.DISPLAY_NAME} Kurulumu", f"Sürüm {brand.VERSION_LABEL} • Kurulum")
         self.payload_dir, self.env, self.closer, self.on_launch = payload_dir, env, closer, on_launch
+        self.browsers = extension_setup.find_browsers() if browsers is None else dict(browsers)
+        self.browser_vars = {b: tk.BooleanVar(value=True) for b in self.browsers}     # which ones get the extension
+        self.start = start
+        self.guide = None
         self.result = None
         existing_dir, existing_version = core.find_existing(env)
         self.existing = (existing_dir, existing_version)
@@ -218,8 +223,16 @@ class SetupWindow(_Window):
                                          ("Windows açılınca kendiliğinden başlasın (tepside)", self.autostart_var),
                                          ("Kurulum bitince uygulamayı aç", self.launch_var)), start=4):
             ctk.CTkSwitch(self.body, text=text, variable=var).grid(row=i, column=0, sticky="w", pady=(10 if i == 4 else 4, 0))
+        if self.browsers:
+            ctk.CTkLabel(self.body, text="🧩 Tarayıcı eklentisi: linke sağ tık → “DISO ile indir” (IDM gibi). Hangilerine?",
+                         anchor="w", justify="left", wraplength=570).grid(row=8, column=0, sticky="ew", pady=(12, 2))
+            box = ctk.CTkFrame(self.body, fg_color="transparent")
+            box.grid(row=9, column=0, sticky="w")
+            for n, (bid, var) in enumerate(self.browser_vars.items()):
+                ctk.CTkCheckBox(box, text=extension_setup.NAMES[bid], variable=var, width=150).grid(
+                    row=n // 3, column=n % 3, sticky="w", padx=(0, 8), pady=2)
         self.error = ctk.CTkLabel(self.body, text="", anchor="w", justify="left", wraplength=570, text_color=look.STATE_ERROR)
-        self.error.grid(row=8, column=0, sticky="ew", pady=(12, 0))
+        self.error.grid(row=10, column=0, sticky="ew", pady=(12, 0))
         self.install_btn = list(self.add_buttons(("Kur", self.start_install, True), ("İptal", self.cancel, False)))[0]
 
     def browse(self):
@@ -243,7 +256,8 @@ class SetupWindow(_Window):
             self.error.configure(text=str(e))
             return
         options = core.Options(install_dir=target, desktop_shortcut=bool(self.desktop_var.get()),
-                               start_menu=bool(self.menu_var.get()), autostart=True if self.autostart_var.get() else None)
+                               start_menu=bool(self.menu_var.get()), autostart=True if self.autostart_var.get() else None,
+                               browsers=self.chosen_browsers())
         self.progress_page("Kuruluyor…", "Hazırlanıyor…")
         list(self.add_buttons())
         self.run_in_thread(lambda progress: core.install(self.payload_dir, options, self.env, progress=progress, closer=self.closer))
@@ -254,11 +268,33 @@ class SetupWindow(_Window):
             self.exit_code = 0
             self.finish_page(True, "Kurulum bitti, hazırız", f"DISO {data.version} kuruldu.\n{data.install_dir}",
                              "\n".join(data.warnings))
-            list(self.add_buttons(("Bitir", self.finish, True)))
+            if self.chosen_browsers() and os.path.isdir(self.extension_dir()):
+                list(self.add_buttons(("🧩 Eklentiyi ekle", self.open_guide, False), ("Bitir", self.finish, True)))
+                self.open_guide()
+            else:
+                list(self.add_buttons(("Bitir", self.finish, True)))
         else:
             self.exit_code = 2
             self.finish_page(False, "Kurulumu yapamadım", data, "Bilgisayarında hiçbir değişiklik bırakmadım.")
             list(self.add_buttons(("Kapat", self.cancel, True), ("Tekrar dene", self.options_page_again, False)))
+
+    def chosen_browsers(self):
+        return tuple(b for b, var in self.browser_vars.items() if var.get())
+
+    def extension_dir(self):
+        return os.path.join(self.result.install_dir, "browser_extension") if self.result else ""
+
+    def open_guide(self):
+        """The steps that put the extension into the browsers the user picked."""
+        try:
+            if self.guide is not None and self.guide.winfo_exists():
+                self.guide.lift()
+                return
+        except tk.TclError:
+            pass
+        chosen = self.chosen_browsers()
+        self.guide = extension_setup.ExtensionGuide(self, browsers={b: self.browsers[b] for b in chosen},
+                                                    folder=self.extension_dir(), start=self.start)
 
     def options_page_again(self):
         self.exit_code = 1

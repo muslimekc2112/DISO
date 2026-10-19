@@ -14,6 +14,7 @@
     minSizeMB: 5,          // ... of this size or bigger (0 = only by file type)
     extensions: "zip,rar,7z,tar,gz,iso,exe,msi,apk,dmg,mp4,mkv,avi,mov,webm,mp3,flac,wav,pdf",
     badge: true,           // show a short tick on the toolbar button after sending
+    launchApp: true,       // start DISO through the native host when it is closed
   };
 
   // Every text the extension shows, in Turkish and English; "{0}", "{1}" are the changing parts.
@@ -21,17 +22,21 @@
     tr: {
       checking: "Kontrol ediliyor…", sendTab: "⬇ Bu sekmeyi indir", sendTabAudio: "🎵 Bu sekmeyi MP3 olarak indir",
       catchDownloads: "Tarayıcı indirmelerini yakala", settings: "⚙ Ayarlar",
-      appRuns: "Uygulama çalışıyor (v{0})", appClosed: "Uygulama kapalı — DISO'yu aç", noAnswer: "Cevap yok",
+      appRuns: "DISO çalışıyor (v{0})", appClosed: "DISO kapalı — bir şey indirince kendisi açılır", noAnswer: "Cevap yok",
+      openApp: "▶ DISO'yu aç", opening: "DISO açılıyor…", openFailed: "DISO açılamadı. DISO'yu bir kez kendin aç; sonra eklenti onu kapalıyken de açabilir.",
+      launchOption: "DISO kapalıysa aç", launchHint: "Bir şey indirmek istediğinde DISO kapalıysa eklenti onu açar (IDM gibi).",
+      busy: "⬇ {0} indiriliyor • {1}/s", queuedToo: " • {0} sırada", idle: "Şu an indirme yok",
+      menuAllLinks: "Bu sayfadaki tüm dosya linklerini DISO ile indir", noFileLinks: "Bu sayfada indirilecek dosya linki yok",
       optionsTitle: "DISO — Ayarlar", port: "Bağlantı noktası",
       portHint: "Uygulamadaki Ayarlar → \"Eklenti bağlantı noktası\" ile aynı olmalı.",
       redirect: "Tarayıcı indirmelerini DISO'ya yönlendir",
-      redirectHint: "Uygulama kapalıysa indirme tarayıcıda normal şekilde devam eder.",
+      redirectHint: "DISO kapalıysa ve açılamıyorsa indirme tarayıcıda normal şekilde devam eder.",
       minSize: "En az boyut (MB)", minSizeHint: "Bu boyuttan büyük indirmeler yakalanır. 0: yalnızca aşağıdaki dosya türleri.",
       types: "Her zaman yakalanacak dosya türleri", badge: "Gönderince araç çubuğu simgesinde ✓ göster",
       save: "Kaydet", test: "Bağlantıyı dene", badPort: "Port 1024 ile 65535 arasında bir sayı olsun.", saved: "Kaydedildi.",
       connected: "✓ Uygulamaya bağlanıldı (v{0})", otherApp: "Bu portta başka bir şey çalışıyor.",
       unreachableLong: "Uygulamaya ulaşılamadı. DISO açık mı, port doğru mu?",
-      unreachable: "Uygulamaya ulaşılamadı", unreachableOpen: "Uygulamaya ulaşılamadı: DISO açık mı?",
+      unreachable: "DISO'ya ulaşılamadı", unreachableOpen: "DISO'ya ulaşılamadı: DISO açık mı? (Bir kez kendin açarsan sonra eklenti onu kendisi açabilir.)",
       bridgeOff: "Uygulamada tarayıcı eklentisi kapalı", refused: "Uygulama reddetti: {0}",
       addedAndDuplicates: "{0} eklendi, {1} zaten listedeydi", added: "{0} bağlantı eklendi",
       alreadyListed: "Zaten listede", notAdded: "Eklenmedi",
@@ -41,17 +46,21 @@
     en: {
       checking: "Checking…", sendTab: "⬇ Download this tab", sendTabAudio: "🎵 Download this tab as MP3",
       catchDownloads: "Catch browser downloads", settings: "⚙ Settings",
-      appRuns: "The app is running (v{0})", appClosed: "The app is closed — open DISO", noAnswer: "No answer",
+      appRuns: "DISO is running (v{0})", appClosed: "DISO is closed — it opens by itself when you download", noAnswer: "No answer",
+      openApp: "▶ Open DISO", opening: "Opening DISO…", openFailed: "Could not open DISO. Open DISO yourself once; after that the extension can open it while it is closed.",
+      launchOption: "Open DISO when it is closed", launchHint: "When you want to download something and DISO is closed, the extension opens it (like IDM).",
+      busy: "⬇ {0} downloading • {1}/s", queuedToo: " • {0} queued", idle: "Nothing is downloading",
+      menuAllLinks: "Download all file links on this page with DISO", noFileLinks: "No file links to download on this page",
       optionsTitle: "DISO — Settings", port: "Port",
       portHint: "Must be the same as Settings → \"Extension port\" in the app.",
       redirect: "Send browser downloads to DISO",
-      redirectHint: "If the app is closed, the download goes on in the browser as usual.",
+      redirectHint: "If DISO is closed and cannot be opened, the download goes on in the browser as usual.",
       minSize: "Minimum size (MB)", minSizeHint: "Downloads bigger than this are caught. 0: only the file types below.",
       types: "File types that are always caught", badge: "Show ✓ on the toolbar button after sending",
       save: "Save", test: "Test the connection", badPort: "The port must be a number from 1024 to 65535.", saved: "Saved.",
       connected: "✓ Connected to the app (v{0})", otherApp: "Something else is running on this port.",
       unreachableLong: "Could not reach the app. Is DISO open, is the port right?",
-      unreachable: "Could not reach the app", unreachableOpen: "Could not reach the app: is DISO open?",
+      unreachable: "Could not reach DISO", unreachableOpen: "Could not reach DISO: is it open? (Open it yourself once; after that the extension can open it by itself.)",
       bridgeOff: "The browser extension is switched off in the app", refused: "The app refused: {0}",
       addedAndDuplicates: "{0} added, {1} were already in the list", added: "{0} links added",
       alreadyListed: "Already in the list", notAdded: "Not added",
@@ -79,6 +88,32 @@
     doc.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n, [], lang); });
     const title = doc.querySelector("title[data-i18n]");
     if (title) doc.title = title.textContent;
+  }
+
+  // The links of a page that point at files of the given types (like IDM's "download all links"), once each.
+  function pageFileLinks(hrefs, extensions) {
+    const wanted = parseExtensions(extensions);
+    const out = [];
+    (hrefs || []).forEach((h) => {
+      const u = String(h || "").split("#")[0];
+      if (isHttpUrl(u) && wanted.includes(fileExtension(u)) && !out.includes(u)) out.push(u);
+    });
+    return out;
+  }
+
+  // 1536000 -> "1.5 MB"
+  function sizeText(bytes) {
+    let n = Number(bytes) || 0;
+    const units = ["B", "KB", "MB", "GB"];
+    let i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return (i === 0 ? String(Math.round(n)) : n.toFixed(1)) + " " + units[i];
+  }
+
+  // the app's /status as one line for the popup
+  function statusText(s, lang) {
+    if (!s || !(s.active > 0)) return t("idle", [], lang) + (s && s.queued > 0 ? t("queuedToo", [s.queued], lang) : "");
+    return t("busy", [s.active, sizeText(s.speed)], lang) + (s.queued > 0 ? t("queuedToo", [s.queued], lang) : "");
   }
 
   function appBase(port) {
@@ -158,6 +193,8 @@
     return t("notAdded", [], lang);
   }
 
-  return { APP_ID, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
-           extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult };
+  const HOST = "com.iso.diso";       // the native host (app/native_host.py) that starts DISO when it is closed
+
+  return { APP_ID, HOST, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
+           extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult, pageFileLinks, sizeText, statusText };
 });

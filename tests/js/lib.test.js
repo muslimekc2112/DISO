@@ -87,13 +87,28 @@ test("buildPayload keeps only what the app understands", () => {
 });
 
 test("describeResult explains the app's answer", () => {
-  assert.equal(HI.describeResult(null, "tr"), "Uygulamaya ulaşılamadı");
+  assert.equal(HI.describeResult(null, "tr"), "DISO'ya ulaşılamadı");
   assert.equal(HI.describeResult({ added: 3, duplicates: 0 }, "tr"), "3 bağlantı eklendi");
   assert.equal(HI.describeResult({ added: 1, duplicates: 2 }, "tr"), "1 eklendi, 2 zaten listedeydi");
   assert.equal(HI.describeResult({ added: 0, duplicates: 1 }, "tr"), "Zaten listede");
   assert.equal(HI.describeResult({ added: 0, duplicates: 0 }, "tr"), "Eklenmedi");
   assert.equal(HI.describeResult({ added: 1, duplicates: 2 }, "en"), "1 added, 2 were already in the list");
-  assert.equal(HI.describeResult(null, "en"), "Could not reach the app");
+  assert.equal(HI.describeResult(null, "en"), "Could not reach DISO");
+});
+
+test("pageFileLinks keeps the file links of a page, once each", () => {
+  const hrefs = ["http://a.com/x.zip", "http://a.com/x.zip#top", "http://a.com/page.html", "https://b.org/v.MP4?s=1",
+                 "javascript:void(0)", "mailto:a@b.c", "http://a.com/pic.jpg"];
+  assert.deepEqual(HI.pageFileLinks(hrefs, "zip,mp4"), ["http://a.com/x.zip", "https://b.org/v.MP4?s=1"]);
+  assert.deepEqual(HI.pageFileLinks([], "zip"), []);
+});
+
+test("statusText describes what DISO is doing", () => {
+  assert.equal(HI.sizeText(1536 * 1024), "1.5 MB");
+  assert.equal(HI.sizeText(500), "500 B");
+  assert.equal(HI.statusText({ active: 2, queued: 3, speed: 1536 * 1024 }, "tr"), "⬇ 2 indiriliyor • 1.5 MB/s • 3 sırada");
+  assert.equal(HI.statusText({ active: 0, queued: 0, speed: 0 }, "en"), "Nothing is downloading");
+  assert.equal(HI.statusText(null, "en"), "Nothing is downloading");
 });
 
 test("the language follows the browser: Turkish for Turkish, English for the rest", () => {
@@ -101,7 +116,7 @@ test("the language follows the browser: Turkish for Turkish, English for the res
   assert.equal(HI.language({ language: "en-US" }), "en");
   assert.equal(HI.language({ language: "de" }), "en");
   assert.equal(HI.language({}), "tr");                     // nothing known (the tests' pretend browser)
-  assert.equal(HI.t("appRuns", ["0.10.0"], "en"), "The app is running (v0.10.0)");
+  assert.equal(HI.t("appRuns", ["0.10.0"], "en"), "DISO is running (v0.10.0)");
 });
 
 test("both languages have every text", () => {

@@ -9,6 +9,7 @@ async function load() {
   $("minSizeMB").value = o.minSizeMB;
   $("extensions").value = o.extensions;
   $("badge").checked = o.badge;
+  $("launchApp").checked = o.launchApp;
 }
 
 async function save() {
@@ -20,6 +21,7 @@ async function save() {
     minSizeMB: Math.max(0, Number($("minSizeMB").value) || 0),
     extensions: HI.parseExtensions($("extensions").value).join(","),
     badge: $("badge").checked,
+    launchApp: $("launchApp").checked,
   });
   $("msg").textContent = HI.t("saved");
   return true;

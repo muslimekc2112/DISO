@@ -1,12 +1,13 @@
-"""Builds dist/DISO-Setup-<version>.exe (e.g. DISO-Setup-0.10.1-beta.exe): one file that installs the program on a PC that has nothing.
+"""Builds dist/DISO-Setup-<version>.exe (e.g. DISO-Setup-0.11.0-beta.exe): one file that installs the program on a PC that has nothing.
 
 What goes into it (the "payload"):
-    DISO.exe + _internal\   the program as a folder (tools/build_exe.py --onedir; it carries Python, ffmpeg,
+    DISO.exe + _internal/   the program as a folder (tools/build_exe.py --onedir; it carries Python, ffmpeg,
                             yt-dlp ...). A folder, not one exe: it starts at once instead of unpacking itself
                             into %TEMP% on every start
     Uninstall.exe       the remover (built here, small)
     deno.exe            the JavaScript runtime YouTube needs (downloaded once, checked against its published
                         SHA-256, then kept in build/cache)
+    browser_extension/  the browser extension (the setup window guides the user to add it to their browsers)
 
     python tools/build_installer.py              builds everything that is missing or out of date
     python tools/build_installer.py --skip-app   use the existing build/app/DISO folder
@@ -140,7 +141,7 @@ def fetch_deno(cache=CACHE, tag=None, zip_path=None, opener=urllib.request.urlop
 # ----------------------------------------------------------------------------------- payload
 def app_entries(app):
     """(name in the payload, source, place in the install folder) for the program: one exe, or a whole
-    PyInstaller folder (DISO.exe and _internal\...) whose files keep their places."""
+    PyInstaller folder (DISO.exe and _internal/...) whose files keep their places."""
     if os.path.isfile(app):
         return [("DISO.exe", app, "DISO.exe")]
     out = []
@@ -155,15 +156,30 @@ def app_entries(app):
     return out
 
 
-def make_payload(folder, app, uninstaller, deno_exe, version, deno_version="", label=""):
+def extension_entries(folder):
+    """The browser extension, installed as the folder browser_extension next to DISO.exe (browsers load it
+    from there)."""
+    out = []
+    for root, dirs, names in os.walk(folder):
+        dirs.sort()
+        for n in sorted(names):
+            src = os.path.join(root, n)
+            rel = os.path.relpath(src, folder).replace(os.sep, "/")
+            out.append(("ext/" + rel, src, "browser_extension/" + rel))
+    return out
+
+
+def make_payload(folder, app, uninstaller, deno_exe, version, deno_version="", label="", extension=None):
     """Copy the files and write payload.json (name, destination, size, checksum of each).
-    `app` is the program: dist/DISO.exe, or the folder build/app/DISO."""
+    `app` is the program: dist/DISO.exe, or the folder build/app/DISO; `extension` the browser extension."""
     if os.path.isdir(folder):
         shutil.rmtree(folder)
     os.makedirs(folder)
     entries = app_entries(app) + [("Uninstall.exe", uninstaller, "Uninstall.exe")]
     if deno_exe:
         entries.append(("deno.exe", deno_exe, "deno/deno.exe"))
+    if extension:
+        entries += extension_entries(extension)
     files = []
     for name, src, dest in entries:
         path = os.path.join(folder, *name.split("/"))
@@ -209,7 +225,8 @@ def main(argv):
     uninstaller = pyinstaller("Uninstall", os.path.join(ROOT, "hizli_setup", "uninstall_main.py"),
                               write_version_file(os.path.join(versions, "uninstall.txt"), "DISO Kaldırıcı",
                                                  "Uninstall.exe", __version__, __version_label__))
-    files = make_payload(PAYLOAD, APP_DIR, uninstaller, deno_exe, __version__, deno_version, __version_label__)
+    files = make_payload(PAYLOAD, APP_DIR, uninstaller, deno_exe, __version__, deno_version, __version_label__,
+                         extension=os.path.join(ROOT, "browser_extension"))
     log(f"payload: {len(files)} files, {sum(f['size'] for f in files) / 1048576:.0f} MB")
     name = setup_name(brand)
     for old in glob.glob(os.path.join(DIST, "DISO-Kurulum*.exe")) + glob.glob(os.path.join(DIST, "DISO-Setup*.exe")):          # an older version's setup must not be mistaken for this one

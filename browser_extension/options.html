@@ -24,8 +24,12 @@
     <small data-i18n="portHint">Uygulamadaki Ayarlar → "Eklenti bağlantı noktası" ile aynı olmalı.</small>
   </div>
   <div class="card">
+    <label><input id="launchApp" type="checkbox"> <span data-i18n="launchOption">DISO kapalıysa aç</span></label>
+    <small data-i18n="launchHint">Bir şey indirmek istediğinde DISO kapalıysa eklenti onu açar (IDM gibi).</small>
+  </div>
+  <div class="card">
     <label><input id="intercept" type="checkbox"> <span data-i18n="redirect">Tarayıcı indirmelerini DISO'ya yönlendir</span></label>
-    <small data-i18n="redirectHint">Uygulama kapalıysa indirme tarayıcıda normal şekilde devam eder.</small>
+    <small data-i18n="redirectHint">DISO kapalıysa ve açılamıyorsa indirme tarayıcıda normal şekilde devam eder.</small>
     <label for="minSizeMB" style="margin-top:12px" data-i18n="minSize">En az boyut (MB)</label>
     <input id="minSizeMB" type="number" min="0">
     <small data-i18n="minSizeHint">Bu boyuttan büyük indirmeler yakalanır. 0: yalnızca aşağıdaki dosya türleri.</small>

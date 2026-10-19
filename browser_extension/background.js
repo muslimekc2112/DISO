@@ -1,5 +1,6 @@
 // Background script: context menu entries and (optionally) taking over the browser's downloads.
-// It only ever talks to the DISO app on 127.0.0.1. (lib.js is loaded before this file.)
+// It only ever talks to the DISO app on 127.0.0.1, and - when DISO is closed - to its native host,
+// which starts DISO (app/native_host.py). (lib.js is loaded before this file.)
 "use strict";
 
 const api = typeof browser !== "undefined" ? browser : chrome;
@@ -21,6 +22,25 @@ async function ping(port) {
   }
 }
 
+// DISO's answer to /ping; when it is closed (and the user allows it) the native host starts it first.
+let launching = null;       // one start at a time, however many links arrive meanwhile
+async function ensureApp(opts) {
+  const running = await ping(opts.port);
+  if (running || !opts.launchApp || !(api.runtime && api.runtime.sendNativeMessage)) return running;
+  if (!launching) {
+    launching = (async () => {
+      try {
+        const r = await api.runtime.sendNativeMessage(HI.HOST, { type: "launch", port: Number(opts.port) });
+        return !!(r && r.ok);
+      } catch (e) {
+        return false;          // no native host registered (DISO never ran), or it failed
+      }
+    })().finally(() => { launching = null; });
+  }
+  if (!(await launching)) return null;
+  return ping((await getOptions()).port);
+}
+
 async function cookiesFor(url) {
   try {
     return HI.cookieHeader(await api.cookies.getAll({ url }));
@@ -32,7 +52,8 @@ async function cookiesFor(url) {
 // Send links to the app. For a single link the browser's session (cookies, referer) goes along,
 // so downloads that need a login work. Resolves with the app's answer, rejects if it fails.
 async function sendToApp(urls, { referer = "", kind = null } = {}) {
-  const opts = await getOptions();
+  await ensureApp(await getOptions());
+  const opts = await getOptions();                 // read again: the settings may have changed meanwhile
   const cookies = urls.length === 1 ? await cookiesFor(urls[0]) : "";
   const payload = HI.buildPayload({ urls, referer, userAgent: navigator.userAgent, cookies, kind });
   const r = await fetch(HI.appBase(opts.port) + "/add", {
@@ -70,12 +91,28 @@ async function sendAndShow(urls, extra) {
   }
 }
 
+// Every file link of the page in the tab (needs the page itself: a script runs there once).
+async function fileLinksOf(tab) {
+  const opts = await getOptions();
+  try {
+    const results = await api.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => Array.from(document.links, (a) => a.href),
+    });
+    const hrefs = [].concat(...(results || []).map((r) => r.result || []));
+    return HI.pageFileLinks(hrefs, opts.extensions);
+  } catch (e) {
+    return [];                 // a page the browser does not let extensions read (its own pages, the store)
+  }
+}
+
 // ------------------------------------------------------------------------ context menu
 function createMenus() {
   api.contextMenus.removeAll(() => {
     api.contextMenus.create({ id: "hi-link", title: HI.t("menuLink"), contexts: ["link"] });
     api.contextMenus.create({ id: "hi-media", title: HI.t("menuLink"), contexts: ["video", "audio", "image"] });
     api.contextMenus.create({ id: "hi-page", title: HI.t("menuPage"), contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-all-links", title: HI.t("menuAllLinks"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-selection", title: HI.t("menuSelection"), contexts: ["selection"] });
   });
 }
@@ -86,6 +123,11 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "hi-link") return sendAndShow([info.linkUrl], { referer });
   if (info.menuItemId === "hi-media") return sendAndShow([info.srcUrl], { referer });
   if (info.menuItemId === "hi-page") return sendAndShow([info.pageUrl || referer], { referer: "", kind: "video" });
+  if (info.menuItemId === "hi-all-links") {
+    const urls = tab ? await fileLinksOf(tab) : [];
+    if (!urls.length) { await flash("0", false); return { ok: false, text: HI.t("noFileLinks") }; }
+    return sendAndShow(urls, { referer });
+  }
   if (info.menuItemId === "hi-selection") {
     const urls = HI.extractUrls(info.selectionText);
     if (!urls.length) return flash("?", false);
@@ -99,7 +141,15 @@ api.downloads.onCreated.addListener(async (item) => {
   if (bypass.has(url)) { bypass.delete(url); return; }
   const opts = await getOptions();
   if (!HI.shouldIntercept(item, opts)) return;
-  const app = await ping(opts.port);
+  let app = await ping(opts.port);
+  if (!app && opts.launchApp) {                   // DISO is closed: hold the download while it starts
+    try { await api.downloads.pause(item.id); } catch (e) { /* already finished, or cannot pause */ }
+    app = await ensureApp(opts);
+    if (!app || !app.add) {
+      try { await api.downloads.resume(item.id); } catch (e) { /* nothing more to do */ }
+      return;
+    }
+  }
   if (!app || !app.add) return;                    // the app is closed (or adding is off): the browser keeps it
   try {
     await api.downloads.cancel(item.id);
@@ -114,13 +164,35 @@ api.downloads.onCreated.addListener(async (item) => {
 });
 
 // ------------------------------------------------------------------- popup / options pages
+async function appStatus(port) {
+  try {
+    const r = await fetch(HI.appBase(port) + "/status", { cache: "no-store" });
+    return r.ok ? await r.json() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function openApp() {
+  const opts = await getOptions();
+  const app = await ensureApp(Object.assign({}, opts, { launchApp: true }));   // asked for by hand: always
+  if (!app) return { ok: false, text: HI.t("openFailed") };
+  try {
+    await fetch(HI.appBase((await getOptions()).port) + "/show", { method: "POST", headers: { "X-HI-Client": "extension" } });
+  } catch (e) { /* it is open anyway */ }
+  return { ok: true, app };
+}
+
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg && msg.type === "send") return sendAndShow(msg.urls || [], { referer: msg.referer || "", kind: msg.kind || null });
     if (msg && msg.type === "status") {
       const opts = await getOptions();
-      return { app: await ping(opts.port), port: opts.port, intercept: opts.intercept };
+      const app = await ping(opts.port);
+      return { app, port: opts.port, intercept: opts.intercept, launchApp: opts.launchApp,
+               downloads: app ? await appStatus(opts.port) : null };
     }
+    if (msg && msg.type === "open") return openApp();
     return null;
   })().then(sendResponse, (e) => sendResponse({ ok: false, text: String(e && e.message || e) }));
   return true;   // the answer comes later

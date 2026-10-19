@@ -344,6 +344,48 @@ def test_a_failing_removal_is_shown(windows, installed, env, monkeypatch):
     assert pump(w, lambda: has_text(w, "Kaldırmayı tamamlayamadım") and has_text(w, "Bir dosya silinemedi"))
 
 
+# ------------------------------------------------------------------------------ the browser extension
+def test_setup_asks_which_browsers_get_the_extension_and_then_guides_the_user(windows, package, env, tmp_path, monkeypatch):
+    started = []
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=lambda exe: None,
+                browsers={"chrome": r"C:\c\chrome.exe", "brave": r"C:\b\brave.exe"},
+                start=lambda exe, args: started.append((exe, args)))
+    assert has_text(w, "Hangilerine?") and has_text(w, "Google Chrome") and has_text(w, "Brave")
+    w.browser_vars["brave"].set(False)                              # the user wants it in Chrome only
+    ext = tmp_path / "ext"
+    ext.mkdir()
+    monkeypatch.setattr(ui.SetupWindow, "extension_dir", lambda self: str(ext))
+    w.launch_var.set(False)
+    w.start_install()
+    assert pump(w, lambda: w.result is not None or w.exit_code == 2)
+    assert w.exit_code == 0 and w.guide is not None and w.guide.winfo_exists()
+    w.guide.withdraw()
+    assert list(w.guide.buttons) == ["chrome"] and button(w, "🧩 Eklentiyi ekle")
+    w.guide.buttons["chrome"].invoke()
+    assert started[0] == (r"C:\c\chrome.exe", ["chrome://extensions/"]) and started[1] == ("explorer.exe", [str(ext)])
+
+
+def test_without_a_browser_or_a_choice_there_is_no_guide(windows, package, env):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=lambda exe: None, browsers={})
+    assert not has_text(w, "Hangilerine?")
+    w.launch_var.set(False)
+    w.start_install()
+    assert pump(w, lambda: w.result is not None or w.exit_code == 2)
+    assert w.exit_code == 0 and w.guide is None and not button(w, "🧩 Eklentiyi ekle")
+
+
+def test_from_an_administrator_the_browser_is_started_through_a_shortcut(tmp_path):
+    calls = []
+    assert winapi.start_as_user(r"C:\c\chrome.exe", ["chrome://extensions/"], admin=True,
+                                popen=lambda cmd, **kw: calls.append(cmd), temp_dir=str(tmp_path))
+    link = calls[0][1]
+    assert calls[0][0] == "explorer.exe" and link.endswith(".lnk")
+    info = winapi.read_shortcut(link)
+    assert info["target"].lower() == r"c:\c\chrome.exe" and "chrome://extensions/" in info.get("arguments", "")
+    calls.clear()
+    assert winapi.start_as_user("x.exe", ["a b"], admin=False, popen=lambda cmd, **kw: calls.append(cmd))
+    assert calls == [["x.exe", "a b"]]
+
 ENGLISH = r'''
 import json, os, sys, time
 sys.path.insert(0, ROOT)

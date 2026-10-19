@@ -1,4 +1,10 @@
 import sys
+import threading
+
+if __name__ == "__main__":
+    from app import native_host
+    if native_host.is_host_call(sys.argv[1:]):        # started by the browser extension: only start the app
+        sys.exit(native_host.main(sys.argv[1:]))
 
 from app.utils import setup_environment
 
@@ -38,12 +44,23 @@ def main(argv) -> int:
     if "language" not in cfg.saved:       # the first start: Windows' own language (Turkish, or else English)
         cfg.set("language", i18n.windows_language())
     i18n.set_language(cfg.get("language"))   # the interface language; before the first window exists
+    from app import native_host
+    threading.Thread(target=_register_host, args=(native_host,), daemon=True, name="native-host").start()
     look.apply(Config().get("look"))      # colours and shapes; before the first window exists
     app = App(minimized="--minimized" in argv)
     app.mainloop()
     if app.restart_requested:
         restart.relaunch([a for a in argv if a != "--minimized"])
     return 0
+
+
+def _register_host(native_host):
+    """The browser extension may start this copy of DISO when it is closed (see app/native_host.py)."""
+    try:
+        native_host.register_for_user()
+    except Exception:  # noqa: BLE001 - only the "open DISO from the browser" part is missing then
+        from app.logs import log
+        log.exception("could not register the browser's native host")
 
 
 if __name__ == "__main__":

@@ -110,6 +110,8 @@ kullanılır.
                               ve kapaklar, şarkı sözleri, şarkı arama.
   app/i18n.py, lang_en.py     Arayüzün dili (bkz. bölüm 9).
   app/bridge.py               Tarayıcı eklentisinin yerel kapısı (127.0.0.1).
+  app/native_host.py          Tarayıcının kapalı DISO'yu açma yolu (bölüm 11).
+  app/extension_setup.py      Tarayıcıları, eklenti klasörünü bulur; "tarayıcıya ekle" rehberi.
   app/brand.py                Ad, yayıncı, sürüm ve GitHub adresi.
   app/utils.py                Yollar, dosya adı temizleme, boyut/süre biçimleme.
   hizli_setup/                Kurulum ve kaldırma programı.
@@ -283,7 +285,47 @@ IDM'in kullandığı fikrin aynısı.
 
 
 ------------------------------------------------------------------------------
-10. NASIL TEST EDİLDİ
+11. TARAYICI EKLENTİSİ VE "DISO KENDİSİ AÇILIR"
+------------------------------------------------------------------------------
+
+  * Eklenti (browser_extension/) çalışan DISO ile yerel köprü üzerinden
+    konuşur: 127.0.0.1 üzerinde GET /ping, GET /status, POST /add, POST /show.
+    Yalnızca bir eklentinin Origin'iyle (ya da Origin'siz: yerel bir program)
+    gelen istekler kabul edilir.
+  * DISO kapalıysa cevap veren olmaz. O zaman eklenti, IDM'in yaptığı gibi
+    tarayıcının "native messaging" kanalını kullanır: tarayıcı kayıtlı bir
+    programı başlatır ve onunla stdin/stdout üzerinden konuşur (4 baytlık
+    uzunluk + JSON).
+  * O program DISO.exe'nin kendisidir. main.py argümanlarında eklentinin
+    adresini görünce ("chrome-extension://<kimlik>/", ya da Firefox'un
+    manifest yolu ve eklenti kimliği) pencere yerine app/native_host.py'yi
+    çalıştırır: kendinden bağımsız yeni bir DISO başlatır (tarayıcının iş
+    nesnesinin dışında), köprü /ping'e cevap verene kadar bekler (en çok
+    40 sn) ve {"ok": true} der. Sonra eklenti linki her zamanki gibi yollar.
+  * Tarayıcı programı kayıt defterinden bulur:
+      Software\Google\Chrome\NativeMessagingHosts\com.iso.diso  (Edge, Brave,
+      Chromium için de; Opera ve Vivaldi Chrome'unkini okur) ve
+      Software\Mozilla\NativeMessagingHosts\com.iso.diso
+    Her anahtar, DISO.exe'yi ve onu başlatmasına izin verilen TEK eklentiyi
+    yazan küçük bir JSON dosyasını (host manifest) gösterir. Eklentinin
+    kimliği manifest.json'daki "key" ile sabittir
+    (adkiobcdpklfjnbajjiocmlifmbhdnei), Firefox'ta eklenti kimliğiyle
+    (diso@iso.local).
+  * Kurulum bu anahtarları herkes için yazar (HKLM) ve install.json'a
+    kaydeder; kaldırıcı onları ve DISO'nun kullanıcı için yazdıklarını, kurulum
+    klasörüne çıktıkları sürece siler. DISO da her açılışta onları o kullanıcı
+    için yazar (HKCU); böylece taşınabilir DISO.exe de çalışır (kaynaktan
+    çalışırken exe yerine küçük bir .bat kullanılır).
+  * Tarayıcılar eklentiyi kendiliğinden yalnızca kendi mağazalarından kurar;
+    bu yüzden "tarayıcıya ekle" rehberi (kurulumda ya da Ayarlar'da)
+    eklentiler sayfasını ve klasörü açar, yolu panoya kopyalar; kullanıcı
+    Geliştirici modunu açar ve "Paketlenmemiş öğe yükle"ye basar. Kurulum
+    yönetici olarak çalışır ama tarayıcı öyle çalışmamalı: tarayıcı, kabuğun
+    kullanıcı olarak açtığı bir kısayol üzerinden başlatılır.
+
+
+------------------------------------------------------------------------------
+12. NASIL TEST EDİLDİ
 ------------------------------------------------------------------------------
 
 Testler tests/ klasöründedir ve "python -m pytest" (ya da run_tests.bat) ile

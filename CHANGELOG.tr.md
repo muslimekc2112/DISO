@@ -2,6 +2,16 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 0.11.0 beta
+**Yeni: tarayıcı eklentisi IDM'inki gibi çalışıyor**
+- **DISO kendisi açılır:** tarayıcıda "DISO ile indir" dediğinde DISO kapalıysa eklenti onu başlatır (tarayıcının native messaging kanalıyla, IDM gibi), hazır olmasını bekler ve indirme hemen başlar. Kurulum bunu her tarayıcı için kaydeder; DISO da her açılışta kendini o kullanıcı için kaydeder, böylece taşınabilir `DISO.exe` ile de çalışır. Kaldırınca silinir.
+- **Kurulum hangi tarayıcılara eklenti kurulacağını sorar** (Chrome, Edge, Brave, Opera, Vivaldi, Firefox; bilgisayardakiler bulunur ve işaretli gelir), sonra bir rehber açar: tarayıcının eklentiler sayfasını ve eklenti klasörünü açar, klasörün yolunu panoya kopyalar. Aynı rehber DISO'da da var: Ayarlar → **🧩 Tarayıcıya ekle**.
+- Eklenti DISO'nun yanına kurulur (`C:\Program Files\ISO\DISO\browser_extension`) ve sabit bir kimliği vardır; güncellemelerde aynı eklenti olarak kalır.
+- Sayfanın sağ tık menüsünde **"Bu sayfadaki tüm dosya linklerini DISO ile indir"**.
+- Araç çubuğundaki düğme **DISO'nun şu an ne indirdiğini** gösterir (sayı, hız, sıra) ve **▶ DISO'yu aç** düğmesi var; düğmeleri DISO kapalıyken de çalışır.
+- Yakalanan tarayıcı indirmeleri DISO açılırken bekler ve ona geçer; DISO açılamazsa tarayıcıda devam eder.
+- Eklentide yeni ayar: "DISO kapalıysa aç" (varsayılan açık).
+
 ## 0.10.1 beta
 **Yeni**
 - **Her yerde iki dil:** uygulama, kurulum ve kaldırma pencereleri, tarayıcı eklentisi ve GitHub'daki bütün belgeler (README, sürüm geçmişi, teknik açıklama, eklenti ve FFmpeg notları) Türkçe ve İngilizce.

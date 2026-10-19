@@ -17,14 +17,17 @@
     button:disabled { opacity:.5; cursor:default; }
     label { display:flex; gap:8px; align-items:center; margin:10px 0 4px; }
     #msg { min-height:18px; margin-top:8px; color:var(--muted); }
+    .downloads { color:var(--muted); margin:-4px 0 8px 2px; min-height:16px; }
   </style>
 </head>
 <body>
   <h1><img src="icons/icon48.png" alt=""> DISO</h1>
   <div class="status"><span id="dot" class="dot"></span><span id="state" data-i18n="checking">Kontrol ediliyor…</span></div>
+  <div id="downloads" class="downloads"></div>
   <button id="page" data-i18n="sendTab">⬇ Bu sekmeyi indir</button>
   <button id="audio" class="secondary" data-i18n="sendTabAudio">🎵 Bu sekmeyi MP3 olarak indir</button>
   <label><input type="checkbox" id="intercept"> <span data-i18n="catchDownloads">Tarayıcı indirmelerini yakala</span></label>
+  <button id="open" class="secondary" data-i18n="openApp">▶ DISO'yu aç</button>
   <button id="options" class="secondary" data-i18n="settings">⚙ Ayarlar</button>
   <div id="msg"></div>
   <script src="lib.js"></script>

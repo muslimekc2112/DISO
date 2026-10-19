@@ -1,6 +1,7 @@
 // Runs the extension's background script (browser_extension/background.js) against a mock of
 // the browser API, talking REAL HTTP to the app's bridge.
-//   node harness.js <port> <scenario>      prints a JSON report on the last line
+//   node harness.js <port> <scenario> [live port]      prints a JSON report on the last line
+// The native host is pretended: asked to start DISO it "starts" the app on [live port] (or fails without one).
 "use strict";
 const vm = require("node:vm");
 const fs = require("node:fs");
@@ -9,10 +10,14 @@ const path = require("node:path");
 const EXT = path.join(__dirname, "..", "..", "browser_extension");
 const port = Number(process.argv[2]);
 const scenario = process.argv[3];
+const livePort = Number(process.argv[4] || 0);
 const SESSION_URL = "http://shop.example/files/report.zip";
 
 const listeners = { installed: [], menu: [], created: [], message: [] };
-const log = { badge: [], menus: [], cancelled: [], erased: [], downloaded: [], cookiesAsked: [] };
+const log = { badge: [], menus: [], cancelled: [], erased: [], downloaded: [], cookiesAsked: [], native: [], paused: [],
+              resumed: [], scripted: [] };
+const PAGE_LINKS = ["http://shop.example/a.zip", "http://shop.example/page.html", "http://shop.example/b.mp4#t=1",
+                    "http://shop.example/a.zip", "http://shop.example/p.jpg", "javascript:void(0)"];
 const store = { port };
 const cookieJar = { [SESSION_URL]: [{ name: "sid", value: "1" }, { name: "theme", value: "dark" }] };
 
@@ -34,11 +39,22 @@ const chrome = {
   runtime: {
     onInstalled: { addListener: (f) => listeners.installed.push(f) },
     onMessage: { addListener: (f) => listeners.message.push(f) },
+    sendNativeMessage: async (host, message) => {
+      log.native.push({ host, message });
+      if (!livePort) throw new Error("Specified native messaging host not found.");
+      store.port = livePort;                 // DISO is up now (on the live port)
+      return { ok: true, started: true };
+    },
+  },
+  scripting: {
+    executeScript: async ({ target }) => { log.scripted.push(target.tabId); return [{ result: PAGE_LINKS }]; },
   },
   downloads: {
     onCreated: { addListener: (f) => listeners.created.push(f) },
     cancel: async (id) => { log.cancelled.push(id); },
     erase: async (q) => { log.erased.push(q.id); },
+    pause: async (id) => { log.paused.push(id); },
+    resume: async (id) => { log.resumed.push(id); },
     download: async (o) => {               // the browser starts it again: that fires onCreated
       log.downloaded.push(o.url);
       for (const f of listeners.created) await f({ id: 99, url: o.url, filename: "report.zip", fileSize: 10 });
@@ -87,6 +103,13 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
   } else if (scenario === "intercept-blob") {
     store.intercept = true;
     await created({ id: 7, url: "blob:http://shop.example/1", filename: "report.zip", fileSize: 99999999 });
+  } else if (scenario === "all-links") {
+    answer = await click({ menuItemId: "hi-all-links", pageUrl: page }, { id: 5, url: page });
+  } else if (scenario === "launch-off") {
+    store.launchApp = false;
+    answer = await click({ menuItemId: "hi-link", linkUrl: SESSION_URL }, { url: page });
+  } else if (scenario === "open") {
+    answer = await ask({ type: "open" });
   } else if (scenario === "send") {
     answer = await ask({ type: "send", urls: ["http://a.com/1", "http://a.com/2"], referer: page, kind: "audio" });
   } else if (scenario === "status") {

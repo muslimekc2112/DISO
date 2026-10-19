@@ -107,6 +107,8 @@ will be used instead.
                               lyrics, song search.
   app/i18n.py, lang_en.py     The interface language (see section 9).
   app/bridge.py               The local door for the browser extension (127.0.0.1).
+  app/native_host.py          The browser's way to start DISO when it is closed (section 11).
+  app/extension_setup.py      Finds the browsers, the extension's folder, the "add to browser" guide.
   app/brand.py                Name, publisher, version and GitHub address.
   app/utils.py                Paths, file-name cleaning, size/time formatting.
   hizli_setup/                The installer and the uninstaller.
@@ -280,7 +282,43 @@ This is the same idea that IDM uses.
 
 
 ------------------------------------------------------------------------------
-10. HOW IT WAS TESTED
+11. THE BROWSER EXTENSION AND "DISO OPENS BY ITSELF"
+------------------------------------------------------------------------------
+
+  * The extension (browser_extension/) talks to the running DISO over the local
+    bridge: GET /ping, GET /status, POST /add, POST /show on 127.0.0.1. Only
+    requests with an extension's Origin (or none: a local program) are taken.
+  * When DISO is closed nobody answers. Then the extension uses the browser's
+    "native messaging", as IDM does: the browser starts a registered program
+    and talks to it through stdin/stdout (4 bytes of length + JSON).
+  * That program is DISO.exe itself. main.py sees the extension's address in
+    its arguments ("chrome-extension://<id>/", or Firefox's manifest path and
+    add-on id) and runs app/native_host.py instead of the window: it starts a
+    new DISO on its own (detached, out of the browser's job object), waits
+    until the bridge answers /ping (up to 40 s) and replies {"ok": true}. Then
+    the extension sends the link as usual.
+  * The browser finds the program through the registry:
+      Software\Google\Chrome\NativeMessagingHosts\com.iso.diso  (also Edge,
+      Brave, Chromium; Opera and Vivaldi read Chrome's) and
+      Software\Mozilla\NativeMessagingHosts\com.iso.diso
+    Each key points at a small JSON file (host manifest) naming DISO.exe and
+    the ONE extension allowed to start it. The extension's id is fixed by the
+    "key" in its manifest.json (adkiobcdpklfjnbajjiocmlifmbhdnei), Firefox's
+    by its add-on id (diso@iso.local).
+  * Setup writes these keys for every user (HKLM) and lists them in
+    install.json; the uninstaller removes them, and the ones DISO made for the
+    user, as long as they lead into the install folder. DISO itself writes
+    them for the current user (HKCU) at every start, so a portable DISO.exe
+    works too (from source a small .bat stands in for the exe).
+  * Browsers install extensions by themselves only from their stores, so the
+    "add to browser" guide (setup, or Settings) opens the extensions page and
+    the folder and copies the path; the user turns on Developer mode and
+    presses "Load unpacked". Setup runs as administrator, but the browser must
+    not: it is started through a shortcut that the shell opens as the user.
+
+
+------------------------------------------------------------------------------
+12. HOW IT WAS TESTED
 ------------------------------------------------------------------------------
 
 The tests live in the tests/ folder and run with "python -m pytest" (or

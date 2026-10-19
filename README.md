@@ -2,18 +2,19 @@
 
 **English | [Türkçe](README.tr.md)**
 
-A download manager for files, videos and music, with a music player built in. For Windows. **Version 0.10.1 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
+A download manager for files, videos and music, with a music player built in. For Windows. **Version 0.11.0 beta**: everything works, but some corners may still be rough. The interface speaks **English and Turkish**.
 
 Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
 ## Installing (on a PC without Python)
-Double-click `DISO-Setup-0.10.1-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
+Double-click `DISO-Setup-0.11.0-beta.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
 - **It asks for administrator rights:** DISO is installed for everyone on the PC, in `C:\Program Files\ISO\DISO`. Windows asks "allow?"; say **Yes**.
 - It adds Start menu and desktop shortcuts and appears in the "Apps" list. If you like, it starts together with Windows.
+- It asks **which browsers should get the extension** (right-click a link → "Download with DISO", like IDM) and helps you add it; see [Browser extension](#-browser-extension).
 - **Updating:** just run the new setup file. It closes a running DISO and installs into the same folder; your settings and playlists stay.
 - **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
 - **Uninstalling:** Settings → Apps → DISO → Uninstall (or "Uninstall DISO" in the Start menu). Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
-- **Silent install:** `DISO-Setup-0.10.1-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- **Silent install:** `DISO-Setup-0.11.0-beta.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
 - Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
 ## 🌐 Language
@@ -84,7 +85,17 @@ Number of downloads at the same time (1–8), a total **speed limit**, the numbe
 Turn on Settings → Scheduler and type the start time (and, if you like, the end time), for example `02:00`–`07:00`. New downloads wait in the queue until the start time. At the end time the running ones pause and go on at the next start time.
 
 ## 🧩 Browser extension
-The `browser_extension` folder is an extension for Chrome / Edge / Brave / Firefox (how to install: `browser_extension/README.txt`). Right-click a link → "Download with DISO"; if you like, it also catches the browser's own downloads (when DISO is closed, the browser downloads as usual). For sites that need a login, the browser's session is passed to DISO (cookies are never written to disk). DISO listens only on this PC and accepts requests only from the **extension**, never from web pages. The extension shows in English or Turkish, following the browser's language.
+DISO has a browser extension for **Chrome, Edge, Brave, Opera, Vivaldi** (and Firefox, see below), like IDM's:
+- **Right-click a link → "Download with DISO"**: the download starts in DISO at once. Also on a video / sound / picture, on selected text (every link in it), and **"Download all file links on this page with DISO"** (only links to file types such as zip, exe, mp4, mp3, pdf … — the list is in the extension's settings).
+- **DISO opens by itself when it is closed.** The extension starts it (through the browser's "native messaging", the way IDM does it), waits until it is ready and hands the link over. No need to keep DISO running.
+- **Catching the browser's own downloads** (optional, in the extension's settings): files of the chosen types or above a size go to DISO instead. While DISO is starting the browser's download waits; if DISO cannot start, the browser simply goes on.
+- The toolbar button shows whether DISO runs, **what it is downloading right now** (count and speed), and has **▶ Open DISO**, "download this tab" and "download this tab as MP3".
+- For sites that need a login, the browser's session (cookies, page address) is passed along; cookies are never written to disk. DISO listens only on this PC and accepts requests only from the **extension**, never from web pages.
+- English or Turkish, following the browser's language.
+
+**Adding it to your browser:** setup asks **which browsers** should get the extension (the ones on your PC are ticked) and at the end opens a short guide; later the same guide is in DISO: Settings → **🧩 Add to browser**. Browsers only install extensions from their stores by themselves, so it takes three clicks: the guide opens the browser's extensions page and the extension's folder and copies the folder's path; turn on **Developer mode**, press **Load unpacked**, paste the path (`Ctrl+V`) and press **Select Folder** (or drag the folder onto the page). The folder is `C:\Program Files\ISO\DISO\browser_extension` (a portable `DISO.exe` keeps it in `%LOCALAPPDATA%\DISO\browser_extension`). Updates of DISO update the extension in the same folder; the browser picks them up after a restart.
+
+**Firefox:** on `about:debugging` → "This Firefox" → **Load Temporary Add-on** → `manifest.json` in the folder. Firefox only keeps signed add-ons, so this one goes away when Firefox closes.
 
 ## Tests (for developers)
 `run_tests.bat` (or `python -m pytest`) runs every test. No internet is needed: the tests imitate servers without Range support, servers that drop connections or limit them, a fake proxy and a fake PyPI on a local server. The extension's logic is also tested with `node`. The English interface and the English installer are really opened in a process of their own, and the tests check that no Turkish text is left on screen. Tests that need a real FFmpeg are skipped without ffmpeg in `ffmpeg/` (or on PATH), window tests without a display, extension tests without node. The setup package tests (`-m installer`) run the real `DISO-Setup` file in a temporary place if the package was built; they never touch your real Start menu or registry.

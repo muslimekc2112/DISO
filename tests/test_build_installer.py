@@ -198,7 +198,7 @@ def test_the_payload_made_here_is_accepted_by_the_installer(tmp_path):
 # ------------------------------------------------------------------------------ the name and the label
 def test_the_setup_file_name_says_which_version_it_installs():
     from app import brand
-    assert bi.setup_name(brand) == "DISO-Setup-0.10.1-beta"
+    assert bi.setup_name(brand) == "DISO-Setup-0.11.0-beta"
 
 
 def test_the_payload_carries_the_label_the_registry_will_show(tmp_path):
@@ -224,7 +224,7 @@ def test_the_properties_tab_names_the_publisher_the_product_and_the_label(tmp_pa
 
 # ------------------------------------------------------------------------------ the program as a folder
 def app_folder(root):
-    """A pretend PyInstaller folder: DISO.exe and _internal\ with files a few levels deep."""
+    """A pretend PyInstaller folder: DISO.exe and _internal/ with files a few levels deep."""
     files = {"DISO.exe": b"E" * 3000, "_internal/python315.dll": b"P" * 2000,
              "_internal/yt_dlp/extractor/youtube.py": b"Y" * 500, "_internal/ffmpeg/ffmpeg.exe": b"F" * 4000,
              "_internal/customtkinter/assets/themes/blue.json": b"{}"}
@@ -273,6 +273,27 @@ def test_a_program_folder_installs_and_uninstalls_without_a_trace(tmp_path):
         assert os.path.join("_internal", "yt_dlp") in manifest["dirs"]                # the folders in between too
         core.uninstall(str(dest), env, closer=lambda f: 0)
         assert not (tmp_path / "Program Files" / "ISO").exists()                      # nothing left, not even empty folders
+    finally:
+        core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
+
+
+def test_the_browser_extension_is_installed_next_to_diso_and_removed_with_it(tmp_path):
+    from hizli_setup import core
+    ext = os.path.join(ROOT, "browser_extension")
+    app = tmp_path / "DISO"
+    app_folder(app)
+    un = tmp_path / "u.exe"
+    un.write_bytes(b"U")
+    files = bi.make_payload(str(tmp_path / "payload"), str(app), str(un), None, "2.0.0", extension=ext)
+    assert {"browser_extension/manifest.json", "browser_extension/_locales/tr/messages.json"} <= {f["dest"] for f in files}
+    env = core.test_env(str(tmp_path / "world"))
+    dest = tmp_path / "Program Files" / "ISO" / "DISO"
+    try:
+        core.install(str(tmp_path / "payload"), core.Options(install_dir=str(dest)), env, closer=lambda f: 0)
+        installed = dest / "browser_extension" / "manifest.json"
+        assert installed.read_bytes() == open(os.path.join(ext, "manifest.json"), "rb").read()
+        core.uninstall(str(dest), env, closer=lambda f: 0)
+        assert not (tmp_path / "Program Files" / "ISO").exists()
     finally:
         core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
 

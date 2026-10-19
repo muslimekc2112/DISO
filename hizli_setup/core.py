@@ -12,7 +12,7 @@ import time
 import winreg
 from dataclasses import dataclass, field
 
-from app import brand, i18n
+from app import brand, i18n, native_host
 
 from . import winapi
 
@@ -109,6 +109,7 @@ class Options:
     desktop_shortcut: bool = True
     start_menu: bool = True
     autostart: object = None                     # True: start with Windows, False: do not, None: leave as it is
+    browsers: tuple = ()                         # browsers the user wants the extension in (the window guides them)
 
 
 @dataclass
@@ -386,7 +387,8 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
     if os.path.isdir(target):
         closer(target)
 
-    created_dirs, committed, staged, created_links = [], [], [], []
+    created_dirs, committed, staged, created_links, host_keys, undo_hosts = [], [], [], [], [], []
+    had_host = os.path.isfile(os.path.join(target, native_host.CHROME_MANIFEST))   # an earlier install registered it
     previous = read_manifest(target) or {}
     registry_written = False
     run_before = _read_value(env, env.run_key, env.app_id)
@@ -467,9 +469,20 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
         elif autostart is False and inside(str(_read_value(env, env.run_key, env.app_id, "")).strip('"'), target):
             _delete_value(env, env.run_key, env.app_id)
 
-        # ---- 5. the list of what we made (the uninstaller works from this)
+        # ---- 5. the browser extension may start DISO when it is closed (its "native messaging host")
+        progress(0.95, "Tarayıcı eklentisi için hazırlanıyor…")
+        try:
+            host_keys += native_host.register(target, exe, env.hive, env.reg_prefix)
+            if not had_host:
+                undo_hosts += host_keys                                  # a roll-back takes away only what is new
+        except OSError as e:                                         # a pity, not a reason to undo everything
+            result.warnings.append(f"Tarayıcı eklentisi DISO'yu kendisi açamayacak: {e}")
+        host_files = [native_host.CHROME_MANIFEST, native_host.FIREFOX_MANIFEST] if host_keys else []
+
+        # ---- 6. the list of what we made (the uninstaller works from this)
         manifest = {"app": env.app_id, "version": version, "number": number, "install_dir": target,
-                    "files": [item["dest"].replace("/", os.sep) for item in files] + [MANIFEST_NAME],
+                    "files": [item["dest"].replace("/", os.sep) for item in files] + host_files + [MANIFEST_NAME],
+                    "native_hosts": host_keys,
                     "dirs": all_dirs(item["dest"] for item in files),
                     "shortcuts": created_links, "start_menu_dir": env.start_menu_dir if options.start_menu else "",
                     "installed_at": int(now())}
@@ -480,17 +493,21 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
         _replace(manifest_path + ".new", manifest_path)
         staged.remove(manifest_path + ".new")
     except SetupError:
-        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before)
+        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before,
+                   undo_hosts)
         raise
     except PermissionError as e:
-        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before)
+        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before,
+                   undo_hosts)
         raise SetupError(f"“{target}” klasörüne yazma iznim yok ya da bir dosya kullanımda (DISO açıksa kapat). "
                          "Başka bir klasör seçmeyi dene.") from e
     except OSError as e:
-        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before)
+        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before,
+                   undo_hosts)
         raise SetupError(f"Dosyalar yazılamadı: {e.strerror or e}. Disk dolu olabilir; başka bir sürücü seçmeyi dene.") from e
     except BaseException:
-        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before)
+        _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before,
+                   undo_hosts)
         raise
     # ---- done: the old copies are not needed any more
     progress(0.97, "Temizleniyor…")
@@ -521,7 +538,12 @@ def _forget_link(link, install_dir) -> bool:
     return _remove_file(link, retries=2)
 
 
-def _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before):
+def _roll_back(env, target, committed, staged, created_dirs, created_links, registry_written, run_before, key_before,
+               host_keys=()):
+    if host_keys:
+        native_host.unregister(env.hive, env.reg_prefix, inside=target)
+        for name in (native_host.CHROME_MANIFEST, native_host.FIREFOX_MANIFEST):
+            _remove_file(os.path.join(target, name), retries=1)
     for temp in staged:
         _remove_file(temp, retries=2)
     for dest, had_old, state in reversed(committed):
@@ -591,6 +613,9 @@ def uninstall(install_dir, env: Env, remove_data=False, progress=_noop, closer=w
 
     progress(0.45, "Uygulamalar listesinden kaldırılıyor…")
     delete_key_tree(env, env.uninstall_key)
+    for hive in dict.fromkeys((env.hive, winreg.HKEY_CURRENT_USER)):    # ours, and the one the app made for its user
+        native_host.unregister(hive, env.reg_prefix, inside=install_dir)
+    files += [n for n in (native_host.CHROME_MANIFEST, native_host.FIREFOX_MANIFEST) if n not in files]
 
     progress(0.55, "Dosyalar siliniyor…")
     leftovers = []

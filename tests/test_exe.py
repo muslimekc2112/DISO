@@ -52,7 +52,7 @@ def port_of(home):
 
 def env_for(home):
     return {**os.environ, "USERPROFILE": str(home), "HOME": str(home), "LOCALAPPDATA": str(home / "AppData" / "Local"),
-            "HIZLI_NO_UPDATE": "1"}
+            "HIZLI_NO_UPDATE": "1", "DISO_NO_NATIVE_HOST": "1"}
 
 
 def selftest(home, tmp_path):
@@ -207,3 +207,38 @@ def test_the_exe_refuses_web_pages_like_the_source_version_does(home, running):
     assert r.status_code == 403
     assert wait_for(lambda: find_window(), 30)
     assert close_window(proc) == 0
+
+# ------------------------------------------------------------------ started by the browser extension
+ORIGIN = "chrome-extension://adkiobcdpklfjnbajjiocmlifmbhdnei/"
+
+
+def talk(home, *messages, timeout=120):
+    data = b"".join(len(b := json.dumps(m).encode()).to_bytes(4, "little") + b for m in messages)
+    r = subprocess.run([EXE, ORIGIN, "--parent-window=0"], input=data, capture_output=True, env=env_for(home),
+                       timeout=timeout)
+    out, answers = r.stdout, []
+    while len(out) >= 4:
+        n = int.from_bytes(out[:4], "little")
+        answers.append(json.loads(out[4:4 + n]))
+        out = out[4 + n:]
+    return r.returncode, answers
+
+
+def test_the_windowed_exe_talks_to_the_browser_through_its_pipes(home):
+    code, answers = talk(home, {"type": "ping", "port": port_of(home)})
+    assert code == 0 and answers and answers[0]["ok"] is True and answers[0]["running"] is False
+
+
+def test_the_native_host_starts_a_closed_diso_and_waits_for_it(home):
+    started = time.time()
+    try:
+        code, answers = talk(home, {"type": "launch", "port": port_of(home)})
+        assert code == 0 and answers == [{"ok": True, "started": True}]
+        assert wait_until_up(home)                                   # DISO runs on its own, the host has ended
+        code, answers = talk(home, {"type": "launch", "port": port_of(home)})
+        assert answers == [{"ok": True, "started": False}]           # a running DISO is not started twice
+    finally:
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq '" + EXE + "' -and "
+                        "$_.CreationDate -gt (Get-Date).AddSeconds(-" + str(int(time.time() - started) + 5) + ") } | "
+                        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"], capture_output=True, timeout=60)

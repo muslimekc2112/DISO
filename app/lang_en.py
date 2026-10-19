@@ -309,6 +309,42 @@ PLAIN = {
         "If you leave this off, your settings, playlists and the songs you found and downloaded in the music player "
         "stay; reinstall DISO and they are all back. Turn it on and they are deleted too. What you downloaded to "
         "your download folder is never touched.",
+    # ---- the browser extension: adding it, starting DISO from the browser
+    "DISO • Tarayıcı eklentisi": "DISO • Browser extension", "🧩 DISO'yu tarayıcına ekle": "🧩 Add DISO to your browser",
+    "IDM gibi: linke sağ tıkla → “DISO ile indir”; istersen tarayıcının kendi indirmelerini de DISO alır. DISO kapalıysa "
+    "kendisi açılır.":
+        "Like IDM: right-click a link → “Download with DISO”; if you like, DISO also takes over the browser's own "
+        "downloads. When DISO is closed, it opens by itself.",
+    "1. Aşağıdan tarayıcını seç: eklentiler sayfası ve eklenti klasörü açılır, klasörün yolu panoya kopyalanır.\n"
+    "2. Eklentiler sayfasında sağ üstteki “Geliştirici modu”nu aç.\n"
+    "3. “Paketlenmemiş öğe yükle”ye bas, açılan pencerenin adres çubuğuna Ctrl+V ile yolu yapıştır ve “Klasör seç”e bas. "
+    "(Ya da açılan klasörü eklentiler sayfasının üstüne sürükleyip bırak.)\n"
+    "4. Hazır! Bir linke sağ tıkla → “DISO ile indir”. DISO kapalıysa kendisi açılır.":
+        "1. Pick your browser below: its extensions page and the extension's folder open, and the folder's path is "
+        "copied.\n"
+        "2. On the extensions page turn on “Developer mode” at the top right.\n"
+        "3. Press “Load unpacked”, paste the path into the address bar of the window that opens (Ctrl+V) and press "
+        "“Select Folder”. (Or drag the folder that opened onto the extensions page.)\n"
+        "4. Done! Right-click a link → “Download with DISO”. When DISO is closed, it opens by itself.",
+    "Bu bilgisayarda desteklenen bir tarayıcı bulamadım (Chrome, Edge, Brave, Opera, Vivaldi, Firefox).":
+        "No supported browser was found on this PC (Chrome, Edge, Brave, Opera, Vivaldi, Firefox).",
+    "Chrome'a ekle": "Add to Chrome", "Edge'e ekle": "Add to Edge", "Brave'e ekle": "Add to Brave",
+    "Opera'ya ekle": "Add to Opera", "Vivaldi'ye ekle": "Add to Vivaldi", "Firefox'a ekle": "Add to Firefox",
+    "Eklentiler sayfası açıldı, klasörün yolu panoya kopyalandı. Şimdi 2. ve 3. adım.":
+        "The extensions page is open and the folder's path is copied. Now steps 2 and 3.",
+    "Tarayıcıyı açamadım; klasörün yolu panoya kopyalandı, eklentiler sayfasını elle aç.":
+        "Could not open the browser; the folder's path is copied, open the extensions page yourself.",
+    "Firefox: about:debugging sayfasında “Geçici eklenti yükle”ye bas ve klasördeki manifest.json dosyasını seç. Firefox "
+    "imzasız eklentileri kalıcı kurmadığı için Firefox kapanınca eklenti de kalkar.":
+        "Firefox: on the about:debugging page press “Load Temporary Add-on” and choose manifest.json in the folder. "
+        "Firefox does not keep unsigned add-ons, so the extension goes away when Firefox closes.",
+    "🧩 Tarayıcıya ekle": "🧩 Add to browser", "Tarayıcı eklentisi": "Browser extension",
+    "Chrome, Edge, Brave, Opera, Firefox: linke sağ tık → DISO ile indir. DISO kapalıysa kendisi açılır":
+        "Chrome, Edge, Brave, Opera, Firefox: right-click a link → Download with DISO. When DISO is closed, it opens by itself",
+    "Tarayıcı eklentisi için hazırlanıyor…": "Getting ready for the browser extension…",
+    "🧩 Tarayıcı eklentisi: linke sağ tık → “DISO ile indir” (IDM gibi). Hangilerine?":
+        "🧩 Browser extension: right-click a link → “Download with DISO” (like IDM). Into which browsers?",
+    "🧩 Eklentiyi ekle": "🧩 Add the extension",
     # ---- contact
     "✉ Bize ulaş": "✉ Contact us",
     "Bu bir beta sürümü: her şey çalışıyor ama bazı yerler pürüzlü olabilir. Bir şey ters giderse aşağıdaki "
@@ -436,6 +472,8 @@ TEMPLATES = [
     ("{} bu bilgisayardan kaldırılsın mı?", "Remove {} from this PC?"),
     ("Uygulama dosyaları, kısayollar ve kayıt girdileri silinir.\n{}", "The app's files, shortcuts and registry entries are deleted.\n{}"),
     ("Hoppala, beklenmedik bir şey oldu: {}", "Oops, something unexpected happened: {}"),
+    ("Tarayıcı eklentisi DISO'yu kendisi açamayacak: {}", "The browser extension will not be able to open DISO: {}"),
+    ("Eklenti klasörünü hazırlayamadım: {}", "Could not prepare the extension folder: {}"),
 ]
 
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,

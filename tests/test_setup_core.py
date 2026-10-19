@@ -8,6 +8,8 @@ import pytest
 from hizli_setup import core, winapi
 from setup_support import Closer, make_payload
 
+HOST_FILES = ("native_host_chrome.json", "native_host_firefox.json")      # the browser extension's door
+
 pytestmark = pytest.mark.skipif(not winapi.WINDOWS, reason="Windows only")
 NOSLEEP = lambda seconds: None  # noqa: E731
 REAL_PROFILE = os.environ.get("USERPROFILE", "")       # the other tests point it at a temporary folder
@@ -53,7 +55,7 @@ def test_a_fresh_install_puts_everything_in_place(payload, env):
     target = env.default_install_dir
     assert result.install_dir == target and result.exe_path == os.path.join(target, "DISO.exe")
     assert result.version == "1.2.0" and result.warnings == []
-    assert tree(target) == sorted(["DISO.exe", "Uninstall.exe", os.path.join("deno", "deno.exe"), "install.json"])
+    assert tree(target) == sorted(["DISO.exe", "Uninstall.exe", os.path.join("deno", "deno.exe"), "install.json", *HOST_FILES])
     for name, rel in (("DISO.exe", "DISO.exe"), ("deno.exe", os.path.join("deno", "deno.exe"))):
         assert core.sha256_of(os.path.join(target, rel)) == core.sha256_of(str(payload / name))
     fractions = [f for f, _ in steps]
@@ -89,7 +91,7 @@ def test_the_manifest_lists_what_was_made(payload, env):
     do_install(payload, env, autostart=True)
     manifest = core.read_manifest(env.default_install_dir)
     assert manifest["version"] == "1.2.0" and manifest["install_dir"] == env.default_install_dir
-    assert set(manifest["files"]) == {"DISO.exe", "Uninstall.exe", os.path.join("deno", "deno.exe"), "install.json"}
+    assert set(manifest["files"]) == {"DISO.exe", "Uninstall.exe", os.path.join("deno", "deno.exe"), "install.json", *HOST_FILES}
     assert manifest["dirs"] == ["deno"] and len(manifest["shortcuts"]) == 3
     assert manifest["start_menu_dir"] == env.start_menu_dir
 
@@ -318,7 +320,7 @@ def test_an_upgrade_replaces_the_files_and_drops_the_ones_that_are_gone(tmp_path
 def test_installing_the_same_version_again_is_harmless(payload, env):
     do_install(payload, env)
     do_install(payload, env)
-    assert tree(env.default_install_dir) == sorted(["DISO.exe", "Uninstall.exe", os.path.join("deno", "deno.exe"), "install.json"])
+    assert tree(env.default_install_dir) == sorted(["DISO.exe", "Uninstall.exe", os.path.join("deno", "deno.exe"), "install.json", *HOST_FILES])
 
 
 def test_a_new_place_removes_the_old_copy(payload, env, tmp_path):
@@ -530,3 +532,45 @@ def test_an_error_after_the_registry_was_written_puts_the_old_entry_back(tmp_pat
     assert value(env, env.uninstall_key, "DisplayVersion") == "1.0.0"
     assert value(env, env.run_key, "DISO") == run_before              # and so is the autostart
     assert {rel: open(os.path.join(target, rel), "rb").read() for rel in tree(target)} == before
+
+
+# ------------------------------------------------------------------------------ the browser extension's door
+CHROME_KEY = r"Software\Google\Chrome\NativeMessagingHosts\com.iso.diso"
+
+
+def test_the_install_lets_every_browser_start_diso_and_the_uninstall_takes_it_back(payload, env):
+    from app import native_host
+    do_install(payload, env)
+    target = env.default_install_dir
+    exe = os.path.join(target, "DISO.exe")
+    assert native_host.registered_command(env.hive, env.reg_prefix + CHROME_KEY) == exe
+    assert native_host.registered_command(env.hive, env.reg_prefix + r"Software\Mozilla\NativeMessagingHosts\com.iso.diso") == exe
+    manifest = core.read_manifest(target)
+    assert len(manifest["native_hosts"]) == 5
+    core.uninstall(target, env, closer=Closer())
+    assert native_host.registered_command(env.hive, env.reg_prefix + CHROME_KEY) is None
+    assert not os.path.exists(os.path.join(target, "native_host_chrome.json"))
+
+
+def test_the_uninstall_leaves_a_door_that_leads_to_another_copy_of_diso(payload, env, tmp_path):
+    from app import native_host
+    do_install(payload, env)
+    other = tmp_path / "Portable"
+    native_host.register(str(other), str(other / "DISO.exe"), env.hive, env.reg_prefix)    # a portable copy took over
+    core.uninstall(env.default_install_dir, env, closer=Closer())
+    assert native_host.registered_command(env.hive, env.reg_prefix + CHROME_KEY) == str(other / "DISO.exe")
+
+
+def test_a_failed_first_install_takes_its_door_away_again(payload, env, monkeypatch):
+    from app import native_host
+    real = core.os.replace
+
+    def fail_on_the_list(src, dst, *a, **k):
+        if str(dst).endswith("install.json"):
+            raise OSError(5, "Erişim engellendi")
+        return real(src, dst, *a, **k)
+    monkeypatch.setattr(core.os, "replace", fail_on_the_list)
+    with pytest.raises(core.SetupError):
+        do_install(payload, env)
+    monkeypatch.undo()
+    assert native_host.registered_command(env.hive, env.reg_prefix + CHROME_KEY) is None
