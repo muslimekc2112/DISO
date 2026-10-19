@@ -111,8 +111,17 @@ def window(exe, env, home, shot):
         while time.time() < end and not found:
             time.sleep(2)
             for d, _, names in os.walk(downloads):
-                found = next((os.path.join(d, n) for n in names if n == "LICENSE"), None) or found
-        if not found or os.path.getsize(found) < 500:
+                found = next((os.path.join(d, n) for n in names if n.startswith("LICENSE") and not n.endswith(".part")
+                              and os.path.getsize(os.path.join(d, n)) > 500), None) or found
+        if not found:
+            print("status:", _get("/status"))
+            for d, _, names in os.walk(home):
+                for n in names:
+                    print("  ", os.path.join(d, n))
+            for d, _, names in os.walk(home):
+                for n in names:
+                    if n.endswith(".log"):
+                        print(open(os.path.join(d, n), encoding="utf-8", errors="replace").read()[-6000:])
             fail(f"the download did not arrive in {downloads}")
         print("downloaded:", found, os.path.getsize(found), "bytes")
     finally:

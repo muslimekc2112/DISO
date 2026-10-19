@@ -33,9 +33,9 @@ WORK = os.path.join(ROOT, "build", "unix")
 DIST = os.path.join(ROOT, "dist")
 TOOLS = os.path.join(WORK, "tools")            # ffmpeg/ and deno/ that go inside the program
 BUNDLE_ID = "com.iso.diso"
-DENO_API = "https://api.github.com/repos/denoland/deno/releases/latest"
 DENO_ASSET = f"deno-{'aarch64' if ARCH == 'arm64' else 'x86_64'}-{'apple-darwin' if MAC else 'unknown-linux-gnu'}.zip"
-DENO_URL = "https://github.com/denoland/deno/releases/download/{tag}/" + DENO_ASSET
+# the newest release, without asking GitHub's API (which allows few questions to a shared build machine)
+DENO_URL = "https://github.com/denoland/deno/releases/latest/download/" + DENO_ASSET
 SCRIPTS = os.path.join(ROOT, "tools", "unix")  # install.sh, uninstall.sh, the macOS uninstaller
 
 
@@ -126,17 +126,19 @@ def fetch_deno() -> str:
     exe = os.path.join(target, "deno")
     if _runs(exe, "--version"):
         return target
-    tag = json.loads(_get(DENO_API)[0].decode("utf-8"))["tag_name"]
     os.makedirs(CACHE, exist_ok=True)
-    dest = _checked_download(DENO_URL.format(tag=tag), DENO_URL.format(tag=tag) + ".sha256sum", None,
-                             os.path.join(CACHE, f"{tag}-{DENO_ASSET}"))
+    dest = os.path.join(CACHE, DENO_ASSET)
+    for stale in (dest, dest + ".ok"):                         # "latest" changes: always the newest one
+        if os.path.exists(stale):
+            os.remove(stale)
+    _checked_download(DENO_URL, DENO_URL + ".sha256sum", None, dest)
     os.makedirs(target, exist_ok=True)
     with zipfile.ZipFile(dest) as z, z.open("deno") as src, open(exe, "wb") as dst:
         shutil.copyfileobj(src, dst)
     os.chmod(exe, 0o755)
     if not _runs(exe, "--version"):
         raise RuntimeError("the downloaded deno does not run here")
-    log(f"Deno: {tag}")
+    log("Deno: " + subprocess.run([exe, "--version"], capture_output=True, text=True).stdout.splitlines()[0])
     return target
 
 
@@ -156,6 +158,7 @@ def pyinstaller_command(ffmpeg_dir, deno_dir) -> list:
            "--distpath", os.path.join(WORK, "dist"), "--workpath", os.path.join(WORK, "work"),
            "--specpath", WORK, "--contents-directory", "_internal",
            "--collect-all", "customtkinter", "--collect-all", "yt_dlp", "--collect-all", "certifi",
+           "--hidden-import", "PIL._tkinter_finder",           # ImageTk needs it outside Windows (the logo, covers)
            "--add-data", f"{os.path.join(ROOT, 'assets')}:assets",
            "--add-data", f"{os.path.join(ROOT, 'browser_extension')}:browser_extension",
            "--add-binary", f"{os.path.join(ffmpeg_dir, 'ffmpeg')}:ffmpeg",
