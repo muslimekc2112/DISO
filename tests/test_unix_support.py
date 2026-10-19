@@ -18,6 +18,7 @@ from app import extension_setup, ffmpeg_setup as ff, i18n, native_host, notify, 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOWS = sys.platform.startswith("win")
+REAL_LOCAL_APPDATA = utils.local_appdata          # conftest puts the pretend home's AppData in its place
 
 
 # ------------------------------------------------------------------------------- the music player
@@ -121,6 +122,7 @@ def test_each_system_gets_its_own_player(monkeypatch):
 
 # ------------------------------------------------------------------------------- data and tools
 def test_the_data_folder_of_each_system(monkeypatch, tmp_path):
+    monkeypatch.setattr(utils, "local_appdata", REAL_LOCAL_APPDATA)
     monkeypatch.setattr(utils.Path, "home", lambda: tmp_path)
     monkeypatch.setattr(utils, "MAC", True)
     monkeypatch.setattr(utils, "WINDOWS", False)
@@ -363,7 +365,7 @@ def test_install_and_uninstall_for_this_user(tmp_path):
     (program / "diso.png").write_bytes(b"png")
     shutil.copy(os.path.join(SCRIPTS, "install.sh"), pack / "install.sh")
     shutil.copy(os.path.join(SCRIPTS, "uninstall.sh"), program / "uninstall.sh")
-    home = tmp_path / "home"
+    home = tmp_path / "user"
     home.mkdir()
     env = {"HOME": str(home), "PATH": os.environ["PATH"], "LANG": "tr_TR.UTF-8"}
     r = subprocess.run(["sh", str(pack / "install.sh"), "--yes", "--no-start"], env=env, capture_output=True, text=True)

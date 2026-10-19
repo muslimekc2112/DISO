@@ -211,5 +211,6 @@ def set_window_icon(win):
             import tkinter
             win._diso_icon = tkinter.PhotoImage(master=win, file=png)
             win.iconphoto(False, win._diso_icon)
+            win._iconbitmap_method_called = True        # customtkinter's mark: "the window has its own icon"
         except Exception:  # noqa: BLE001 - only looks
             pass

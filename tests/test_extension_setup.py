@@ -13,7 +13,8 @@ def test_browsers_are_found_through_app_paths_or_where_they_usually_are():
               r"D:\Firefox\firefox.exe"}
     app_paths = {"firefox.exe": r"D:\Firefox\firefox.exe", "msedge.exe": r"C:\gone\msedge.exe"}
     found = es.find_browsers(app_path=app_paths.get, exists=places.__contains__,
-                             environ={"ProgramFiles": r"C:\PF", "ProgramFiles(x86)": r"C:\PF86", "LOCALAPPDATA": r"C:\Local"})
+                             environ={"ProgramFiles": r"C:\PF", "ProgramFiles(x86)": r"C:\PF86", "LOCALAPPDATA": r"C:\Local"},
+                             system="windows")
     assert found == {"chrome": r"C:\PF\Google\Chrome\Application\chrome.exe",
                      "brave": r"C:\Local\BraveSoftware\Brave-Browser\Application\brave.exe",
                      "firefox": r"D:\Firefox\firefox.exe"}                  # Edge's App Paths entry leads nowhere
@@ -76,7 +77,8 @@ def test_firefox_gets_a_copy_with_its_own_manifest(tmp_path):
     assert os.path.isfile(os.path.join(got, "_locales", "tr", "messages.json")) and os.path.isfile(os.path.join(got, "lib.js"))
     es.firefox_folder(src, data_dir=str(tmp_path))                          # again: made fresh, no error
 
-def test_opening_a_browser_opens_its_extensions_page_and_the_folder():
+def test_opening_a_browser_opens_its_extensions_page_and_the_folder(monkeypatch):
+    monkeypatch.setattr(es.sys, "platform", "win32")
     calls = []
     assert es.open_for("edge", r"C:\e\msedge.exe", r"C:\ext", start=lambda exe, args: calls.append((exe, args)))
     assert calls == [(r"C:\e\msedge.exe", ["edge://extensions/"]), ("explorer.exe", [r"C:\ext"])]

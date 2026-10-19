@@ -387,12 +387,12 @@ def test_ffmpeg_missing_is_reported_and_never_installed_automatically(monkeypatc
     u = updater.Updater()
     u.run(install=True)
     assert u.components["ffmpeg"].status == "missing"
-    assert not os.path.exists(os.path.join(user_tools_dir(), "ffmpeg.exe"))
+    assert not os.path.exists(os.path.join(user_tools_dir(), ff.TOOLS[0]))
 
 
 def test_the_users_own_ffmpeg_is_never_touched(monkeypatch, tmp_path, local_ffmpeg):
     local_ffmpeg()
-    own = tmp_path / "ffmpeg.exe"
+    own = tmp_path / ff.TOOLS[0]
     own.write_bytes(b"mine")
     monkeypatch.setattr(updater, "find_ffmpeg", lambda: str(own))
     u = updater.Updater()
@@ -406,10 +406,10 @@ def test_the_ffmpeg_diso_came_with_is_its_own_and_is_updated_when_the_mirror_has
     local_ffmpeg()
     bundled = tmp_path / "program" / "ffmpeg"
     bundled.mkdir(parents=True)
-    (bundled / "ffmpeg.exe").write_bytes(b"came with DISO")
+    (bundled / ff.TOOLS[0]).write_bytes(b"came with DISO")
     monkeypatch.setattr(ff, "bundled_ffmpeg_dirs", lambda: [str(bundled)])
     monkeypatch.setattr(ff, "ffmpeg_version", lambda path: "2026-09-24-git" if "program" in str(path) else "new")
-    on_path = {"ffmpeg": str(bundled / "ffmpeg.exe")}
+    on_path = {"ffmpeg": str(bundled / ff.TOOLS[0])}
     monkeypatch.setattr(updater, "find_ffmpeg", lambda: on_path["ffmpeg"])
     u = updater.Updater()
     u.run(install=True)                                   # first look: as new as the mirror's build
@@ -422,9 +422,9 @@ def test_the_ffmpeg_diso_came_with_is_its_own_and_is_updated_when_the_mirror_has
     assert comp.status == "available" and "Yeni FFmpeg" in comp.message
     u.run(install=True)
     assert comp.status == "done" and ff.read_info()["sha256"] == new
-    assert os.path.isfile(os.path.join(user_tools_dir(), "ffmpeg.exe"))
-    assert (bundled / "ffmpeg.exe").read_bytes() == b"came with DISO"      # the program's files are not touched
-    on_path["ffmpeg"] = os.path.join(user_tools_dir(), "ffmpeg.exe")    # the updated one is found first now
+    assert os.path.isfile(os.path.join(user_tools_dir(), ff.TOOLS[0]))
+    assert (bundled / ff.TOOLS[0]).read_bytes() == b"came with DISO"      # the program's files are not touched
+    on_path["ffmpeg"] = os.path.join(user_tools_dir(), ff.TOOLS[0])    # the updated one is found first now
     u.run(install=True)
     assert comp.status == "current"
 
@@ -438,7 +438,7 @@ def test_the_updated_ffmpeg_comes_before_the_bundled_one_on_path():
 def test_ffmpeg_installed_by_the_app_is_current_when_the_mirror_has_nothing_newer(monkeypatch, server, local_ffmpeg):
     sha = local_ffmpeg()
     ff.ensure_ffmpeg(force=True)
-    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), "ffmpeg.exe"))
+    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), ff.TOOLS[0]))
     u = updater.Updater()
     u.run(install=True)
     assert u.components["ffmpeg"].status == "current"
@@ -448,7 +448,7 @@ def test_ffmpeg_installed_by_the_app_is_current_when_the_mirror_has_nothing_newe
 def test_a_newer_ffmpeg_build_is_installed_automatically(monkeypatch, local_ffmpeg):
     old = local_ffmpeg()
     ff.ensure_ffmpeg(force=True)
-    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), "ffmpeg.exe"))
+    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), ff.TOOLS[0]))
     new = local_ffmpeg()                                  # the mirror now offers a different build
     assert new != old
     u = updater.Updater()
@@ -461,7 +461,7 @@ def test_a_newer_ffmpeg_build_is_installed_automatically(monkeypatch, local_ffmp
 def test_check_only_reports_a_newer_ffmpeg_without_installing(monkeypatch, local_ffmpeg):
     old = local_ffmpeg()
     ff.ensure_ffmpeg(force=True)
-    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), "ffmpeg.exe"))
+    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), ff.TOOLS[0]))
     local_ffmpeg()
     u = updater.Updater()
     u.run(install=False)
@@ -472,7 +472,7 @@ def test_check_only_reports_a_newer_ffmpeg_without_installing(monkeypatch, local
 def test_ffmpeg_is_not_replaced_while_a_job_is_using_it(monkeypatch, local_ffmpeg):
     old = local_ffmpeg()
     ff.ensure_ffmpeg(force=True)
-    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), "ffmpeg.exe"))
+    monkeypatch.setattr(updater, "find_ffmpeg", lambda: os.path.join(user_tools_dir(), ff.TOOLS[0]))
     local_ffmpeg()
     u = updater.Updater()
     u.ffmpeg_busy = lambda: True

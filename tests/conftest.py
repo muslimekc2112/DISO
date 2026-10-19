@@ -45,6 +45,9 @@ def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", str(home / "AppData" / "Local"))      # where the program keeps its data now
     for name in ("XDG_DATA_HOME", "XDG_CONFIG_HOME"):                         # Linux: under the pretend home too
         monkeypatch.delenv(name, raising=False)
+    if not sys.platform.startswith("win"):     # macOS / Linux keep it elsewhere (test_unix_support checks where)
+        from app import utils
+        monkeypatch.setattr(utils, "local_appdata", lambda: home / "AppData" / "Local")
     monkeypatch.setenv("PATH", os.environ.get("PATH", ""))  # restored after the test
     monkeypatch.setenv("DISO_NO_NATIVE_HOST", "1")          # no copy started by a test points the real browsers at itself
     return home

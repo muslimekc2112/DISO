@@ -35,7 +35,7 @@ def test_a_deleted_file_is_gone_but_one_on_a_missing_drive_is_not(tmp_path, song
     os.remove(songs[0])
     assert is_gone(songs[0])
     free = next((f"{c}:" for c in "QWXYZJKLMN" if not os.path.exists(f"{c}:\\")), None)
-    if free:
+    if free and sys.platform.startswith("win"):
         assert not is_gone(free + "\\Müzik\\şarkı.mp3")             # a USB stick that is not plugged in
 
 

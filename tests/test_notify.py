@@ -37,6 +37,7 @@ def test_toast_survives_powershell_failing(monkeypatch):
 
 def test_toast_does_nothing_off_windows(monkeypatch):
     monkeypatch.setattr(notify, "_WIN", False)
+    monkeypatch.setattr(notify, "toast_command", lambda title, body: None)   # no notify-send / osascript
     assert notify.show_toast("a", "b") == -1
 
 

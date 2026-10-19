@@ -44,7 +44,7 @@ data_dir="$data_home/DISO"
 
 say "DISO'yu kaldırma" "Uninstall DISO"
 say "Program: $dest" "Program: $dest"
-if ! ask "DISO'yu bu bilgisayardan kaldırayım mı?" "Remove DISO from this computer?" n; then
+if [ -z "$yes" ] && ! ask "DISO'yu bu bilgisayardan kaldırayım mı?" "Remove DISO from this computer?" n; then
     say "Vazgeçildi; hiçbir şey silinmedi." "Cancelled; nothing was removed."
     pause
     exit 0

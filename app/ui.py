@@ -1081,6 +1081,7 @@ class App(ctk.CTk):
         self._bind_shortcuts()
         self._announce_version()         # before anything that can fail: a warning must be the last word
         self._start_bridge()
+        self._started_hidden = minimized
         if not minimized:
             self.after(EXTENSION_OFFER_DELAY, self._maybe_offer_extension)
         if self.cfg.get("tray_on_close") or minimized:
@@ -1848,7 +1849,8 @@ class App(ctk.CTk):
 
     def _maybe_offer_extension(self):
         try:
-            if self._closing or self.state() == "withdrawn" or not self.should_offer_extension():
+            if (self._closing or getattr(self, "_started_hidden", False) or self.state() == "withdrawn"
+                    or not self.should_offer_extension()):
                 return
             self.extension_offer = extension_setup.ExtensionOffer(
                 self, on_add=self.open_extension_guide,

@@ -87,8 +87,9 @@ def test_the_text_is_ready_to_paste():
 
 def test_the_folder_of_the_program(monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", r"C:\Program Files\ISO\DISO\DISO.exe")
-    assert about.install_folder() == r"C:\Program Files\ISO\DISO"
+    folder = os.path.join(os.path.abspath(os.sep), "Program Files", "ISO", "DISO")
+    monkeypatch.setattr(sys, "executable", os.path.join(folder, "DISO.exe"))
+    assert about.install_folder() == folder
     monkeypatch.delattr(sys, "frozen")
     assert os.path.isfile(os.path.join(about.install_folder(), "main.py"))
 
