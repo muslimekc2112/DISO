@@ -4,6 +4,8 @@ name: Linux and macOS
 
 on:
   workflow_dispatch:
+  push:
+    branches-ignore: [main]         # a branch being tried (main runs it for releases)
   release:
     types: [published]
 
