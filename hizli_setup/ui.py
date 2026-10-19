@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from app import brand, extension_setup, look
+from app import brand, extension_setup, i18n, look
 from app.ui_common import logo_image, set_if_changed
 from app.utils import resource_path
 
@@ -40,6 +40,8 @@ class _Window(ctk.CTk):
         # worker thread calls into Tcl from the wrong thread and both threads freeze. poll() collects.
         gc.disable()
         self._polls = 0
+        self._title, self._subtitle = title, subtitle         # Turkish: shown again when the language changes
+        self.language_picked = False                           # the user chose a language here
         self.title(title)
         self.exit_code = 1
         self.finished = False                    # a result (good or bad) is on the screen
@@ -69,7 +71,13 @@ class _Window(ctk.CTk):
                      fg_color=look.ACCENT_SOFT if look.is_new() else ("gray78", "gray28"),
                      text_color=look.ACCENT if look.is_new() else ("gray20", "gray85"),
                      font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(10, 0), pady=(8, 0))
-        ctk.CTkLabel(head, text=subtitle, text_color="gray").grid(row=1, column=1, sticky="nw")
+        self.subtitle_label = ctk.CTkLabel(head, text=subtitle, text_color="gray")
+        self.subtitle_label.grid(row=1, column=1, sticky="nw")
+        # the language of these windows; it can be changed until the work starts
+        self.language_switch = ctk.CTkSegmentedButton(head, values=list(i18n.LANGUAGES), height=28,
+                                                      command=self._on_language)
+        self.language_switch.set(self.language_name())
+        self.language_switch.grid(row=0, column=2, rowspan=2, sticky="ne")
         self.body = ctk.CTkFrame(self, fg_color="transparent")
         self.body.grid(row=1, column=0, sticky="nsew", padx=28, pady=8)
         self.body.columnconfigure(0, weight=1)
@@ -78,6 +86,30 @@ class _Window(ctk.CTk):
         self.buttons.columnconfigure(0, weight=1)
         self.protocol("WM_DELETE_WINDOW", self._on_x)
         self._events = queue.Queue()
+
+    # ---- language
+    @staticmethod
+    def language_name():
+        return next(name for name, code in i18n.LANGUAGES.items() if code == i18n.current)
+
+    def _on_language(self, name):
+        if self._closing_blocked or self.finished or name == self.language_name():
+            self.language_switch.set(self.language_name())
+            return
+        i18n.set_language(name)
+        self.language_picked = True
+        self.title(self._title)
+        self.subtitle_label.configure(text=self._subtitle)
+        # the names in the new language (and the English layer now reads the clicks back)
+        self.language_switch.configure(values=list(i18n.LANGUAGES), command=self._on_language)
+        self.language_switch.set(name)
+        self.first_page()
+
+    def first_page(self):
+        """The page the window starts with, built again in the chosen language."""
+
+    def allow_language(self, allowed):
+        set_if_changed(self.language_switch, state="normal" if allowed else "disabled")
 
     # ---- pages
     def clear(self):
@@ -96,6 +128,7 @@ class _Window(ctk.CTk):
 
     def progress_page(self, title, first_text):
         self.clear()
+        self.allow_language(False)
         ctk.CTkLabel(self.body, text=title, font=ctk.CTkFont(size=20, weight="bold"), anchor="w").grid(
             row=0, column=0, sticky="ew", pady=(20, 6))
         self.status = ctk.CTkLabel(self.body, text=first_text, anchor="w", text_color="gray")
@@ -111,6 +144,7 @@ class _Window(ctk.CTk):
         self._closing_blocked = False
         self.finished = True
         self.clear()
+        self.allow_language(False)
         ctk.CTkLabel(self.body, text=("✓  " if ok else "✖  ") + title, anchor="w", font=ctk.CTkFont(size=22, weight="bold"),
                      text_color=look.STATE_DONE if ok else look.STATE_ERROR).grid(row=0, column=0, sticky="ew", pady=(24, 8))
         ctk.CTkLabel(self.body, text=text, anchor="w", justify="left", wraplength=560).grid(row=1, column=0, sticky="ew")
@@ -193,8 +227,12 @@ class SetupWindow(_Window):
         self.launch_var = tk.BooleanVar(value=True)
         self.options_page()
 
+    def first_page(self):
+        self.options_page()
+
     def options_page(self):
         self.clear()
+        self.allow_language(True)
         try:
             data = core.load_payload(self.payload_dir)
             self.version = str(data.get("version", ""))
@@ -266,6 +304,8 @@ class SetupWindow(_Window):
         if kind == "done":
             self.result = data
             self.exit_code = 0
+            if self.language_picked:                             # DISO opens in the language chosen here
+                core.save_language(self.env, self.language_name())
             self.finish_page(True, "Kurulum bitti, hazırız", f"DISO {data.version} kuruldu.\n{data.install_dir}",
                              "\n".join(data.warnings))
             if self.chosen_browsers() and os.path.isdir(self.extension_dir()):
@@ -315,8 +355,12 @@ class UninstallWindow(_Window):
         self.result = None
         self.confirm_page()
 
+    def first_page(self):
+        self.confirm_page()
+
     def confirm_page(self):
         self.clear()
+        self.allow_language(True)
         ctk.CTkLabel(self.body, text=f"{core.DISPLAY_NAME} bu bilgisayardan kaldırılsın mı?", anchor="w",
                      font=ctk.CTkFont(size=20, weight="bold"), wraplength=570, justify="left").grid(row=0, column=0, sticky="ew", pady=(20, 8))
         ctk.CTkLabel(self.body, text=f"Uygulama dosyaları, kısayollar ve kayıt girdileri silinir.\n{self.install_dir}", anchor="w",

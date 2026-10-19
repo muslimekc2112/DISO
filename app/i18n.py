@@ -120,16 +120,17 @@ def _wrap_choices(cls):
 
     def shown_values(self, values):
         out = []
+        back = self.__dict__.setdefault("_i18n_back", {})    # made before English was switched on
         for v in values:
             s = tr(v)
-            self._i18n_back[s] = v
+            back[s] = v
             out.append(s)
         return out
 
     def wrap_command(self, command):
         if command is None:
             return None
-        return lambda value: command(self._i18n_back.get(value, value))
+        return lambda value: command(getattr(self, "_i18n_back", {}).get(value, value))
 
     def __init__(self, *args, **kw):
         self._i18n_back = {}
@@ -151,7 +152,7 @@ def _wrap_choices(cls):
 
     def get(self):
         value = orig_get(self)
-        return self._i18n_back.get(value, value)
+        return getattr(self, "_i18n_back", {}).get(value, value)
 
     cls.__init__, cls.configure, cls.set, cls.get = __init__, configure, set_, get
 

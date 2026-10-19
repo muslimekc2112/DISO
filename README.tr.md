@@ -2,23 +2,23 @@
 
 **[English](README.md) | Türkçe**
 
-Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows için. **Sürüm 0.11.3 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
+Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. Windows için. **Sürüm 0.11.4 beta**: her şey çalışıyor, bazı yerler hâlâ pürüzlü olabilir. Arayüz **Türkçe ve İngilizce**.
 
 Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
 
 ## Kurulum (Python'u olmayan bir bilgisayar için)
-`DISO-Setup-0.11.3-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
+`DISO-Setup-0.11.4-beta.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
 - **Yönetici izni ister:** DISO bu bilgisayardaki herkes için `C:\Program Files\ISO\DISO` klasörüne kurulur. Windows "izin ver?" diye sorar, **Evet** de.
 - Başlat menüsüne ve masaüstüne kısayol koyar, "Uygulamalar" listesine yazılır. İstersen Windows ile birlikte başlar.
 - **Hangi tarayıcılara eklenti kurulacağını sorar** (linke sağ tık → "DISO ile indir", IDM gibi) ve eklemene yardım eder; bkz. [Tarayıcı eklentisi](#-tarayıcı-eklentisi).
 - **Güncelleme:** yeni kurulum dosyasını çalıştırman yeter. Çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
 - **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
-- **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır (ya da Başlat menüsündeki "DISO'yu Kaldır"). Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Setup-0.11.3-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
+- **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır, ya da Başlat menüsünde DISO'ya sağ tık → Kaldır (Windows önce kendi uygulama listesini açar; orada DISO'nun yanındaki Kaldır'a bas), ya da Başlat menüsündeki "DISO'yu Kaldır". Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
+- **Sessiz kurulum:** `DISO-Setup-0.11.4-beta.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
 - Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
 
 ## 🌐 Dil
-DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta Windows Türkçe ise Türkçe, değilse İngilizce başlar. Sonra istediğin zaman değiştirebilirsin: Ayarlar → **Dil** (DISO yeniden açılır). Kurulum ve kaldırma pencereleri DISO'da seçtiğin dili kullanır; tarayıcı eklentisi tarayıcının dilini.
+DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta Windows Türkçe ise Türkçe, değilse İngilizce başlar. Sonra istediğin zaman değiştirebilirsin: Ayarlar → **Dil** (DISO yeniden açılır). Kurulum ve kaldırma pencereleri DISO'da seçtiğin dille açılır, üstlerinde **Türkçe | English** seçici vardır; kurulumda seçtiğin dil DISO'nun dili de olur. Tarayıcı eklentisi tarayıcının dilini kullanır.
 
 ## Geliştirici kurulumu
 1. Python 3.10+ kur (kurulumda **"Add Python to PATH"** işaretli olsun).

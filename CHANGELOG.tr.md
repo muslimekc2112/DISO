@@ -2,6 +2,11 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 0.11.4 beta
+- **Kurulum ve kaldırma pencerelerinde dil seçici:** sağ üstte **Türkçe | English**. Pencere DISO'nun diliyle (DISO hiç açılmadıysa Windows'un diliyle) açılır, istersen değiştirirsin; kurulum ya da kaldırma başlayınca dil sabitlenir. Kurulumda seçtiğin dil DISO'nun dili de olur (diğer ayarlarına dokunulmaz).
+- **Kaldırma:** Başlat menüsünde DISO'ya sağ tık → Kaldır, Windows'un uygulama listesini açar; oradaki Kaldır, DISO'nun kaldırıcısını açar ve "Ayarlarımı ve çalma listelerimi de sil" seçeneğini sorar. Başlat menüsündeki "DISO'yu Kaldır" doğrudan kaldırıcıyı açar.
+- **Düzeltildi:** İngilizceye pencere açıkken geçildiğinde, ondan önce oluşturulmuş seçim düğmeleri hata veriyordu.
+
 ## 0.11.3 beta
 - **Şarkı bul artık YouTube Music'ten arar:** shorts ve sıradan videolar sonuçları doldurmaz, şarkılar gelir (50'ye kadar). Yazdığına uyanlar en üstte, en çok dinlenen önce; yeni **Dinlenme** sütunu her şarkının ne kadar dinlendiğini gösterir. Az şarkı bulunursa YouTube Music'in müzik videoları da eklenir. YouTube Music'e ulaşılamazsa YouTube'da aranır (shorts olmadan).
 - **Sanatçı / kanal kutusu:** arama kutusunun yanına sanatçının ya da kanalın adını yaz, yalnızca onun şarkıları gelsin. Şarkı adıyla birlikte ya da tek başına (o sanatçının en popüler şarkıları) kullanılır; boş bırakılırsa aramayı etkilemez. Büyük-küçük harf ve Türkçe harfler fark etmez ("simarik" = "Şımarık").

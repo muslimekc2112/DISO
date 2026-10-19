@@ -461,3 +461,105 @@ def test_both_windows_fit_on_a_small_screen(windows, package, env, installed, wh
         width, height = (int(int(n) * scale) for n in size.split("x"))
         assert w.winfo_reqheight() <= height and w.winfo_reqwidth() <= width     # nothing is cut off
         assert height <= w.winfo_screenheight()
+
+
+SWITCH = r'''
+import json, os, sys, time
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+os.environ["HIZLI_SETUP_TEST_ROOT"] = WORLD
+from setup_support import Closer, make_payload
+from pathlib import Path
+from app import i18n, look
+from hizli_setup import cli, core, ui
+env = core.test_env(WORLD)
+os.makedirs(env.user_data_dir, exist_ok=True)
+json.dump({"theme": "Koyu"}, open(os.path.join(env.user_data_dir, "settings.json"), "w"))   # a setting of DISO's own
+cli.use_language(env)                                       # a test root: Turkish
+look.apply("Yeni")
+out = {}
+def texts(w):
+    found = []
+    def walk(x):
+        for c in x.winfo_children():
+            try:
+                t = c.cget("text")
+                if t: found.append(str(t))
+            except Exception:
+                pass
+            walk(c)
+    walk(w)
+    return found
+def pump(w, cond, timeout=30):
+    end = time.time() + timeout
+    while not cond() and time.time() < end:
+        w.update(); time.sleep(0.02)
+w = ui.SetupWindow(str(make_payload(Path(WORLD) / "paket")), env, closer=Closer(), on_launch=lambda exe: None)
+w.withdraw(); w.update()
+out["tr"] = texts(w); out["tr_title"] = w.title()
+w.dir_var.set(os.path.join(WORLD, "Prog")); w.launch_var.set(False)
+w.language_switch._command("English"); w.update()        # a click on the switch
+out["en"] = texts(w); out["en_title"] = w.title(); out["kept_dir"] = w.dir_var.get(); out["kept_launch"] = w.launch_var.get()
+w.start_install()
+out["locked"] = w.language_switch.cget("state")
+w._on_language("Türkçe")                                    # too late: nothing changes while it installs
+out["still"] = i18n.current
+pump(w, lambda: w.result is not None or w.exit_code == 2)
+out["done"] = texts(w); out["links"] = sorted(os.listdir(env.start_menu_dir))
+out["settings"] = json.load(open(os.path.join(env.user_data_dir, "settings.json"), encoding="utf-8"))
+w.destroy()
+u = ui.UninstallWindow(os.path.join(WORLD, "Prog"), env, closer=Closer())
+u.withdraw(); u.update()
+out["u_en"] = texts(u)
+u.language_switch._command("Turkish"); u.update()        # shown in English, read back
+out["u_tr"] = texts(u); out["u_title"] = u.title(); out["u_data_switch"] = u.data_var.get()
+u.destroy()
+json.dump(out, open(sys.argv[1], "w", encoding="utf-8"), ensure_ascii=False)
+'''
+
+
+def test_the_language_can_be_chosen_in_setup_and_uninstall_and_diso_follows_it(tmp_path):
+    import json
+    import subprocess
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    world = str(tmp_path / "dunya")
+    script = tmp_path / "switch.py"
+    script.write_text(SWITCH.replace("ROOT", repr(root)).replace("WORLD", repr(world)), encoding="utf-8")
+    out = tmp_path / "out.json"
+    done = subprocess.run([sys.executable, str(script), str(out)], capture_output=True, text=True, timeout=180)
+    try:
+        assert done.returncode == 0, done.stderr[-3000:]
+        d = json.load(open(out, encoding="utf-8"))
+        assert d["tr_title"] == "DISO Kurulumu" and "Kur" in d["tr"] and "Türkçe" in d["tr"]
+        assert d["en_title"] == "DISO Setup" and "Install" in d["en"] and "Kur" not in d["en"]
+        assert any("will be installed on this PC" in t for t in d["en"])
+        assert d["kept_dir"].endswith("Prog") and d["kept_launch"] is False          # the choices stay
+        assert d["locked"] == "disabled" and d["still"] == "en"
+        assert any("Setup finished" in t for t in d["done"]) and "Uninstall DISO.lnk" in d["links"]
+        assert d["settings"] == {"theme": "Koyu", "language": "English"}            # DISO opens in English
+        assert any("Remove DISO from this PC?" in t for t in d["u_en"])
+        assert any("kaldırılsın mı" in t for t in d["u_tr"]) and "Kaldır" in d["u_tr"] and "Vazgeç" in d["u_tr"]
+        assert any("çalma listelerimi de sil" in t for t in d["u_tr"]) and d["u_title"] == "DISO - Kaldır"
+    finally:
+        env = core.test_env(world)
+        core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
+
+
+def test_setup_writes_only_the_language_into_disos_settings(tmp_path):
+    env = core.test_env(str(tmp_path / "w"))
+    path = os.path.join(env.user_data_dir, "settings.json")
+    assert core.save_language(env, "English") and json_of(path) == {"language": "English"}     # no file yet
+    with open(path, "w", encoding="utf-8") as f:
+        f.write('{"language": "English", "folder": "D:/İndir"}')
+    assert core.save_language(env, "Türkçe") and json_of(path) == {"language": "Türkçe", "folder": "D:/İndir"}
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("{bozuk")
+    assert not core.save_language(env, "English") and open(path, encoding="utf-8").read() == "{bozuk"
+    assert not core.save_language(env, "Klingon")
+
+
+def json_of(path):
+    import json
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)

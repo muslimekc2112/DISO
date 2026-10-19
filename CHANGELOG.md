@@ -2,6 +2,11 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 0.11.4 beta
+- **Language switch in the setup and uninstall windows:** **Türkçe | English** at the top right. The window opens in DISO's language (Windows' own if DISO never ran) and you can change it; once installing or removing starts, the language stays. The language chosen in setup becomes DISO's language too (your other settings are not touched).
+- **Uninstalling:** right-click DISO in the Start menu → Uninstall opens Windows' list of apps; Uninstall there opens DISO's uninstaller, which asks about "Also delete my settings and playlists". "Uninstall DISO" in the Start menu opens the uninstaller directly.
+- **Fixed:** switching to English while a window was open broke the choice buttons made before the switch.
+
 ## 0.11.3 beta
 - **Find songs now searches YouTube Music:** shorts and ordinary videos no longer fill the results, songs do (up to 50). The ones that match what you typed come first, the most listened to first; a new **Plays** column shows how much each song is listened to. When few songs are found, YouTube Music's music videos are added. If YouTube Music cannot be reached, YouTube is searched (without shorts).
 - **Artist / channel box:** type an artist's or a channel's name next to the search box to get only their songs. It works together with a song name or on its own (that artist's most popular songs); left empty it changes nothing. Case and Turkish letters do not matter ("simarik" = "Şımarık").

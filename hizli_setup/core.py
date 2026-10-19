@@ -270,6 +270,32 @@ def delete_key_tree(env, subkey):
         pass
 
 
+def save_language(env, name):
+    """The language chosen in Setup becomes DISO's language too (only that setting is written; the
+    others stay as they are). A broken settings file is left alone. Returns whether it was written."""
+    if name not in i18n.LANGUAGES:
+        return False
+    path = os.path.join(env.user_data_dir, "settings.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return False
+    except FileNotFoundError:
+        data = {}
+    except (OSError, ValueError):
+        return False
+    data["language"] = name
+    try:
+        os.makedirs(env.user_data_dir, exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        return False
+    return True
+
+
 def find_existing(env):
     """(install folder, version) of a copy that is registered for this user, else (None, None)."""
     location = _read_value(env, env.uninstall_key, "InstallLocation")
