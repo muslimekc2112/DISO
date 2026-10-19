@@ -33,9 +33,9 @@ def collect() -> dict:
         except Exception as e:  # noqa: BLE001
             info[name] = f"{type(e).__name__}: {e}"
     info["ffmpeg"] = find_ffmpeg()
-    try:   # the music player talks to Windows' own MCI
+    try:   # the music player talks to Windows' own MCI (macOS / Linux: SDL, through pygame)
         from . import player
-        player.MciBackend()
+        player.new_backend(alias="diso_selftest_probe")
         info["music_player"] = True
     except Exception as e:  # noqa: BLE001
         info["music_player"] = f"error: {type(e).__name__}: {e}"
@@ -52,30 +52,10 @@ def collect() -> dict:
     except Exception as e:  # noqa: BLE001
         info["music_ui"] = f"error: {type(e).__name__}: {e}"
         info["tag_tools"] = False
-    try:   # an MP3 with a big cover (MCI refuses it) gets a playable copy, and MCI opens that
-        import shutil
-        import subprocess
-        import tempfile
-
-        from . import playable, player as _player
-        from .utils import subprocess_flags
-        d = tempfile.mkdtemp(prefix="diso-selftest-")
-        song, cover = os.path.join(d, "s.mp3"), os.path.join(d, "c.jpg")
-        for args in (["-f", "lavfi", "-i", "color=c=gray:s=1000x1000", "-vf", "noise=alls=100:allf=t",
-                      "-frames:v", "1", "-q:v", "2", cover],
-                     ["-f", "lavfi", "-i", "sine=duration=3", "-i", cover, "-map", "0:a", "-map", "1:v",
-                      "-c:a", "libmp3lame", "-c:v", "copy", "-disposition:v", "attached_pic",
-                      "-id3v2_version", "3", song]):
-            subprocess.run([find_ffmpeg(), "-y", "-loglevel", "error", *args],
-                           check=True, capture_output=True, timeout=60, **subprocess_flags())
-        made = playable.Preparer()._make(song)
-        mci = _player.MciBackend(alias="diso_selftest")
-        info["playable"] = bool(made and mci.load(playable.copy_path(song)))
-        mci.close()
-        os.remove(playable.copy_path(song))
-        shutil.rmtree(d, ignore_errors=True)
-    except Exception as e:  # noqa: BLE001
-        info["playable"] = f"error: {type(e).__name__}: {e}"
+    if not sys.platform.startswith("win"):
+        info["playable"] = _plays_anything()
+    else:
+        info["playable"] = _playable_copy()
     try:   # YouTube needs a JavaScript runtime: Deno, which the installer puts beside the program
         import shutil as _shutil
         deno = _shutil.which("deno")
@@ -87,10 +67,13 @@ def collect() -> dict:
             info["deno_version"] = (out.stdout.splitlines() or [""])[0]
     except Exception as e:  # noqa: BLE001
         info["deno"] = f"error: {type(e).__name__}: {e}"
-    try:   # the tray icon needs the Windows backend of pystray
+    try:   # the tray icon (Windows: pystray's Windows backend; Linux: its X11 one; macOS has none, see tray.py)
         from . import tray
-        tray.TrayIcon("selftest", lambda name: None)
-        info["tray_icon"] = True
+        if tray.AVAILABLE or sys.platform.startswith("win"):
+            tray.TrayIcon("selftest", lambda name: None)
+            info["tray_icon"] = True
+        else:
+            info["tray_icon"] = "none on this system"
     except Exception as e:  # noqa: BLE001
         info["tray_icon"] = f"error: {type(e).__name__}: {e}"
     try:   # Windows' media panel needs the winrt packages inside the exe
@@ -113,6 +96,69 @@ def collect() -> dict:
     except Exception as e:  # noqa: BLE001
         info["ytmusic"] = f"error: {type(e).__name__}: {e}"
     return info
+
+
+def _song(d, cover_too=True):
+    """A 3 s MP3 made with ffmpeg (with a 1000 px cover: the kind MCI refuses)."""
+    import subprocess
+
+    from .utils import subprocess_flags
+    song, cover = os.path.join(d, "s.mp3"), os.path.join(d, "c.jpg")
+    steps = [["-f", "lavfi", "-i", "sine=duration=3", "-c:a", "libmp3lame", song]]
+    if cover_too:
+        steps = [["-f", "lavfi", "-i", "color=c=gray:s=1000x1000", "-vf", "noise=alls=100:allf=t",
+                  "-frames:v", "1", "-q:v", "2", cover],
+                 ["-f", "lavfi", "-i", "sine=duration=3", "-i", cover, "-map", "0:a", "-map", "1:v",
+                  "-c:a", "libmp3lame", "-c:v", "copy", "-disposition:v", "attached_pic",
+                  "-id3v2_version", "3", song]]
+    for args in steps:
+        subprocess.run([find_ffmpeg(), "-y", "-loglevel", "error", *args],
+                       check=True, capture_output=True, timeout=60, **subprocess_flags())
+    return song
+
+
+def _plays_anything():
+    """macOS / Linux: ffmpeg decodes a song and SDL takes the sound (a second of it)."""
+    import shutil
+    import tempfile
+    import time
+    d = tempfile.mkdtemp(prefix="diso-selftest-")
+    try:
+        from . import player
+        backend = player.new_backend(alias="diso_selftest")
+        if not backend.load(_song(d)):
+            return f"error: {backend.last_error}"
+        backend.play()
+        end = time.monotonic() + 5
+        while backend.position_ms() < 500 and time.monotonic() < end:
+            time.sleep(0.05)
+        ok = backend.position_ms() >= 500
+        backend.close()
+        return ok
+    except Exception as e:  # noqa: BLE001
+        return f"error: {type(e).__name__}: {e}"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _playable_copy():
+    """Windows: an MP3 with a big cover (MCI refuses it) gets a playable copy, and MCI opens that."""
+    import shutil
+    import tempfile
+    d = tempfile.mkdtemp(prefix="diso-selftest-")
+    try:
+        from . import playable, player
+        song = _song(d)
+        made = playable.Preparer()._make(song)
+        mci = player.MciBackend(alias="diso_selftest")
+        result = bool(made and mci.load(playable.copy_path(song)))
+        mci.close()
+        os.remove(playable.copy_path(song))
+        return result
+    except Exception as e:  # noqa: BLE001
+        return f"error: {type(e).__name__}: {e}"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def run(path=None) -> int:

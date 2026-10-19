@@ -26,12 +26,40 @@ def set_language(name_or_code):
 
 def windows_language():
     """'Türkçe' when Windows itself speaks Turkish, 'English' for every other language."""
+    import sys
+    if not sys.platform.startswith("win"):
+        return system_language()
     try:
         import ctypes
         lang_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
-    except Exception:  # noqa: BLE001 - not Windows
+    except Exception:  # noqa: BLE001
         return "Türkçe"
     return "Türkçe" if lang_id & 0x3FF == 0x1F else "English"
+
+
+def system_language(environ=None, mac=None, apple_languages=None):
+    """macOS / Linux: 'Türkçe' when the system's first language is Turkish, else 'English'. macOS keeps it in
+    AppleLanguages (an app started from the Finder has no LANG); Linux in LANGUAGE / LC_ALL / LC_MESSAGES / LANG."""
+    import os
+    import sys
+    environ = os.environ if environ is None else environ
+    mac = sys.platform == "darwin" if mac is None else mac
+    first = ""
+    if mac:
+        try:
+            if apple_languages is None:
+                import subprocess
+                apple_languages = subprocess.run(["defaults", "read", "-g", "AppleLanguages"], capture_output=True,
+                                                 text=True, timeout=5).stdout
+            first = next((p.strip(' "\t,') for p in apple_languages.splitlines() if p.strip(' "\t,()')), "")
+        except Exception:  # noqa: BLE001 - then the environment decides
+            first = ""
+    if not first:
+        for name in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+            if environ.get(name):
+                first = environ[name].split(":")[0]
+                break
+    return "Türkçe" if first.lower().startswith("tr") else "English"
 
 
 def saved_language(settings_path, fallback=None):

@@ -1,13 +1,19 @@
-"""Music playback: the Windows MCI backend and the queue / controller on top of it.
+"""Music playback: the Windows MCI backend (sdl_player.SdlBackend on macOS / Linux) and the queue /
+controller on top of it.
 
 Nothing here knows about downloads or windows. `Controller` drives any backend that has the
 methods of `MciBackend`, so the tests use a fake one and the real one is tested on its own."""
 import ctypes
 import os
 import random
+import sys
 import threading
 import time
-from ctypes import wintypes
+
+try:
+    from ctypes import wintypes
+except (ImportError, ValueError):  # not Windows
+    wintypes = None
 
 from .logs import log
 
@@ -47,6 +53,20 @@ def track_label(track: dict) -> str:
     """What to show for a track: 'Artist – Title' from its tags, else the file name."""
     artist, title = artist_and_title(track)
     return f"{artist} – {title}" if artist else title
+
+
+def new_backend(alias=_ALIAS):
+    """The player of this system: Windows' MCI, elsewhere ffmpeg + SDL. Raises OSError / AttributeError
+    when there is none."""
+    if sys.platform.startswith("win"):
+        return MciBackend(alias)
+    from .sdl_player import SdlBackend
+    return SdlBackend(alias)
+
+
+def needs_playable_copies() -> bool:
+    """Only MCI refuses files that are fine (see playable.py); ffmpeg reads them all."""
+    return sys.platform.startswith("win")
 
 
 class MciBackend:

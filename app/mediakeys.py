@@ -6,8 +6,13 @@ program gets them, so the music window only takes them while music is playing or
 them back when it stops. A key another program already holds is simply not taken (no error)."""
 import ctypes
 import queue
+import sys
 import threading
-from ctypes import wintypes
+
+try:
+    from ctypes import wintypes
+except (ImportError, ValueError):  # not Windows
+    wintypes = None
 
 from .logs import log
 
@@ -33,6 +38,8 @@ class MediaKeys:
         """Take the keys; returns the names of the ones taken (empty when none could be)."""
         if self._thread is not None:
             return self.taken
+        if not sys.platform.startswith("win"):     # Windows only (macOS / Linux: the window's own keys)
+            return set()
         self._ready.clear()
         self._thread = threading.Thread(target=self._run, name="media-keys", daemon=True)
         self._thread.start()

@@ -170,7 +170,9 @@ PLAIN = {
     "Bitiş saatini boş bırakırsan başladıktan sonra hep açık kalır": "Leave the end time empty to keep going once started",
     "Pencereyi kapatınca sağ alttaki simgeye iner": "Closing the window keeps DISO as an icon at the bottom right",
     "pystray kurulu değil": "pystray is not installed", "Kapatınca arka planda çalış": "Keep running when closed",
-    "Windows açılışında başlat": "Start with Windows", "Açılışta pencere göstermeden, simge olarak başlar": "Starts as an icon, without a window",
+    "Windows açılışında başlat": "Start with Windows", "Oturum açılınca başlat": "Start when I log in",
+    "Pencereyi kapatınca Dock'a küçülür": "Closing the window minimizes DISO to the Dock",
+    "Pencereyi kapatınca paneldeki simgeye iner": "Closing the window keeps DISO as an icon on the panel", "Açılışta pencere göstermeden, simge olarak başlar": "Starts as an icon, without a window",
     "Tarayıcı eklentisinden link al": "Take links from the browser extension",
     "Sadece bu bilgisayardaki eklentiyi dinlerim; dışarıdan kimse link gönderemez": "I only listen to the extension on this PC; nobody outside can send links",
     "Eklenti bağlantı noktası": "Extension port", "Eklentideki port ile aynı olsun, yoksa konuşamayız": "Must match the port in the extension",
@@ -337,10 +339,22 @@ PLAIN = {
         "3. Press “Load unpacked”, paste the path into the address bar of the window that opens (Ctrl+V) and press "
         "“Select Folder”. (Or drag the folder that opened onto the extensions page.)\n"
         "4. Done! Right-click a link → “Download with DISO”. When DISO is closed, it opens by itself.",
-    "Bu bilgisayarda desteklenen bir tarayıcı bulamadım (Chrome, Edge, Brave, Opera, Vivaldi, Firefox).":
-        "No supported browser was found on this PC (Chrome, Edge, Brave, Opera, Vivaldi, Firefox).",
+    "Bu bilgisayarda desteklenen bir tarayıcı bulamadım (Chrome, Edge, Brave, Opera, Vivaldi, Firefox, Chromium).":
+        "No supported browser was found on this PC (Chrome, Edge, Brave, Opera, Vivaldi, Firefox, Chromium).",
+    "1. Aşağıdan tarayıcını seç: eklentiler sayfası ve eklenti klasörü açılır, klasörün yolu panoya kopyalanır.\n"
+    "2. Eklentiler sayfasında sağ üstteki “Geliştirici modu”nu aç.\n"
+    "3. “Paketlenmemiş öğe yükle”ye bas, açılan pencerede ⇧⌘G'ye bas, ⌘V ile yolu yapıştır, Return'e ve “Seç”e bas. "
+    "(Ya da açılan klasörü eklentiler sayfasının üstüne sürükleyip bırak.)\n"
+    "4. Hazır! Bir linke sağ tıkla → “DISO ile indir”. DISO kapalıysa kendisi açılır.":
+        "1. Pick your browser below: its extensions page and the extension's folder open, and the folder's path is "
+        "copied.\n"
+        "2. On the extensions page turn on “Developer mode” at the top right.\n"
+        "3. Press “Load unpacked”, press ⇧⌘G in the window that opens, paste the path (⌘V), press Return and "
+        "“Select”. (Or drag the folder that opened onto the extensions page.)\n"
+        "4. Done! Right-click a link → “Download with DISO”. When DISO is closed, it opens by itself.",
     "Chrome'a ekle": "Add to Chrome", "Edge'e ekle": "Add to Edge", "Brave'e ekle": "Add to Brave",
     "Opera'ya ekle": "Add to Opera", "Vivaldi'ye ekle": "Add to Vivaldi", "Firefox'a ekle": "Add to Firefox",
+    "Chromium'a ekle": "Add to Chromium",
     "Eklentiler sayfası açıldı, klasörün yolu panoya kopyalandı. Şimdi 2. ve 3. adım.":
         "The extensions page is open and the folder's path is copied. Now steps 2 and 3.",
     "Tarayıcıyı açamadım; klasörün yolu panoya kopyalandı, eklentiler sayfasını elle aç.":

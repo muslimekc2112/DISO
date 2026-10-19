@@ -16,7 +16,7 @@ pytestmark = pytest.mark.gui
 
 @pytest.fixture
 def music_app(app, monkeypatch):
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", FakeReader)
     app.manager.set_gate(False)
     app._ensure_music()

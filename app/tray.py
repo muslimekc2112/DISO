@@ -6,6 +6,7 @@ on_event(name) with "show", "pause_all", "resume_all" or "quit", and the window 
 those on its own thread.
 """
 import os
+import sys
 import threading
 
 from .i18n import tr
@@ -18,7 +19,8 @@ except Exception:  # not installed / no tray on this system
     pystray = None
     Image = None
 
-AVAILABLE = pystray is not None
+# macOS: pystray wants the main thread, which belongs to the window (DISO goes into the Dock there instead)
+AVAILABLE = pystray is not None and sys.platform != "darwin"
 
 
 def load_image(path=None):

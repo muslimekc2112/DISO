@@ -1,6 +1,7 @@
 """Finished-download notifications (sound, Windows toast) and the power actions."""
 import base64
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -38,10 +39,29 @@ def play_sound(kind: str = "done") -> None:
         pass
 
 
+def toast_command(title: str, body: str, system=None):
+    """macOS / Linux: the command that shows the notification (None: there is none)."""
+    system = system or sys.platform
+    if system == "darwin":
+        def q(text):
+            return '"' + str(text).replace("\\", "\\\\").replace('"', '\\"') + '"'
+        return ["osascript", "-e", f"display notification {q(str(body)[:240])} with title {q(str(title)[:100])}"]
+    if shutil.which("notify-send"):
+        return ["notify-send", "--app-name=DISO", str(title)[:100], str(body)[:240]]
+    return None
+
+
 def show_toast(title: str, body: str, timeout: int = 20) -> int:
-    """Windows notification. Blocks until PowerShell is done; returns its exit code (-1: n/a)."""
+    """Windows notification (macOS: Notification Center, Linux: notify-send). Blocks until it is shown;
+    returns the exit code (-1: n/a)."""
     if not _WIN:
-        return -1
+        cmd = toast_command(title, body)
+        if not cmd:
+            return -1
+        try:
+            return subprocess.run(cmd, timeout=timeout, capture_output=True, stdin=subprocess.DEVNULL).returncode
+        except Exception:
+            return -1
     script = base64.b64encode(_TOAST_PS.encode("utf-16-le")).decode("ascii")
     env = dict(os.environ, HI_TITLE=str(title)[:100], HI_BODY=str(body)[:240])
     try:
@@ -64,11 +84,15 @@ def power_action(kind: str) -> bool:
         if kind == "shutdown":
             if _WIN:
                 subprocess.Popen(["shutdown", "/s", "/t", "5"], **subprocess_flags())
+            elif sys.platform == "darwin":
+                subprocess.Popen(["osascript", "-e", 'tell application "System Events" to shut down'])
             else:
-                subprocess.Popen(["shutdown", "-h", "now"])
+                subprocess.Popen(["systemctl", "poweroff"])
         elif kind == "sleep":
             if _WIN:
                 subprocess.Popen(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"], **subprocess_flags())
+            elif sys.platform == "darwin":
+                subprocess.Popen(["pmset", "sleepnow"])
             else:
                 subprocess.Popen(["systemctl", "suspend"])
         else:

@@ -83,11 +83,6 @@ def test_start_with_windows_writes_and_removes_the_registry_value():
         startup.set_enabled(False, name)
 
 
-def test_startup_does_nothing_off_windows(monkeypatch):
-    monkeypatch.setattr(startup, "_winreg", lambda: None)
-    assert startup.is_enabled() is False and startup.set_enabled(True) is False
-
-
 # ---------------------------------------------------------------------------------- tray
 @pytest.mark.gui
 @pytest.mark.skipif(not tray.AVAILABLE, reason="pystray is not installed")

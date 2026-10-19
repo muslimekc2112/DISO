@@ -159,7 +159,7 @@ def test_wrong_lyrics_can_be_looked_up_again_with_the_songs_own_video(app, monke
 
     from app import player, tags
     from app.models import DONE, Item
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", FakeReader)
     app._ensure_music()
     music = app.music

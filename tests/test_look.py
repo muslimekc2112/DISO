@@ -91,7 +91,7 @@ def test_every_window_can_be_built_in_the_new_style(new_look, make_app, monkeypa
     from music_support import FakeBackend, FakeReader
 
     from app import player, tags
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", FakeReader)
     app = make_app()
     add_item(app, "A", "downloading", total=100, done=40)

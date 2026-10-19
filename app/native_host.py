@@ -11,7 +11,8 @@ Messages: {"type": "ping"} and {"type": "launch", "port": n}.
 The browser finds the host through the registry: a key per browser whose default value is the path of
 a small JSON file (host manifest) that names the program and the one extension allowed to start it.
 The installer registers it for every user (HKLM), the app itself for the current user (HKCU) at every
-start, so a portable DISO.exe works too."""
+start, so a portable DISO.exe works too. macOS and Linux have no registry: there the manifest itself goes
+into a folder of each browser (see host_dirs), also at every start of the app."""
 import json
 import os
 import struct
@@ -143,6 +144,13 @@ def launch(command=None, popen=subprocess.Popen) -> bool:
     hosts in a job; CREATE_BREAKAWAY_FROM_JOB takes the app out of it where that is allowed)."""
     command = command or app_command()
     env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")     # a fresh copy, not a child of our unpacked files
+    if not sys.platform.startswith("win"):                         # macOS / Linux: a session of its own
+        try:
+            popen(command, cwd=os.path.dirname(command[-1]) or None, close_fds=True, start_new_session=True,
+                  env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except OSError:
+            return False
     for flags in (DETACHED_PROCESS | NEW_GROUP | BREAKAWAY, DETACHED_PROCESS | NEW_GROUP):
         try:
             popen(command, cwd=os.path.dirname(command[-1]) or None, close_fds=True, creationflags=flags, env=env,
@@ -158,6 +166,8 @@ def std_streams():
     i, o = getattr(sys.stdin, "buffer", None), getattr(sys.stdout, "buffer", None)
     if i is not None and o is not None:
         return i, o
+    if not sys.platform.startswith("win"):
+        return os.fdopen(0, "rb", buffering=0), os.fdopen(1, "wb", buffering=0)
     import ctypes
     import msvcrt
     k32 = ctypes.windll.kernel32
@@ -261,12 +271,15 @@ def unregister(hive, prefix="", inside=None) -> list:
 
 def register_for_user(data_dir=None, hive=None, prefix="") -> list:
     """The app does this at every start: the current user's browsers can start this very copy of DISO."""
-    if not sys.platform.startswith("win") or os.environ.get(NO_REGISTER_ENV) or os.environ.get(SETUP_TEST_ENV):
+    if os.environ.get(NO_REGISTER_ENV) or os.environ.get(SETUP_TEST_ENV):
         return []                              # a copy that tests started (in a pretend computer) stays out of the real one
-    import winreg
     from .utils import app_data_dir
     folder = os.path.join(data_dir or app_data_dir(), "native_host")
     command = app_command()
+    if not sys.platform.startswith("win"):
+        target = command[0] if len(command) == 1 else _source_script(folder, command)
+        return register_files(target)
+    import winreg
     if len(command) == 1:
         target = command[0]
     else:                                     # from source: the browser can only start a program, so a .bat
@@ -276,3 +289,79 @@ def register_for_user(data_dir=None, hive=None, prefix="") -> list:
         with open(target, "w", encoding="utf-8", newline="\r\n") as f:     # chcp: the paths may be "C:\Users\Tuğra\..."
             f.write(f'@echo off\nchcp 65001 >nul\n"{python}" "{command[1]}" %*\n')
     return register(folder, target, winreg.HKEY_CURRENT_USER if hive is None else hive, prefix)
+
+
+# ------------------------------------------------------------------------------- macOS / Linux
+# no registry there: every browser reads <HOST_NAME>.json from a folder of its own (per user)
+MAC_CHROMIUM = ("Google/Chrome", "Google/Chrome Beta", "Chromium", "Microsoft Edge", "BraveSoftware/Brave-Browser",
+                "Vivaldi")
+LINUX_CHROMIUM = ("google-chrome", "google-chrome-beta", "chromium", "microsoft-edge", "BraveSoftware/Brave-Browser",
+                  "vivaldi")
+
+
+def host_dirs(home=None, mac=None, environ=os.environ) -> list:
+    """[(the browser's own folder, its NativeMessagingHosts folder, firefox?)] for every browser family."""
+    home = home or os.path.expanduser("~")
+    mac = sys.platform == "darwin" if mac is None else mac
+    if mac:
+        base = os.path.join(home, "Library", "Application Support")
+        out = [(os.path.join(base, *b.split("/")), False) for b in MAC_CHROMIUM]
+        out.append((os.path.join(base, "Mozilla"), True))
+        return [(own, os.path.join(own, "NativeMessagingHosts"), ff) for own, ff in out]
+    config = environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config")
+    out = [(os.path.join(config, *b.split("/")), os.path.join(config, *b.split("/"), "NativeMessagingHosts"), False)
+           for b in LINUX_CHROMIUM]
+    mozilla = os.path.join(home, ".mozilla")
+    return out + [(mozilla, os.path.join(mozilla, "native-messaging-hosts"), True)]
+
+
+def register_files(command_path, home=None, mac=None) -> list:
+    """Write our host manifest for every browser that has been used here (its own folder exists; DISO does
+    this at every start, so a browser installed later is found then). Returns the files written."""
+    written = []
+    for own, folder, firefox in host_dirs(home, mac):
+        if not os.path.isdir(own):
+            continue
+        try:
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, HOST_NAME + ".json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(host_manifest(command_path, firefox), f, ensure_ascii=False, indent=2)
+            written.append(path)
+        except OSError:
+            continue
+    return written
+
+
+def unregister_files(home=None, mac=None, inside=None) -> list:
+    """Remove our host manifests; with `inside`, only the ones that lead to a program in that folder."""
+    folder = os.path.join(os.path.abspath(inside), "") if inside else None       # with its separator at the end
+    removed = []
+    for _own, hosts, _firefox in host_dirs(home, mac):
+        path = os.path.join(hosts, HOST_NAME + ".json")
+        if not os.path.isfile(path):
+            continue
+        if folder:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    command = json.load(f).get("path") or ""
+            except (OSError, ValueError):
+                command = ""
+            if command and not os.path.abspath(command).startswith(folder):
+                continue
+        try:
+            os.remove(path)
+            removed.append(path)
+        except OSError:
+            pass
+    return removed
+
+
+def _source_script(folder, command) -> str:
+    """From source the browser can only start a program: a small shell script that runs main.py."""
+    os.makedirs(folder, exist_ok=True)
+    target = os.path.join(folder, "diso_host.sh")
+    with open(target, "w", encoding="utf-8") as f:
+        f.write(f'#!/bin/sh\nexec "{command[0]}" "{command[1]}" "$@"\n')
+    os.chmod(target, 0o755)
+    return target

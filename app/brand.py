@@ -6,9 +6,9 @@ PUBLISHER = "ISO"                     # the folder it installs under: C:\\Progra
 APP_ID = "DISO"                       # in file names, the registry, locks; the browser extension looks for it
 EXE_NAME = APP_ID + ".exe"
 
-VERSION = "0.11.5"                    # numbers only (Windows and Chrome want that)
+VERSION = "0.12.0"                    # numbers only (Windows and Chrome want that)
 CHANNEL = "beta"
-VERSION_LABEL = f"{VERSION} {CHANNEL}"          # what the user sees: 0.11.5 beta
+VERSION_LABEL = f"{VERSION} {CHANNEL}"          # what the user sees: 0.12.0 beta
 
 HOME_URL = "https://github.com/muslimekc2112/DISO"
 CONTACT_URL = HOME_URL + "/issues/new"          # "Contact us": a new issue on GitHub

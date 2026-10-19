@@ -18,7 +18,19 @@ def resource_path(relative: str) -> str:
     return os.path.join(base, relative)
 
 
+WINDOWS = sys.platform.startswith("win")
+MAC = sys.platform == "darwin"
+EXE = ".exe" if WINDOWS else ""          # ffmpeg.exe / ffmpeg
+
+
 def local_appdata() -> Path:
+    """Where programs keep their data: %LOCALAPPDATA% on Windows, ~/Library/Application Support on
+    macOS, $XDG_DATA_HOME (~/.local/share) on Linux."""
+    if MAC:
+        return Path.home() / "Library" / "Application Support"
+    if not WINDOWS:
+        base = os.environ.get("XDG_DATA_HOME")
+        return Path(base) if base and os.path.isabs(base) else Path.home() / ".local" / "share"
     base = os.environ.get("LOCALAPPDATA")
     return Path(base) if base else Path.home() / "AppData" / "Local"
 
@@ -65,7 +77,9 @@ def bundled_ffmpeg_dirs() -> list:
     """Where the FFmpeg that comes with DISO is: inside the program, or beside the installed DISO.exe."""
     dirs = [resource_path("ffmpeg")]
     if getattr(sys, "frozen", False):
-        dirs.append(os.path.join(os.path.dirname(sys.executable), "ffmpeg"))
+        beside = os.path.join(os.path.dirname(sys.executable), "ffmpeg")
+        if beside not in dirs:
+            dirs.append(beside)
     return dirs
 
 
@@ -73,8 +87,10 @@ def tool_dirs() -> list:
     # the tools folder first: an FFmpeg that DISO updated there is newer than the one it came with
     dirs = [user_tools_dir()] + bundled_ffmpeg_dirs()
     if getattr(sys, "frozen", False):
-        # put there by the installer: YouTube needs a JavaScript runtime
-        dirs.append(os.path.join(os.path.dirname(sys.executable), "deno"))
+        # put there by the installer (inside the program on macOS / Linux): YouTube needs a JavaScript runtime
+        for deno in (os.path.join(os.path.dirname(sys.executable), "deno"), resource_path("deno")):
+            if deno not in dirs:
+                dirs.append(deno)
     return dirs
 
 
@@ -90,7 +106,7 @@ def find_ffmpeg():
 
 def subprocess_flags() -> dict:
     """Hide the black console window that would flash when running ffmpeg from a GUI .exe."""
-    if sys.platform.startswith("win"):
+    if WINDOWS:
         return {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
     return {}
 

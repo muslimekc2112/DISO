@@ -4,6 +4,7 @@ requests[socks]>=2.31.0
 pystray>=0.19.5
 Pillow>=10.0
 ytmusicapi>=1.8        # song lyrics from YouTube Music
+pygame-ce>=2.5; sys_platform != "win32"   # the music player's sound on macOS / Linux (Windows has MCI)
 # Windows' media panel (song, cover, buttons); DISO works without them
 winrt-runtime>=3.2; sys_platform == "win32"
 winrt-Windows.Media>=3.2; sys_platform == "win32"

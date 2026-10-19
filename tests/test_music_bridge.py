@@ -44,7 +44,7 @@ def finish(app, *items):
 @pytest.fixture
 def mapp(app, monkeypatch):
     """The download window with a fake music backend / reader, in case the music window is opened."""
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", FakeReader)
     return app
 

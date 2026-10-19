@@ -32,7 +32,7 @@ from .ui_common import install_smooth_scrolling, install_wrap_to_fit
 
 install_smooth_scrolling()
 install_wrap_to_fit()
-from .utils import (app_data_dir, default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,
+from .utils import (MAC, WINDOWS, app_data_dir, default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,
                     human_size, is_url, normalize_url, open_file, open_in_file_manager,
                     resource_path, urls_from_file)
 
@@ -516,13 +516,19 @@ class SettingsPanel(ctk.CTkToplevel):
         self.tray_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "tray_on_close", bool(self.tray_switch.get())))
         self._set_switch(self.tray_switch, cfg.get("tray_on_close"))
-        hint = "Pencereyi kapatınca sağ alttaki simgeye iner" if tray.AVAILABLE else "pystray kurulu değil"
+        if MAC:
+            hint = "Pencereyi kapatınca Dock'a küçülür"
+        elif tray.AVAILABLE:
+            hint = "Pencereyi kapatınca sağ alttaki simgeye iner" if WINDOWS else "Pencereyi kapatınca paneldeki simgeye iner"
+        else:
+            hint = "pystray kurulu değil"
         self._add(card, "Kapatınca arka planda çalış", hint, self.tray_switch)
 
         self.startup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "start_with_windows", bool(self.startup_switch.get())))
         self._set_switch(self.startup_switch, cfg.get("start_with_windows"))
-        self._add(card, "Windows açılışında başlat", "Açılışta pencere göstermeden, simge olarak başlar", self.startup_switch)
+        self._add(card, "Windows açılışında başlat" if WINDOWS else "Oturum açılınca başlat",
+                  "Açılışta pencere göstermeden, simge olarak başlar", self.startup_switch)
 
         self.bridge_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
             "bridge_on", bool(self.bridge_switch.get())))
@@ -1068,6 +1074,9 @@ class App(ctk.CTk):
         self.clip_var.set(bool(self.cfg.get("clip_watch")))
         self._last_clip = self._clipboard_text()  # what is in the clipboard now is not "new"
         self.protocol("WM_DELETE_WINDOW", self._on_window_x)
+        if MAC:     # the Dock icon brings the window back, ⌘Q quits the way the menu's "Quit" does
+            self.createcommand("::tk::mac::ReopenApplication", self._show_window)
+            self.createcommand("::tk::mac::Quit", self._on_close)
         self._bind_shortcuts()
         self._announce_version()         # before anything that can fail: a warning must be the last word
         self._start_bridge()
@@ -1089,6 +1098,8 @@ class App(ctk.CTk):
                 self.after(250, lambda: self.iconbitmap(ico))  # customtkinter puts its own icon back
             except Exception:
                 pass
+        elif os.name != "nt":
+            set_window_icon(self)
 
     def _build_top(self):
         head = ctk.CTkFrame(self, fg_color="transparent")
@@ -2186,17 +2197,17 @@ class App(ctk.CTk):
         if self.music is not None:
             return True
         try:
-            backend = player.MciBackend()
+            backend = player.new_backend()
         except (OSError, AttributeError) as e:
             log.error("music player unavailable: %s", e)
             self.notice("Müzik çaları bu bilgisayarda başlatamadım", 8)
             return False
         try:
-            spare = player.MciBackend(alias="hizli_music_b")      # the second voice of a cross-fade
+            spare = player.new_backend(alias="hizli_music_b")     # the second voice of a cross-fade
         except (OSError, AttributeError):
             spare = None
-        self.music = MusicWindow(self, self._store(),
-                                 player.Controller(backend, spare=spare, prepare=playable.Preparer()),
+        prepare = playable.Preparer() if player.needs_playable_copies() else None
+        self.music = MusicWindow(self, self._store(), player.Controller(backend, spare=spare, prepare=prepare),
                                  on_close=self._on_window_x, on_mode=self._switch_mode)
         self.music.withdraw()
         return True
@@ -2222,6 +2233,9 @@ class App(ctk.CTk):
 
     def _on_window_x(self):
         """The window's own close button: go to the tray if the user wants that, else quit."""
+        if self.cfg.get("tray_on_close") and MAC and not self._closing:      # no tray there: into the Dock
+            (self.music if self.mode == MODE_MUSIC and self.music is not None else self).iconify()
+            return
         if self.cfg.get("tray_on_close") and tray.AVAILABLE and not self._closing:
             self._hide_to_tray()
             if self.tray is not None and not self._hidden_hint_shown and self.cfg.get("notify_toast"):

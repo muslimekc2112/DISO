@@ -162,3 +162,11 @@ def set_window_icon(win):
             win.iconbitmap(ico)
         except Exception:  # noqa: BLE001 - only looks
             pass
+    elif os.name != "nt":                 # macOS / Linux: a picture (kept on the window, Tk does not keep it)
+        png = resource_path(os.path.join("assets", "icon.png"))
+        try:
+            import tkinter
+            win._diso_icon = tkinter.PhotoImage(master=win, file=png)
+            win.iconphoto(False, win._diso_icon)
+        except Exception:  # noqa: BLE001 - only looks
+            pass

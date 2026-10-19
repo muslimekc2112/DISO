@@ -14,7 +14,7 @@ pytestmark = pytest.mark.gui
 
 @pytest.fixture
 def music_app(app, monkeypatch):
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", FakeReader)
     app._ensure_music()
     return app, app.music
@@ -69,7 +69,7 @@ def test_the_window_starts_its_own_reader_and_stops_it(app, monkeypatch):
             super().__init__(*a, **k)
             made.append(self)
 
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", Spy)
     app._ensure_music()
     assert len(made) == 1 and app.music.reader is made[0]

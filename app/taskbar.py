@@ -7,7 +7,11 @@ again, and they are put back. Anything that goes wrong here just means: no butto
 import ctypes
 import os
 import queue
-from ctypes import wintypes
+
+try:
+    from ctypes import wintypes
+except (ImportError, ValueError):  # not Windows
+    wintypes = None
 
 from .i18n import tr
 from .logs import log
@@ -22,7 +26,9 @@ BUTTONS = {1: "previous", 2: "toggle", 3: "next"}
 TIPS = {"previous": "Önceki", "play": "Çal", "pause": "Duraklat", "next": "Sonraki"}
 
 LRESULT = ctypes.c_ssize_t
-WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+WINDOWS = os.name == "nt"           # elsewhere the module only says "no buttons" (attach is False)
+WNDPROC = (ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+           if WINDOWS else None)
 
 
 class GUID(ctypes.Structure):
@@ -30,9 +36,10 @@ class GUID(ctypes.Structure):
                 ("Data4", ctypes.c_ubyte * 8)]
 
 
-class THUMBBUTTON(ctypes.Structure):
-    _fields_ = [("dwMask", wintypes.DWORD), ("iId", wintypes.UINT), ("iBitmap", wintypes.UINT),
-                ("hIcon", wintypes.HICON), ("szTip", wintypes.WCHAR * 260), ("dwFlags", wintypes.DWORD)]
+if WINDOWS:
+    class THUMBBUTTON(ctypes.Structure):
+        _fields_ = [("dwMask", wintypes.DWORD), ("iId", wintypes.UINT), ("iBitmap", wintypes.UINT),
+                    ("hIcon", wintypes.HICON), ("szTip", wintypes.WCHAR * 260), ("dwFlags", wintypes.DWORD)]
 
 
 def _guid(text):

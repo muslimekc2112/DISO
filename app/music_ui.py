@@ -1496,7 +1496,7 @@ class MusicWindow(ctk.CTkToplevel):
     def _start_preview(self, result, path):
         if self._preview_backend is None:
             from . import player
-            self._preview_backend = player.MciBackend(alias="hizli_preview")
+            self._preview_backend = player.new_backend(alias="hizli_preview")
         resume = self.controller.state == "playing"
         if resume:
             self.controller.toggle()                             # the music waits while the preview sounds
@@ -1640,7 +1640,7 @@ class MusicWindow(ctk.CTkToplevel):
             webbrowser.open(picked[0]["url"])
 
     def _open_music_folder(self):
-        os.startfile(music_search.music_dir())  # noqa: S606 - the user's own folder
+        open_in_file_manager(music_search.music_dir())
 
     # ------------------------------------------------------------------ clock
     def _update_status(self):

@@ -18,10 +18,11 @@ BROWSERS = (
     ("opera", "Opera", "opera.exe", "opera://extensions"),
     ("vivaldi", "Vivaldi", "vivaldi.exe", "vivaldi://extensions/"),
     ("firefox", "Firefox", "firefox.exe", "about:debugging#/runtime/this-firefox"),
+    ("chromium", "Chromium", "chromium.exe", "chrome://extensions/"),
 )
 NAMES = {b[0]: b[1] for b in BROWSERS}
 ADD_TO = {"chrome": "Chrome'a ekle", "edge": "Edge'e ekle", "brave": "Brave'e ekle", "opera": "Opera'ya ekle",
-          "vivaldi": "Vivaldi'ye ekle", "firefox": "Firefox'a ekle"}
+          "vivaldi": "Vivaldi'ye ekle", "firefox": "Firefox'a ekle", "chromium": "Chromium'a ekle"}
 APP_PATHS = r"Software\Microsoft\Windows\CurrentVersion\App Paths"
 # where the browsers put themselves when App Paths says nothing ({pf}: Program Files, {pf86}, {local})
 KNOWN_PLACES = {
@@ -33,6 +34,19 @@ KNOWN_PLACES = {
     "opera": [r"{local}\Programs\Opera\opera.exe", r"{local}\Programs\Opera\launcher.exe", r"{pf}\Opera\opera.exe"],
     "vivaldi": [r"{local}\Vivaldi\Application\vivaldi.exe", r"{pf}\Vivaldi\Application\vivaldi.exe"],
     "firefox": [r"{pf}\Mozilla Firefox\firefox.exe", r"{pf86}\Mozilla Firefox\firefox.exe"],
+}
+# Linux: the programs' names on PATH; macOS: the program inside each browser's .app
+LINUX_PROGRAMS = {
+    "chrome": ("google-chrome", "google-chrome-stable"), "edge": ("microsoft-edge", "microsoft-edge-stable"),
+    "brave": ("brave-browser", "brave"), "opera": ("opera",), "vivaldi": ("vivaldi", "vivaldi-stable"),
+    "firefox": ("firefox",), "chromium": ("chromium", "chromium-browser"),
+}
+MAC_APPS = {
+    "chrome": "Google Chrome.app/Contents/MacOS/Google Chrome",
+    "edge": "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "brave": "Brave Browser.app/Contents/MacOS/Brave Browser", "opera": "Opera.app/Contents/MacOS/Opera",
+    "vivaldi": "Vivaldi.app/Contents/MacOS/Vivaldi", "firefox": "Firefox.app/Contents/MacOS/firefox",
+    "chromium": "Chromium.app/Contents/MacOS/Chromium",
 }
 
 
@@ -53,8 +67,24 @@ def _app_path(exe_name):
     return None
 
 
-def find_browsers(app_path=_app_path, exists=os.path.isfile, environ=os.environ) -> dict:
+def find_browsers(app_path=_app_path, exists=os.path.isfile, environ=os.environ, system=None, which=shutil.which,
+                  home=None) -> dict:
     """{browser id: program path} of the browsers on this PC, in the order of BROWSERS."""
+    system = system or ("windows" if sys.platform.startswith("win") else "macos" if sys.platform == "darwin" else "linux")
+    if system != "windows":
+        found = {}
+        if system == "macos":
+            roots = ["/Applications", os.path.join(home or os.path.expanduser("~"), "Applications")]
+            for bid, inside in MAC_APPS.items():
+                path = next((os.path.join(r, inside) for r in roots if exists(os.path.join(r, inside))), None)
+                if path:
+                    found[bid] = path
+        else:
+            for bid, names in LINUX_PROGRAMS.items():
+                path = next((p for p in map(which, names) if p), None)
+                if path:
+                    found[bid] = path
+        return {b[0]: found[b[0]] for b in BROWSERS if b[0] in found}
     places = {"pf": environ.get("ProgramFiles", r"C:\Program Files"),
               "pf86": environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
               "local": environ.get("LOCALAPPDATA", "")}
@@ -111,9 +141,19 @@ def _manifest_text(folder):
 
 
 def _start(exe, args=()):
-    subprocess.Popen([exe, *args], close_fds=True, creationflags=0x00000008 | 0x00000200,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if sys.platform.startswith("win"):
+        flags = {"creationflags": 0x00000008 | 0x00000200}
+    else:
+        flags = {"start_new_session": True}
+    subprocess.Popen([exe, *args], close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, **flags)
     return True
+
+
+def _show_folder(folder, start):
+    if sys.platform.startswith("win"):
+        return start("explorer.exe", [os.path.normpath(folder)])
+    return start("open" if sys.platform == "darwin" else "xdg-open", [folder])
 
 
 def open_for(browser, program, folder, start=_start) -> bool:
@@ -122,13 +162,18 @@ def open_for(browser, program, folder, start=_start) -> bool:
     try:
         if start(program, [page]) is False:
             return False
-        start("explorer.exe", [os.path.normpath(folder)])
+        _show_folder(folder, start)
         return True
     except OSError:
         return False
 
 
 # ------------------------------------------------------------------------------- the window
+STEPS_MAC = ("1. Aşağıdan tarayıcını seç: eklentiler sayfası ve eklenti klasörü açılır, klasörün yolu panoya kopyalanır.\n"
+             "2. Eklentiler sayfasında sağ üstteki “Geliştirici modu”nu aç.\n"
+             "3. “Paketlenmemiş öğe yükle”ye bas, açılan pencerede ⇧⌘G'ye bas, ⌘V ile yolu yapıştır, Return'e ve "
+             "“Seç”e bas. (Ya da açılan klasörü eklentiler sayfasının üstüne sürükleyip bırak.)\n"
+             "4. Hazır! Bir linke sağ tıkla → “DISO ile indir”. DISO kapalıysa kendisi açılır.")
 STEPS = ("1. Aşağıdan tarayıcını seç: eklentiler sayfası ve eklenti klasörü açılır, klasörün yolu panoya kopyalanır.\n"
          "2. Eklentiler sayfasında sağ üstteki “Geliştirici modu”nu aç.\n"
          "3. “Paketlenmemiş öğe yükle”ye bas, açılan pencerenin adres çubuğuna Ctrl+V ile yolu yapıştır ve "
@@ -201,14 +246,14 @@ class ExtensionGuide(ctk.CTkToplevel):
         ctk.CTkLabel(self, text="Linke sağ tıkla → “DISO ile indir”: indirme hemen DISO'da başlar. İstersen tarayıcının "
                                 "kendi indirmelerini de DISO alır. DISO kapalıysa kendisi açılır.", anchor="w", justify="left",
                      wraplength=570, text_color="gray").grid(row=1, column=0, sticky="ew", padx=24)
-        ctk.CTkLabel(self, text=STEPS, anchor="w", justify="left", wraplength=570).grid(
+        ctk.CTkLabel(self, text=STEPS_MAC if sys.platform == "darwin" else STEPS, anchor="w", justify="left", wraplength=570).grid(
             row=2, column=0, sticky="ew", padx=24, pady=(14, 8))
         row = ctk.CTkFrame(self, fg_color="transparent")
         row.grid(row=3, column=0, sticky="ew", padx=20, pady=4)
         self.buttons = {}
         if not self.browsers:
             ctk.CTkLabel(row, text="Bu bilgisayarda desteklenen bir tarayıcı bulamadım (Chrome, Edge, Brave, Opera, "
-                                   "Vivaldi, Firefox).", text_color="gray", wraplength=560, justify="left").pack(anchor="w")
+                                   "Vivaldi, Firefox, Chromium).", text_color="gray", wraplength=560, justify="left").pack(anchor="w")
         for i, (bid, program) in enumerate(self.browsers.items()):
             b = ctk.CTkButton(row, text="🧩 " + ADD_TO[bid], width=180,
                               command=lambda bid=bid, program=program: self.add_to(bid, program))

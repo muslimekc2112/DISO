@@ -15,7 +15,7 @@ pytestmark = pytest.mark.gui
 @pytest.fixture
 def music_app(app, monkeypatch):
     """The download window with the music player switched on (fake backend); returns (app, music)."""
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", FakeReader)
     app._ensure_music()
     return app, app.music
@@ -91,9 +91,9 @@ def test_the_music_window_is_only_made_when_it_is_wanted(app):
 
 
 def test_a_player_that_cannot_start_leaves_the_download_window_alone(app, monkeypatch):
-    def broken():
+    def broken(alias=""):
         raise OSError("no winmm")
-    monkeypatch.setattr(player, "MciBackend", broken)
+    monkeypatch.setattr(player, "new_backend", broken)
     app._switch_mode(MODE_MUSIC)
     assert app.music is None and app.mode == MODE_DOWNLOAD and app.mode_bar.get() == MODE_DOWNLOAD
     assert "başlatamadım" in notice(app)

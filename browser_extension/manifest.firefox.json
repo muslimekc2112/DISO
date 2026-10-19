@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "DISO",
-  "version": "0.11.5",
-  "version_name": "0.11.5 beta",
+  "version": "0.12.0",
+  "version_name": "0.12.0 beta",
   "description": "__MSG_description__",
   "default_locale": "en",
   "permissions": ["contextMenus", "downloads", "storage", "cookies", "activeTab", "scripting", "nativeMessaging"],

@@ -90,7 +90,7 @@ from app import player, tags
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 from music_support import FakeBackend, FakeReader, FakeKeys, FakeSearcher, FakeOverlay, FakeThumbBar
 from app import mediakeys, music_search, smtc, taskbar, updater
-player.MciBackend = FakeBackend; tags.TagReader = FakeReader; mediakeys.MediaKeys = FakeKeys
+player.new_backend = FakeBackend; tags.TagReader = FakeReader; mediakeys.MediaKeys = FakeKeys
 music_search.Searcher = FakeSearcher; smtc.MediaOverlay = FakeOverlay; taskbar.ThumbBar = FakeThumbBar
 updater.Updater.start = lambda self: None
 from app.ui import App

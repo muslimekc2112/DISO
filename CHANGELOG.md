@@ -2,6 +2,14 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 0.12.0 beta
+- **Linux and macOS:** DISO now runs on Linux and macOS too. For Linux a `.deb` (Debian, Ubuntu, Mint …) and a `.tar.gz` for any distribution (with `install.sh` inside, no administrator password needed); for macOS a `.dmg` for Apple Silicon and one for Intel. FFmpeg, yt-dlp and Deno come inside; DISO updates them there too (FFmpeg: BtbN builds on Linux, martin-riedl.de builds on macOS, checked with SHA-256).
+- **Setup and removal in two languages:** `install.sh` and the uninstallers ask Türkçe / English; removing asks whether your settings, playlists and history should go too (the files you downloaded are not touched).
+- **The music player on Linux and macOS:** FFmpeg decodes the sound and SDL plays it; every kind of file (Opus, Vorbis, FLAC …) plays without converting, with cross-fade and previews.
+- **The browser extension on Linux and macOS:** the extension can start DISO when it is closed (a small file goes into each browser's own folder). The extension guide finds the browsers there too; **Chromium** is on the list now.
+- **Start when I log in** (Linux: autostart, macOS: a LaunchAgent), notifications (macOS Notification Center, Linux notify-send) and "shut down / sleep when done" work on these systems too.
+- What stays Windows-only: the media keys, the taskbar preview buttons and Windows' media panel. macOS has no tray: with "Keep running when closed" on, closing the window puts DISO into the Dock.
+
 ## 0.11.5 beta
 - **TR | EN at the top left of the main window:** change the language with one click (DISO offers to restart; the same as Settings → Language).
 - **Fixed:** fast wheel scrolling in Settings (and the other scrolling windows) left copies of rows on the screen, so texts looked broken. Wheel steps are now added up, scrolled at once and painted right away.

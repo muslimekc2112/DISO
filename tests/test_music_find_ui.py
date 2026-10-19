@@ -19,7 +19,7 @@ pytestmark = pytest.mark.gui
 
 @pytest.fixture
 def music_app(app, monkeypatch):
-    monkeypatch.setattr(player, "MciBackend", FakeBackend)
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
     monkeypatch.setattr(tags, "TagReader", FakeReader)
     app.manager.set_gate(False)                         # found songs are queued, never really downloaded
     app._ensure_music()
