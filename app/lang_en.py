@@ -228,8 +228,22 @@ PLAIN = {
     "DISO arka planda çalışmaya devam ediyor. Geri çağırmak için simgesine tıkla.": "DISO keeps running in the background. Click its icon to bring it back.",
     "Kapanıyorum… indirmeleri kaydediyorum": "Closing… saving the downloads", "Klasörü aç": "Open folder",
     "Sunucuya bağlanıyorum…": "Connecting…",
-    "Uygulama her açılışta bu bileşenleri kontrol eder. Yeni sürüm varsa otomatik indirilir ve SHA-256 ile doğrulanır.":
-        "The app checks these parts at every start. A new version is downloaded by itself and checked with SHA-256.",
+    "yt-dlp ve FFmpeg her açılışta kontrol edilir, yeni sürüm kendiliğinden iner ve SHA-256 ile doğrulanır. "
+    "DISO'nun yeni sürümü yalnızca haber verilir: sen “Güncelle” dersen kurulur.":
+        "yt-dlp and FFmpeg are checked at every start; a new version downloads by itself and is checked with SHA-256. "
+        "A new DISO is only announced: it is installed when you press “Update”.",
+    "Programın kendisi. Yeni sürüm çıkınca haber veririm; “Güncelle” dersen indirip kurarım, sonra DISO yeniden açılır.":
+        "The program itself. I tell you when a new version is out; press “Update” and I download and install it, "
+        "then DISO opens again.",
+    "Windows izin istiyor…": "Windows is asking for permission…",
+    "Kurulum için izin verilmedi. İstediğinde tekrar “Güncelle”ye bas.":
+        "Permission to install was not given. Press “Update” again whenever you want.",
+    "Kuruluyor… DISO kapanıp yeni sürümle yeniden açılacak.": "Installing… DISO will close and open again with the new version.",
+    "Bu sürümün kurulum dosyası (ya da SHA-256'sı) bulunamadı; sayfadan indir.":
+        "The setup of this version (or its SHA-256) was not found; download it from the page.",
+    "DISO güncelleniyor… birazdan yeni sürümle açılacak": "Updating DISO… it opens again with the new version in a moment",
+    "Kurmak için ⟳ Güncellemeler → DISO → Güncelle": "To install it: ⟳ Updates → DISO → Update",
+    "GitHub'da sürüm bulunamadı": "No release found on GitHub",
     "Henüz bakmadım": "Not checked yet", "Başlangıç": "Start", "Bitiş": "End", "🔔 Bildirimi dene": "🔔 Test notification",
     "İptal": "Cancel", "Hiçbirini seçme": "Select none", "Bu link hakkında bilgi alamadım": "Could not get details about this link",
     "Video kaliteleri": "Video qualities", "Dosya, video ve müzik indirme yöneticisi": "File, video and music download manager",
@@ -529,6 +543,10 @@ TEMPLATES = [
     ("Eklenti klasörünü hazırlayamadım: {}", "Could not prepare the extension folder: {}"),
     # ---- 📺 followed channels
     ("Yeni videolar ({})", "New videos ({})"),
+    ("Yeni sürüm: {}. Kurmak için “Güncelle”ye bas.", "New version: {}. Press “Update” to install it."),
+    ("Yeni sürüm: {}. “Güncelle” indirme sayfasını açar.", "New version: {}. “Update” opens the download page."),
+    ("GitHub'a ulaşamadım: {}", "Could not reach GitHub: {}"), ("İndiremedim: {}", "Could not download it: {}"),
+    ("🎉 DISO {} çıktı", "🎉 DISO {} is out"), ("🎉 DISO {} çıktı: ⟳ Güncellemeler → Güncelle", "🎉 DISO {} is out: ⟳ Updates → Update"),
     ("✓ “{}” takip ediliyor; yeni video gelince haber veririm", "✓ Following “{}”; I will tell you when a new video comes"),
     ("Takip edemedim: {}", "Could not follow it: {}"), ("Kanallara baktım ({})", "Looked at the channels ({})"),
     ("⬇ {} video indirme listesine eklendi", "⬇ {} videos added to the download list"),

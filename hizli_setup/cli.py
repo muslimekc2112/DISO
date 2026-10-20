@@ -51,6 +51,7 @@ def _parser(kind):
     p.add_argument("--no-start-menu", action="store_true")
     p.add_argument("--autostart", action="store_true")
     p.add_argument("--launch", action="store_true")
+    p.add_argument("--update", action="store_true")      # DISO updating itself: silent, shortcuts left as they are
     p.add_argument("--remove-data", action="store_true")
     p.add_argument("--stage2", action="store_true")
     p.add_argument("--self-delete")
@@ -103,6 +104,7 @@ def relaunch_elevated(argv, silent, runner=winapi.run_elevated, frozen=None, exe
 def setup_main(argv=None, payload_dir=None, env=None, closer=winapi.close_programs_in, log_folder=None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     args = parse("setup", raw)
+    args.silent = args.silent or args.update
     setup_logging("DISO-kurulum.log", log_folder)
     log.info("setup started: silent=%s dir=%s", args.silent, args.dir)
     env = env or core.production_env()
@@ -124,8 +126,12 @@ def setup_main(argv=None, payload_dir=None, env=None, closer=winapi.close_progra
 def _run_setup(args, env, payload_dir, closer) -> int:
     if args.silent:
         old_dir, _ = core.find_existing(env)
+        desktop, start_menu = not args.no_desktop, not args.no_start_menu
+        if args.update:     # an update keeps the shortcuts the user has (and does not bring back a deleted one)
+            desktop = os.path.exists(os.path.join(env.desktop_dir, core.SHORTCUT_NAME))
+            start_menu = os.path.exists(os.path.join(env.start_menu_dir, core.SHORTCUT_NAME))
         options = core.Options(install_dir=args.dir or old_dir or env.default_install_dir,
-                               desktop_shortcut=not args.no_desktop, start_menu=not args.no_start_menu,
+                               desktop_shortcut=desktop, start_menu=start_menu,
                                autostart=True if args.autostart else None)
         try:
             result = core.install(payload_dir, options, env, closer=closer)

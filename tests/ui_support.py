@@ -50,6 +50,12 @@ def make_app(monkeypatch, isolated_home):
     monkeypatch.setattr(ui.tray, "TrayIcon", FakeTray)
     monkeypatch.setattr(ui.startup, "set_enabled", lambda on, *a, **k: notes["startup"].append(on) or True)
     monkeypatch.setattr(updater.Updater, "start", lambda self: None)          # no network
+    from app import app_update
+
+    def no_github():
+        raise ConnectionError("no internet in the tests")
+    monkeypatch.setattr(app_update.AppUpdate, "start", lambda self: None)     # nor a look for a new DISO
+    monkeypatch.setattr(app_update, "latest_release", no_github)
     monkeypatch.setattr(notify, "play_sound", lambda kind="done": notes["sound"].append(kind))
     monkeypatch.setattr(notify, "toast", lambda title, body: notes["toast"].append((title, body)))
     monkeypatch.setattr(notify, "power_action", lambda kind: notes["power"].append(kind) or True)

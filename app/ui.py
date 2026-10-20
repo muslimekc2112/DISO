@@ -14,7 +14,7 @@ from tkinter import TclError, filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import __version__, about, brand, notify, schedule, startup, tray, updater
+from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
 from . import backup, channels, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists
 from .channels_ui import ChannelsWindow
@@ -365,13 +365,17 @@ class UpdatePanel(ctk.CTkToplevel):
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.grid(row=0, column=0, sticky="ew", padx=22, pady=(20, 6))
         ctk.CTkLabel(head, text="⟳ Güncellemeler", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w")
-        ctk.CTkLabel(head, text="Uygulama her açılışta bu bileşenleri kontrol eder. Yeni sürüm varsa "
-                                "otomatik indirilir ve SHA-256 ile doğrulanır.",
+        ctk.CTkLabel(head, text="yt-dlp ve FFmpeg her açılışta kontrol edilir, yeni sürüm kendiliğinden iner ve "
+                                "SHA-256 ile doğrulanır. DISO'nun yeni sürümü yalnızca haber verilir: sen "
+                                "“Güncelle” dersen kurulur.",
                      text_color="gray", wraplength=560, justify="left", anchor="w").pack(fill="x", pady=(2, 0))
 
         self.cards_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.cards_frame.grid(row=1, column=0, sticky="nsew", padx=16, pady=6)
         self.cards = {}
+        diso = ComponentCard(self.cards_frame, app.app_update.comp, app.update_card)
+        diso.pack(fill="x", padx=4, pady=6)
+        self.cards["diso"] = diso
         for key, comp in app.updates.components.items():
             card = ComponentCard(self.cards_frame, comp, app.update_card)
             card.pack(fill="x", padx=4, pady=6)
@@ -395,11 +399,11 @@ class UpdatePanel(ctk.CTkToplevel):
         try:
             busy = self.app.updates.running
             for key, card in self.cards.items():
-                card.refresh(busy)
+                card.refresh(self.app.app_update.running if key == "diso" else busy)
             state = "disabled" if busy else "normal"
             self.check_btn.configure(state=state, text="Kontrol ediliyor…" if busy else "🔍 Kontrol et")
             self.all_btn.configure(state=state)
-            last = self.app.updates.last_check
+            last = max(self.app.updates.last_check, self.app.app_update.last_check)
             self.last_label.configure(text=f"Son kontrol: {time.strftime('%H:%M:%S', time.localtime(last))}"
                                       if last else "Henüz bakmadım")
             self.after(300, self._refresh)
@@ -1057,6 +1061,7 @@ class App(ctk.CTk):
         self.shortcuts_window = None
         self.channel_store = channels.Store()             # 📺 followed channels: new videos are announced, never downloaded
         self.channel_watcher = channels.Watcher(self.channel_store)
+        self.app_update = app_update.AppUpdate()
         self.channels_window = None
 
         self.columnconfigure(0, weight=1)
@@ -1093,6 +1098,7 @@ class App(ctk.CTk):
             self.after(50, self._hide_to_tray)
         self.after(300, self._tick)
         self.updates.start()  # checks and updates yt-dlp / FFmpeg in the background
+        self.app_update.start()  # looks for a new DISO now and then; only tells, never installs by itself
         self.channel_watcher.start()
 
     # ------------------------------------------------------------------------ layout
@@ -2331,13 +2337,41 @@ class App(ctk.CTk):
 
     def check_updates(self, install):
         threading.Thread(target=self.updates.run, kwargs={"install": install}, daemon=True).start()
+        threading.Thread(target=self.app_update.check, daemon=True).start()     # DISO itself: only looks
 
     def update_card(self, key):
         """Button on a card: install FFmpeg when it is missing, otherwise update."""
-        if key == "ffmpeg" and self.updates.components["ffmpeg"].status == "missing":
+        if key == "diso":
+            self.update_app()
+        elif key == "ffmpeg" and self.updates.components["ffmpeg"].status == "missing":
             threading.Thread(target=self.updates.install_ffmpeg, daemon=True).start()
         else:
             self.check_updates(install=True)
+
+    def update_app(self):
+        """"Güncelle" on the DISO card: download the new setup, let Windows ask, then make room for it."""
+        def work():
+            result = self.app_update.update()
+            self._ui_calls.put(lambda: self._app_update_done(result))
+        threading.Thread(target=work, daemon=True, name="app-update-install").start()
+
+    def _app_update_done(self, result):
+        rel = self.app_update.release or {}
+        if result == "page":
+            webbrowser.open(rel.get("page") or brand.HOME_URL + "/releases/latest")
+        elif result == "started":
+            self.notice("DISO güncelleniyor… birazdan yeni sürümle açılacak", 30)
+            self.after(800, self._on_close)          # the setup needs DISO's files: close (it starts DISO again)
+
+    def _announce_app_update(self):
+        """A new DISO was found: told once per version (a notification and the status line), never installed."""
+        found = self.app_update.announce
+        if not found or self.cfg.get("update_announced") == found[0]:
+            return
+        self.cfg.set("update_announced", found[0])
+        title = f"🎉 DISO {found[0]} çıktı"
+        notify.toast(title, "Kurmak için ⟳ Güncellemeler → DISO → Güncelle")
+        self.notice(f"{title}: ⟳ Güncellemeler → Güncelle", 20)
 
     def _update_update_widgets(self):
         comps = list(self.updates.components.values())
@@ -2357,7 +2391,7 @@ class App(ctk.CTk):
         if self.updates.running:
             text = "⟳ Kontrol ediliyor…"
         else:
-            n = sum(c.status == "available" for c in comps)
+            n = sum(c.status == "available" for c in comps + [self.app_update.comp])
             text = f"⟳ Güncellemeler ({n})" if n else "⟳ Güncellemeler"
         if text != self._btn_text:
             self._btn_text = text
@@ -2373,6 +2407,7 @@ class App(ctk.CTk):
         self._save_folder()
         self.manager.shutdown()  # asks running downloads to pause; returns at once
         self.channel_watcher.stop()
+        self.app_update.stop()
         if self.music is not None:
             self.music.shutdown()
         self._finish_close(time.time() + CLOSE_WAIT)
@@ -2440,6 +2475,7 @@ class App(ctk.CTk):
             self._check_after_all()
             self._check_schedule()
             self._drain_channels()
+            self._announce_app_update()
             if self._tick_no % 10 == 0:
                 self._ffmpeg_ok = bool(find_ffmpeg())
                 self._update_tray_tooltip()

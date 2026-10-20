@@ -68,6 +68,18 @@ def test_the_switches_work(package, env, logs, tmp_path):
     assert core._read_value(env, env.run_key, "DISO") == f'"{target / "DISO.exe"}" --minimized'
 
 
+def test_an_update_goes_where_diso_is_and_keeps_the_shortcuts_as_they_are(package, env, logs, tmp_path):
+    """DISO updating itself (--update): no window, the same folder, a deleted desktop shortcut stays deleted."""
+    target = tmp_path / "Benim Yerim"
+    assert silent_setup(env, logs, "--payload", str(package), "--dir", str(target)) == 0
+    os.remove(os.path.join(env.desktop_dir, core.SHORTCUT_NAME))                # the user did not want it
+    assert cli.setup_main(["--update", "--payload", str(package)], env=env, closer=Closer(), log_folder=logs) == 0
+    assert core.find_existing(env)[0] == str(target) and (target / "DISO.exe").is_file()
+    assert not os.path.exists(os.path.join(env.desktop_dir, core.SHORTCUT_NAME))
+    assert os.path.isfile(os.path.join(env.start_menu_dir, core.SHORTCUT_NAME))
+    assert "silent=True" in read_log(logs, "DISO-kurulum.log")
+
+
 def test_the_nsis_style_switch_and_unknown_switches_are_accepted(package, env, logs, tmp_path):
     assert cli.setup_main(["/S", "--payload", str(package), "--dir", str(tmp_path / "y"), "--bilinmeyen", "x"],
                           env=env, closer=Closer(), log_folder=logs) == 0
