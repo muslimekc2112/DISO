@@ -342,7 +342,9 @@ def run_media(item: Item):
     stem = sanitize_filename(title, 120)
     fmts = info.get("requested_formats") or [info]
 
-    if all(ve.is_fast(f) for f in fmts):
+    if item.clip:
+        path = _ydl_fallback(item)        # ✂ only a part: yt-dlp fetches just that part (not the whole video)
+    elif all(ve.is_fast(f) for f in fmts):
         try:
             item.state = DOWNLOADING
             item.message = ""
@@ -356,5 +358,5 @@ def run_media(item: Item):
     else:
         path = _ydl_fallback(item)
     item.final_path = path or ""
-    if item.kind == "video" and item.subs != "Yok" and path and os.path.exists(path):
+    if item.kind == "video" and item.subs != "Yok" and not item.clip and path and os.path.exists(path):
         save_subtitles(item, info, path)

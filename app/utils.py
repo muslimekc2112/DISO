@@ -150,6 +150,31 @@ def human_eta(seconds) -> str:
     return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 
+def parse_time(text):
+    """What the user typed as a moment of a video, in seconds: '1:30' -> 90, '1:02:03' -> 3723, '95' -> 95,
+    '1:30.5' -> 90.5; '' -> None. Raises ValueError for anything else."""
+    text = (text or "").strip().replace(",", ".")
+    if not text:
+        return None
+    parts = text.split(":")
+    if len(parts) > 3 or not all(re.fullmatch(r"\d+(\.\d+)?", p) for p in parts):
+        raise ValueError(text)
+    if any(float(p) >= 60 for p in parts[1:]):
+        raise ValueError(text)
+    seconds = 0.0
+    for p in parts:
+        seconds = seconds * 60 + float(p)
+    return seconds
+
+
+def clip_text(clip) -> str:
+    """[60, 150] -> '1:00–2:30' (the part of a video that is downloaded)."""
+    def one(s):
+        s = int(s)
+        return human_duration(s) if s > 0 else "0:00"
+    return f"{one(clip[0])}–{one(clip[1])}" if clip else ""
+
+
 def human_duration(seconds) -> str:
     """185 -> '3:05', 3725 -> '1:02:05', 0 / None -> ''."""
     seconds = int(seconds or 0)

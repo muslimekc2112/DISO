@@ -34,9 +34,9 @@ from .ui_common import guard_color_emoji, install_smooth_scrolling, install_wrap
 guard_color_emoji()                 # Linux with an old libXft: before the first window
 install_smooth_scrolling()
 install_wrap_to_fit()
-from .utils import (MAC, WINDOWS, app_data_dir, default_download_dir, extract_urls, find_ffmpeg, human_duration, human_eta,
-                    human_size, is_url, normalize_url, open_file, open_in_file_manager,
-                    resource_path, urls_from_file)
+from .utils import (MAC, WINDOWS, app_data_dir, clip_text, default_download_dir, extract_urls, find_ffmpeg,
+                    human_duration, human_eta, human_size, is_url, normalize_url, open_file, open_in_file_manager,
+                    parse_time, resource_path, urls_from_file)
 
 KIND_LABELS = {
     "Otomatik (dosya / video)": "auto",
@@ -836,6 +836,7 @@ class InfoDialog(ctk.CTkToplevel):
                                          "İndirmek için 'Oynatma listesi' kutusunu işaretleyip ekle.",
                          wraplength=490, justify="left", text_color=WARN).pack(anchor="w", padx=8, pady=8)
             return
+        self._clip_box(info["duration"])
         ctk.CTkLabel(self.body, text="Video kaliteleri", font=ctk.CTkFont(weight="bold")).pack(
             anchor="w", padx=8, pady=(14, 4))
         for q in info["qualities"][:14]:
@@ -870,9 +871,62 @@ class InfoDialog(ctk.CTkToplevel):
         ctk.CTkLabel(row, text=text, anchor="w").pack(side="left", padx=12, pady=8)
         ctk.CTkButton(row, text=button, width=90, height=28, command=command).pack(side="right", padx=8)
 
+    # ------------------------------------------------------------------ ✂ only a part of the video
+    def _clip_box(self, duration):
+        self.duration = duration or 0
+        box = ctk.CTkFrame(self.body)
+        box.pack(fill="x", padx=8, pady=(12, 0))
+        ctk.CTkLabel(box, text="✂ Sadece bir kısmını indir", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=4, sticky="w", padx=12, pady=(8, 4))
+        self.clip_start = ctk.CTkEntry(box, width=90, placeholder_text="0:00")
+        self.clip_end = ctk.CTkEntry(box, width=90, placeholder_text=human_duration(duration) or "—")
+        for col, (text, entry) in enumerate((("Başlangıç", self.clip_start), ("Bitiş", self.clip_end))):
+            ctk.CTkLabel(box, text=text).grid(row=1, column=col * 2, padx=(12, 6), pady=(0, 4), sticky="w")
+            entry.grid(row=1, column=col * 2 + 1, pady=(0, 4), sticky="w")
+            entry.bind("<KeyRelease>", lambda e: self._show_clip())
+        self.clip_note = ctk.CTkLabel(box, text="", text_color="gray", anchor="w", justify="left", wraplength=470)
+        self.clip_note.grid(row=2, column=0, columnspan=4, sticky="ew", padx=12, pady=(0, 8))
+        self._show_clip()
+
+    def clip(self):
+        """(None, None): the whole video; ([start, end], None): only that part; (None, why): not right."""
+        try:
+            start = parse_time(self.clip_start.get())
+            end = parse_time(self.clip_end.get())
+        except ValueError:
+            return None, "Zamanı 1:30 ya da 1:02:03 gibi yaz"
+        if start is None and end is None:
+            return None, None
+        start = start or 0.0
+        if end is None:
+            if not self.duration:
+                return None, "Bitişi de yaz (videonun uzunluğunu bilmiyorum)"
+            end = float(self.duration)
+        if self.duration:
+            end = min(end, float(self.duration))
+            if start >= self.duration:
+                return None, f"Başlangıç videonun sonundan sonra (video {human_duration(self.duration)})"
+        if end - start < 1:
+            return None, "Bitiş başlangıçtan sonra olmalı"
+        return [start, end], None
+
+    def _show_clip(self):
+        clip, why = self.clip()
+        if why:
+            text, colour = why, BAD
+        elif clip:
+            text, colour = f"Yalnızca {clip_text(clip)} arası inecek ({human_duration(clip[1] - clip[0])})", GOOD
+        else:
+            text, colour = "Boş bırakırsan videonun tamamı iner. Doldurursan aşağıdaki düğmeler yalnızca o kısmı indirir.", "gray"
+        set_if_changed(self.clip_note, text=text, text_color=colour)
+
     def _download(self, quality, kind):
+        clip, why = self.clip() if hasattr(self, "clip_start") else (None, None)
+        if why:
+            self._show_clip()
+            return
         self.destroy()
-        self.app.download_quality(self.url, quality, kind)
+        self.app.download_quality(self.url, quality, kind, clip=clip)
 
 
 class AboutDialog(ctk.CTkToplevel):
@@ -1489,17 +1543,17 @@ class App(ctk.CTk):
             return
         InfoDialog(self, urls[0])
 
-    def download_quality(self, url, quality, kind):
+    def download_quality(self, url, quality, kind, clip=None):
         """A button of the info window: download this link with that quality (None: keep the
-        quality of the option bar)."""
+        quality of the option bar); with `clip` ([start, end] s) only that part of it."""
         s = dataclasses.replace(self._settings(), kind=kind, playlist=False)
         if quality:
             s = dataclasses.replace(s, quality=quality)
-        if self.cfg.get("block_duplicates") and self.manager.find_duplicate(url):
-            self.notice("Bu link zaten listede, ikinciyi eklemedim")
+        if not clip and self.cfg.get("block_duplicates") and self.manager.find_duplicate(url):
+            self.notice("Bu link zaten listede, ikinciyi eklemedim")      # a part of it is something else
         else:
-            self.manager.add_url(url, s)
-            self.notice("Eklendi: " + (f"{quality}" if quality else "MP3"))
+            self.manager.add_url(url, s, extra={"clip": clip} if clip else None)
+            self.notice("Eklendi: " + (f"{quality}" if quality else "MP3") + (f" ✂ {clip_text(clip)}" if clip else ""))
 
     # ----------------------------------------------------------------- text files
     def _add_from_paths(self, paths):

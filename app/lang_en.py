@@ -244,6 +244,12 @@ PLAIN = {
     "DISO güncelleniyor… birazdan yeni sürümle açılacak": "Updating DISO… it opens again with the new version in a moment",
     "Kurmak için ⟳ Güncellemeler → DISO → Güncelle": "To install it: ⟳ Updates → DISO → Update",
     "GitHub'da sürüm bulunamadı": "No release found on GitHub",
+    # ---- ✂ only a part of a video
+    "✂ Sadece bir kısmını indir": "✂ Download only a part", "Zamanı 1:30 ya da 1:02:03 gibi yaz": "Write the time like 1:30 or 1:02:03",
+    "Bitişi de yaz (videonun uzunluğunu bilmiyorum)": "Write the end too (I do not know how long the video is)",
+    "Bitiş başlangıçtan sonra olmalı": "The end must come after the start",
+    "Boş bırakırsan videonun tamamı iner. Doldurursan aşağıdaki düğmeler yalnızca o kısmı indirir.":
+        "Left empty, the whole video downloads. Filled in, the buttons below download only that part.",
     "Henüz bakmadım": "Not checked yet", "Başlangıç": "Start", "Bitiş": "End", "🔔 Bildirimi dene": "🔔 Test notification",
     "İptal": "Cancel", "Hiçbirini seçme": "Select none", "Bu link hakkında bilgi alamadım": "Could not get details about this link",
     "Video kaliteleri": "Video qualities", "Dosya, video ve müzik indirme yöneticisi": "File, video and music download manager",
@@ -543,6 +549,9 @@ TEMPLATES = [
     ("Eklenti klasörünü hazırlayamadım: {}", "Could not prepare the extension folder: {}"),
     # ---- 📺 followed channels
     ("Yeni videolar ({})", "New videos ({})"),
+    ("Başlangıç videonun sonundan sonra (video {})", "The start is after the end of the video (the video is {})"),
+    ("Yalnızca {} arası inecek ({})", "Only {} will be downloaded ({})"),
+    ("Eklendi: {} ✂ {}", "Added: {} ✂ {}"), ("Eklendi: {}", "Added: {}"),
     ("Yeni sürüm: {}. Kurmak için “Güncelle”ye bas.", "New version: {}. Press “Update” to install it."),
     ("Yeni sürüm: {}. “Güncelle” indirme sayfasını açar.", "New version: {}. “Update” opens the download page."),
     ("GitHub'a ulaşamadım: {}", "Could not reach GitHub: {}"), ("İndiremedim: {}", "Could not download it: {}"),

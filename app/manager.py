@@ -111,7 +111,7 @@ class DownloadManager:
         return Item(url, kind or s.kind, s.quality, s.bitrate, s.connections, folder, s.cookies, title,
                     subs=s.subs, cover=s.cover, sort_folders=s.sort_folders,
                     referer=extra.get("referer", ""), user_agent=extra.get("user_agent", ""),
-                    cookie_header=extra.get("cookie", ""), group=group)
+                    cookie_header=extra.get("cookie", ""), group=group, clip=extra.get("clip"))
 
     def add_url(self, url: str, s: Settings, start=True, skip_duplicates=False, extra=None) -> bool:
         """Add one link. Returns False if it was skipped because it is already in the list.

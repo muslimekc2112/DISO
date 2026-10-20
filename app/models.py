@@ -3,6 +3,8 @@ import time
 import uuid
 from dataclasses import dataclass
 
+from .utils import clip_text
+
 # ---- item states
 QUEUED = "queued"
 WAITING = "waiting"            # connection problem: will try again by itself (see manager)
@@ -40,11 +42,12 @@ class Item:
 
     PERSISTED = ("id", "url", "kind", "quality", "bitrate", "connections", "folder",
                  "cookies", "title", "state", "dest", "final_path", "error", "added",
-                 "subs", "cover", "sort_folders", "referer", "user_agent", "group", "origin")
+                 "subs", "cover", "sort_folders", "referer", "user_agent", "group", "origin", "clip")
 
     def __init__(self, url, kind="auto", quality="En iyi", bitrate="320", connections=16,
                  folder="", cookies="Yok", title="", *, subs="Yok", cover=True,
-                 sort_folders=False, referer="", user_agent="", cookie_header="", group="", origin=""):
+                 sort_folders=False, referer="", user_agent="", cookie_header="", group="", origin="",
+                 clip=None):
         self.id = uuid.uuid4().hex[:10]
         self.url = url
         self.kind = kind
@@ -61,6 +64,7 @@ class Item:
         self.user_agent = user_agent    # ... and as User-Agent
         self.group = group              # name of the playlist it was taken from ("" = a single link)
         self.origin = origin            # "music": found in the music player (asks for a list when done)
+        self.clip = list(clip) if clip else None   # [start, end] seconds: only this part of the video (✂)
         self.state = QUEUED
         self.dest = ""             # final path of a plain file download (kept for resume)
         self.final_path = ""
@@ -105,7 +109,8 @@ class Item:
     # ------------------------------------------------------------------- control
     @property
     def display_name(self):
-        return self.title or (self.dest and self.dest.split("/")[-1].split("\\")[-1]) or self.url
+        name = self.title or (self.dest and self.dest.split("/")[-1].split("\\")[-1]) or self.url
+        return f"{name}  ✂ {clip_text(self.clip)}" if self.clip else name
 
     def request_headers(self) -> dict:
         """Extra headers for the requests of this download (Referer / User-Agent / Cookie)."""

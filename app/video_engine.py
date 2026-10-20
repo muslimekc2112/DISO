@@ -22,7 +22,7 @@ from .models import Item
 from .logs import log
 from .segmented_downloader import (LIMITER, TIMEOUT, DownloadStopped, build_headers, get_proxies,
                                    get_proxy)
-from .utils import find_ffmpeg, media_folder, subprocess_flags
+from .utils import clip_text, find_ffmpeg, media_folder, subprocess_flags
 
 QUALITIES = ["En iyi", "2160p", "1440p", "1080p", "720p", "480p", "360p"]
 BITRATES = ["320", "256", "192", "128"]
@@ -484,10 +484,15 @@ def fetch_info(url: str, cookies=None) -> dict:
 def ydl_options(item: Item, hook=None) -> dict:
     """The yt-dlp options for downloading + post-processing one item with yt-dlp itself."""
     opts = base_opts(item.cookies)
+    name = "%(title).150B"
+    if item.clip:            # ✂ only this part; the cuts are made exact (not at the nearest keyframe)
+        start, end = item.clip
+        opts["download_ranges"] = _yt_dlp().utils.download_range_func(None, [(float(start), float(end))])
+        opts["force_keyframes_at_cuts"] = True
+        name += " [" + clip_text(item.clip).replace(":", ".") + "]"        # ':' cannot be in a file name
     opts.update({
         "format": format_selector(item.kind, item.quality),
-        "outtmpl": os.path.join(media_folder(item.folder, item.kind, item.sort_folders),
-                                "%(title).150B.%(ext)s"),
+        "outtmpl": os.path.join(media_folder(item.folder, item.kind, item.sort_folders), name + ".%(ext)s"),
         "concurrent_fragment_downloads": 16,
         "progress_hooks": [hook] if hook else [],
         "continuedl": True,
