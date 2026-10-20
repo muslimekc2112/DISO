@@ -16,7 +16,8 @@ import customtkinter as ctk
 
 from . import __version__, about, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import backup, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists
+from . import backup, channels, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists
+from .channels_ui import ChannelsWindow
 from .extra_ui import HistoryWindow, ShortcutsWindow
 from . import video_engine as ve
 from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
@@ -1054,6 +1055,9 @@ class App(ctk.CTk):
         self.history = history.History()         # every finished download, also after it leaves the list
         self.history_window = None
         self.shortcuts_window = None
+        self.channel_store = channels.Store()             # 📺 followed channels: new videos are announced, never downloaded
+        self.channel_watcher = channels.Watcher(self.channel_store)
+        self.channels_window = None
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(5, weight=1)
@@ -1089,6 +1093,7 @@ class App(ctk.CTk):
             self.after(50, self._hide_to_tray)
         self.after(300, self._tick)
         self.updates.start()  # checks and updates yt-dlp / FFmpeg in the background
+        self.channel_watcher.start()
 
     # ------------------------------------------------------------------------ layout
     def _set_icon(self):
@@ -1140,8 +1145,11 @@ class App(ctk.CTk):
         ctk.CTkButton(row, text="ℹ", width=48, height=44, command=self._show_info).grid(row=0, column=3, padx=(0, 8))
         self.history_button = ctk.CTkButton(row, text="📊", width=48, height=44, command=self.open_history)
         self.history_button.grid(row=0, column=4, padx=(0, 8))
+        # 📺 followed channels; "📺 3" when 3 new videos came
+        self.channels_btn = ctk.CTkButton(row, text="📺", width=48, height=44, command=self.open_channels)
+        self.channels_btn.grid(row=0, column=5, padx=(0, 8))
         ctk.CTkButton(row, text="⬇  İndir", height=44, width=130, font=ctk.CTkFont(size=16, weight="bold"),
-                      command=self.add_from_entry).grid(row=0, column=5)
+                      command=self.add_from_entry).grid(row=0, column=6)
 
     def _build_options(self):
         opt = ctk.CTkFrame(self)
@@ -1224,12 +1232,12 @@ class App(ctk.CTk):
                       command=self.manager.clear_finished).pack(side="left", padx=3)
         ctk.CTkButton(bar, text="⚙ Ayarlar", width=100, height=30,
                       command=self._open_settings).pack(side="right", padx=3)
-        self.updates_btn = ctk.CTkButton(bar, text="⟳ Güncellemeler", width=160, height=30,
+        self.updates_btn = ctk.CTkButton(bar, text="⟳ Güncellemeler", width=120, height=30,
                                          command=self._open_updates)
         self.updates_btn.pack(side="right", padx=3)
         self.clip_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(bar, text="Panoyu izle", variable=self.clip_var,
-                        command=self._on_clip_toggle).pack(side="right", padx=12)
+                        command=self._on_clip_toggle).pack(side="right", padx=(6, 4))
 
     def _build_filter_bar(self):
         """Search, filter, sort and the actions for the ticked rows."""
@@ -1694,6 +1702,35 @@ class App(ctk.CTk):
 
     def open_shortcuts(self):
         return self._single("shortcuts_window", lambda: ShortcutsWindow(self))
+
+    # ---------------------------------------------------------------------- 📺 followed channels
+    def open_channels(self):
+        return self._single("channels_window", lambda: ChannelsWindow(
+            self, self.channel_store, self.channel_watcher, self.download_channel_videos))
+
+    def download_channel_videos(self, videos, kind) -> int:
+        """The videos picked in the channel window into the download list (MP4 / MP3, the rest as chosen above)."""
+        s = dataclasses.replace(self._settings(), kind=kind, playlist=False)
+        skip = bool(self.cfg.get("block_duplicates"))
+        added = sum(1 for v in videos if self.manager.add_url(v["url"], s, skip_duplicates=skip))
+        if added:
+            self.notice(f"📺 {added} video indirme listesine eklendi")
+        return added
+
+    def _drain_channels(self):
+        """New videos of followed channels: a notification and a count on the button. Nothing is downloaded."""
+        news = self.channel_watcher.drain()
+        if news:
+            new = [n for n in news if n[0] == "new"]
+            if new:
+                title, body = channels.announcement(new)
+                notify.toast(title, body)
+                self.notice(f"{title}: {body}", 12)
+            win = self.channels_window
+            if win is not None and win.alive():
+                win.take(news)
+        count = len(self.channel_store.new)
+        set_if_changed(self.channels_btn, text=f"📺 {count}" if count else "📺")
 
     def _dialog_parent(self):
         panel = self.settings_panel
@@ -2335,6 +2372,7 @@ class App(ctk.CTk):
         self._hide_all()         # the windows go at once; what is left to save happens out of sight
         self._save_folder()
         self.manager.shutdown()  # asks running downloads to pause; returns at once
+        self.channel_watcher.stop()
         if self.music is not None:
             self.music.shutdown()
         self._finish_close(time.time() + CLOSE_WAIT)
@@ -2401,6 +2439,7 @@ class App(ctk.CTk):
             self._drain_events()
             self._check_after_all()
             self._check_schedule()
+            self._drain_channels()
             if self._tick_no % 10 == 0:
                 self._ffmpeg_ok = bool(find_ffmpeg())
                 self._update_tray_tooltip()

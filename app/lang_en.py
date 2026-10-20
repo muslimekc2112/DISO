@@ -382,6 +382,28 @@ PLAIN = {
     "Şarkı adı ya da YouTube linki yaz…": "Type a song name or a YouTube link…",
     "Sanatçı / kanal (boş da olur)": "Artist / channel (optional)",
     "Sanatçı / kanal": "Artist / channel", "Dinlenme": "Plays",
+    # ---- 📺 followed channels
+    "DISO • Kanal takibi": "DISO • Followed channels", "📺 Kanal takibi": "📺 Followed channels",
+    "Takip ettiğin kanallara yeni video gelince haber veririm. Hiçbir şeyi kendiliğimden indirmem: ne indireceğini "
+    "sen seçersin.": "When a channel you follow gets a new video, I let you know. I never download anything by "
+                     "myself: you choose what to download.",
+    "Kanal linki, @kanaladı ya da kanalın bir videosu": "Channel link, @channelname or one of the channel's videos",
+    "＋ Takip et": "＋ Follow", "Takip ettiklerin": "Channels you follow", "✖ Takibi bırak": "✖ Unfollow",
+    "Son bakış": "Last look", "Yeni videolar": "New videos", "Geldi": "Came", "🎬 MP4 indir": "🎬 Download MP4",
+    "🎵 MP3 indir": "🎵 Download MP3", "✓ Gördüm": "✓ Seen", "Hepsini temizle": "Clear all",
+    "Bakma sıklığı:": "Look every:", "⟳ Şimdi bak": "⟳ Look now",
+    "30 dakikada bir": "30 minutes", "Saatte bir": "Hour", "3 saatte bir": "3 hours", "6 saatte bir": "6 hours",
+    "Günde bir": "Day",
+    "Yeni video yok.": "No new videos.",
+    "Henüz bir kanal takip etmiyorsun. Yukarıya bir kanalın linkini yapıştır.":
+        "You do not follow any channel yet. Paste a channel's link above.",
+    "Önce bir kanal linki yapıştır": "Paste a channel link first", "Bu bir kanal linki değil": "This is not a channel link",
+    "Kanala bakıyorum…": "Looking at the channel…", "Kanallara bakıyorum…": "Looking at the channels…",
+    "Önce listeden bir kanal seç": "Pick a channel in the list first",
+    "Önce indirmek istediğin videoları seç": "Pick the videos you want to download first",
+    "Önce bir kanal takip et": "Follow a channel first",
+    "Bu kanalı zaten takip ediyorsun": "You already follow this channel",
+    "Bu videonun kanalını bulamadım": "Could not find this video's channel", "Bu link bir kanal değil": "This link is not a channel",
 }
 
 TEMPLATES = [
@@ -505,12 +527,22 @@ TEMPLATES = [
     ("Hoppala, beklenmedik bir şey oldu: {}", "Oops, something unexpected happened: {}"),
     ("Tarayıcı eklentisi DISO'yu kendisi açamayacak: {}", "The browser extension will not be able to open DISO: {}"),
     ("Eklenti klasörünü hazırlayamadım: {}", "Could not prepare the extension folder: {}"),
+    # ---- 📺 followed channels
+    ("Yeni videolar ({})", "New videos ({})"),
+    ("✓ “{}” takip ediliyor; yeni video gelince haber veririm", "✓ Following “{}”; I will tell you when a new video comes"),
+    ("Takip edemedim: {}", "Could not follow it: {}"), ("Kanallara baktım ({})", "Looked at the channels ({})"),
+    ("⬇ {} video indirme listesine eklendi", "⬇ {} videos added to the download list"),
+    ("📺 {} video indirme listesine eklendi", "📺 {} videos added to the download list"),
+    ("“{}” kanalının takibi bırakılsın mı?", "Stop following “{}”?"), ("⚠ {}", "⚠ {}"),
+    ("📺 {}: yeni video", "📺 {}: new video"), ("📺 {}: {} yeni video", "📺 {}: {} new videos"),
+    ("📺 {} yeni video", "📺 {} new videos"), ("📺 {}: yeni video: {}", "📺 {}: new video: {}"),
+    ("📺 {}: {} yeni video: {}", "📺 {}: {} new videos: {}"), ("📺 {} yeni video: {}", "📺 {} new videos: {}"),
 ]
 
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,
 # a list, a file) and stays exactly as it is
 TRANSLATE_PARTS = {
-    "Arayamadım: {}",
+    "Arayamadım: {}", "Takip edemedim: {}", "⚠ {}",
     "Liste {} göre sıralandı (tersten)", "Liste {} göre sıralandı", "🔁 Tekrar: {}",
     "{} altyazıyı YouTube vermedi; videonun kendi dilindeki ({}) altyazıyı kaydettim",
     "Tüm indirmeler bitince: {}", "  •  Bitince: {}", "Tüm indirmeler bitti 🎉\n{}", "{}\n\n{} saniye sonra",

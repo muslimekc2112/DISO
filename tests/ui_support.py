@@ -60,6 +60,11 @@ def make_app(monkeypatch, isolated_home):
     monkeypatch.setattr(music_search, "Searcher", FakeSearcher)               # no internet
     from app import lyrics
     monkeypatch.setattr(lyrics, "fetch", lambda *a, **k: None)                 # no internet for lyrics either
+    from app import channels
+
+    def no_channel(url):
+        raise ConnectionError("no internet in the tests")
+    monkeypatch.setattr(channels, "read_channel", no_channel)                  # nor for followed channels
     from music_support import FakeOverlay, FakeThumbBar
     from app import smtc
     from app import taskbar as taskbar_module
@@ -85,6 +90,7 @@ def make_app(monkeypatch, isolated_home):
         try:
             app._closing = True
             app.manager.shutdown()
+            app.channel_watcher.stop()
             gc.collect()      # same rule as the real window: collect Tk objects on this thread
             app.destroy()
         except Exception:  # noqa: BLE001 - already closed by the test

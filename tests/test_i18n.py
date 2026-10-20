@@ -95,7 +95,7 @@ music_search.Searcher = FakeSearcher; smtc.MediaOverlay = FakeOverlay; taskbar.T
 updater.Updater.start = lambda self: None
 from app.ui import App
 app = App(); app.withdraw(); app.update()
-app._open_settings(); app._ensure_music(); app.open_history(); app.open_shortcuts(); app.update()
+app._open_settings(); app._ensure_music(); app.open_history(); app.open_shortcuts(); app.open_channels(); app.update()
 texts = []
 def walk(w):
     for c in w.winfo_children():
@@ -135,7 +135,8 @@ def test_the_real_program_in_english(tmp_path, isolated_home):
     data = json.load(open(out, encoding="utf-8"))
     texts = data["texts"]
     for english in ("⚙ Settings", "Download mode", "Music player mode", "🔍 Find songs", "Keyboard shortcuts",
-                    "📊 Download history", "Close", "＋ File", "🎤 Lyrics", "⬇  Download"):
+                    "📊 Download history", "Close", "＋ File", "🎤 Lyrics", "⬇  Download", "📺 Followed channels",
+                    "＋ Follow", "⟳ Look now"):
         assert any(english in t for t in texts), english
     assert data["kind"] == "Otomatik (dosya / video)" and data["kind_shown"] == "Automatic (file / video)"
     assert data["mode"] in ("Müzik çalar modu", "İndirme modu")                       # the program reads Turkish
