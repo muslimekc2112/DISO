@@ -17,6 +17,11 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "eq": [0] * 8,                                            # 🎛 the equalizer, dB per band (equalizer.py)
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
+# ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)
+SMART_MOST, SMART_NEW, SMART_NEVER = "⭐ En çok dinlenenler", "🆕 Son eklenenler", "💤 Hiç dinlenmeyenler"
+SMART = (SMART_MOST, SMART_NEW, SMART_NEVER)
+SMART_SIZE = 50                 # songs in "most played" and "recently added"
+PLAYED_AFTER_MS = 30000         # a song counts as listened to after this much (a short one: after half of it)
 MAX_SEARCHES = 15
 SORT_KEYS = ("title", "artist", "time")
 
@@ -24,6 +29,31 @@ SORT_KEYS = ("title", "artist", "time")
 def track_for(path: str) -> dict:
     path = os.path.abspath(path)
     return {"path": path, "title": os.path.splitext(os.path.basename(path))[0]}
+
+
+def is_smart(name) -> bool:
+    return name in SMART
+
+
+def file_key(path: str) -> str:
+    """The same file, however its path is written."""
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _clean_stats(data) -> dict:
+    out = {}
+    for key, s in (data.items() if isinstance(data, dict) else ()):
+        if not (isinstance(key, str) and isinstance(s, dict)):
+            continue
+        entry = {}
+        if isinstance(s.get("plays"), int) and not isinstance(s["plays"], bool) and s["plays"] > 0:
+            entry["plays"] = s["plays"]
+        for name in ("last", "first"):
+            if isinstance(s.get(name), (int, float)) and not isinstance(s[name], bool):
+                entry[name] = float(s[name])
+        if entry:
+            out[key] = entry
+    return out
 
 
 def same_file(a: str, b: str) -> bool:
@@ -71,9 +101,11 @@ class PlaylistStore:
         self._lock = threading.RLock()
         self.lists = {}                       # name -> [track, ...]   (dict keeps the order)
         self.state = dict(STATE_DEFAULTS)
+        self.stats = {}                       # file_key -> {"plays": n, "last": time, "first": time added}
         self._load()
-        if not self.lists:
-            self.lists[DEFAULT_NAME] = []
+        if not any(not is_smart(n) for n in self.lists):
+            self.lists = {DEFAULT_NAME: [], **self.lists}
+        self.refresh_smart()
         if self.state["last"] not in self.lists:
             self.state["last"] = next(iter(self.lists))
 
@@ -90,6 +122,7 @@ class PlaylistStore:
         for name, tracks in lists.items():
             if isinstance(name, str) and name.strip() and isinstance(tracks, list):
                 self.lists[name] = [t for t in map(_clean_track, tracks) if t]
+        self.stats = _clean_stats(data.get("stats"))
         saved = data.get("state", {})
         if isinstance(saved, dict):
             for key, default in STATE_DEFAULTS.items():
@@ -110,14 +143,20 @@ class PlaylistStore:
             tmp = self.path + ".tmp"
             try:
                 with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump({"playlists": self.lists, "state": self.state}, f, ensure_ascii=False, indent=2)
+                    json.dump({"playlists": self.lists, "state": self.state, "stats": self.stats}, f,
+                              ensure_ascii=False, indent=2)
                 os.replace(tmp, self.path)
             except OSError:
                 pass
 
     # ------------------------------------------------------------------ lists
     def names(self):
-        return list(self.lists)
+        """The user's lists in their order, then the smart ones."""
+        return self.user_names() + [n for n in SMART if n in self.lists]
+
+    def user_names(self):
+        """The lists a song can be put into (not the smart ones)."""
+        return [n for n in self.lists if not is_smart(n)]
 
     def tracks(self, name):
         return self.lists.get(name, [])
@@ -136,6 +175,8 @@ class PlaylistStore:
         return name
 
     def rename(self, old: str, wanted: str) -> str:
+        if is_smart(old):
+            return old
         """Returns the new name (the old one if the wanted one is empty or the same)."""
         wanted = (wanted or "").strip()
         if old not in self.lists or not wanted or wanted == old:
@@ -149,11 +190,13 @@ class PlaylistStore:
 
     def delete(self, name: str) -> str:
         """Removes a list and returns the name to show next. The last list is emptied, not removed."""
+        if is_smart(name):
+            return name
         if name in self.lists:
-            if len(self.lists) == 1:
+            if len(self.user_names()) == 1:
                 self.lists[name] = []
             else:
-                names = self.names()
+                names = self.user_names()
                 after = names[max(0, names.index(name) - 1)] if names.index(name) > 0 else names[1]
                 del self.lists[name]
                 if self.state["last"] == name:
@@ -164,8 +207,11 @@ class PlaylistStore:
     # ------------------------------------------------------------------ tracks
     def add(self, name: str, paths) -> int:
         """Append the audio files among `paths`. The same file may be in a list twice (the user's call)."""
+        if is_smart(name):
+            return 0
         added = [track_for(p) for p in paths if is_audio(p) and os.path.isfile(p)]
         self.lists.setdefault(name, []).extend(added)
+        self._seen(t["path"] for t in added)
         if added:
             self.save()
         return len(added)
@@ -181,6 +227,8 @@ class PlaylistStore:
         return self.add(name, found)
 
     def remove(self, name: str, indexes) -> None:
+        if is_smart(name):
+            return
         tracks = self.lists.get(name, [])
         for i in sorted(set(indexes), reverse=True):
             if 0 <= i < len(tracks):
@@ -188,7 +236,7 @@ class PlaylistStore:
         self.save()
 
     def clear(self, name: str) -> None:
-        if name in self.lists:
+        if name in self.lists and not is_smart(name):
             self.lists[name] = []
             self.save()
 
@@ -196,8 +244,8 @@ class PlaylistStore:
         """Move the selected tracks up (-1) or down (+1) as a block. Returns their new indexes."""
         tracks = self.lists.get(name, [])
         picked = sorted(i for i in set(indexes) if 0 <= i < len(tracks))
-        if not picked:
-            return []
+        if not picked or is_smart(name):
+            return picked
         order = picked if offset < 0 else picked[::-1]
         moved = set(picked)
         for i in order:
@@ -260,6 +308,8 @@ class PlaylistStore:
 
     def copy_to(self, name: str, tracks) -> int:
         """Put these tracks (with what is known about them) into another list; ones already there are skipped."""
+        if is_smart(name):
+            return 0
         name = self.ensure(name)
         added = 0
         for t in tracks:
@@ -299,6 +349,8 @@ class PlaylistStore:
         return changed
 
     def ensure(self, name: str) -> str:
+        if is_smart(name):
+            name = self.unique_name(name)
         """The list with exactly this name (made if it does not exist yet)."""
         name = " ".join((name or "").split())[:MAX_NAME].strip() or DOWNLOADS_NAME
         if name not in self.lists:
@@ -316,6 +368,7 @@ class PlaylistStore:
         if not (is_music(path) and os.path.isfile(path)):
             return False
         name = self.ensure(name)
+        self._seen([path], added)
         if self.has_path(name, path):
             return False
         track = track_for(path)
@@ -329,6 +382,63 @@ class PlaylistStore:
             tracks.append(track)
         self.save()
         return True
+
+    # ------------------------------------------------------------------ ✨ smart lists
+    def _seen(self, paths, when=None):
+        """Remember when these files came into DISO (for "recently added"); kept when already known."""
+        import time
+        now = time.time() if when is None else float(when)
+        for path in paths:
+            self.stats.setdefault(file_key(path), {}).setdefault("first", now)
+
+    def count_play(self, path, when=None):
+        """The song was listened to (see PLAYED_AFTER_MS)."""
+        import time
+        now = time.time() if when is None else float(when)
+        s = self.stats.setdefault(file_key(path), {})
+        s["plays"] = s.get("plays", 0) + 1
+        s["last"] = now
+        s.setdefault("first", now)
+        self.save()
+
+    def plays(self, path) -> int:
+        return self.stats.get(file_key(path), {}).get("plays", 0)
+
+    def _added_time(self, track) -> float:
+        known = self.stats.get(file_key(track["path"]), {}).get("first") or track.get("added")
+        if known:
+            return float(known)
+        try:
+            return os.path.getmtime(track["path"])        # from before DISO counted: when the file was made
+        except OSError:
+            return 0.0
+
+    def refresh_smart(self, only=None):
+        """Fill the smart lists again from every other list (each song once, files that are still there).
+        They always come after the user's own lists."""
+        library = {}
+        for name, tracks in self.lists.items():
+            if not is_smart(name):
+                for t in tracks:
+                    key = file_key(t["path"])
+                    if key not in library and os.path.isfile(t["path"]):
+                        library[key] = t
+
+        def stat(key, what):
+            return self.stats.get(key, {}).get(what, 0)
+        newest = sorted(library, key=lambda k: -self._added_time(library[k]))
+        made = {
+            SMART_MOST: sorted((k for k in library if stat(k, "plays")),
+                               key=lambda k: (-stat(k, "plays"), -stat(k, "last")))[:SMART_SIZE],
+            SMART_NEW: newest[:SMART_SIZE],
+            SMART_NEVER: [k for k in newest if not stat(k, "plays")],
+        }
+        old = {name: self.lists.pop(name) for name in SMART if name in self.lists}
+        for name in SMART:
+            if only is None or name == only:
+                self.lists[name] = [{k: v for k, v in library[key].items() if k != "added"} for key in made[name]]
+            else:
+                self.lists[name] = old.get(name, [])
 
     def total_ms(self, name: str):
         """(sum of the known lengths, True when every track's length is known)."""

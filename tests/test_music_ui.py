@@ -163,10 +163,10 @@ def test_several_lists_each_keeps_its_own_order(music_app, songs):
     assert music.viewed == "Koşu" and "Spor" not in music.store.names()
     music._ask_name = lambda *a: None                    # a cancelled dialog changes nothing
     music._new_list()
-    assert music.store.names() == [first, "Koşu"]
+    assert music.store.user_names() == [first, "Koşu"]
     music._confirm = lambda text: True
     music._delete_list()
-    assert music.store.names() == [first] and music.viewed == first
+    assert music.store.user_names() == [first] and music.viewed == first
 
 
 def test_the_lists_come_back_after_a_restart(music_app, songs):
@@ -184,7 +184,7 @@ def test_the_lists_come_back_after_a_restart(music_app, songs):
     music.shuffle_var.set(True)
     music._on_shuffle()
     again = type(music.store)(music.store.path)
-    assert again.names() == [first, "Gece listesi"] and again.state["last"] == "Gece listesi"
+    assert again.user_names() == [first, "Gece listesi"] and again.state["last"] == "Gece listesi"
     assert again.state["volume"] == 30 and again.state["repeat"] == "Liste" and again.state["shuffle"] is True
 
 

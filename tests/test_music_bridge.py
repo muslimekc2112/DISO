@@ -16,7 +16,7 @@ pytestmark = pytest.mark.gui
 
 
 def names(app):
-    return app._store().names()
+    return app._store().user_names()
 
 
 def titles(app, name):

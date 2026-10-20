@@ -2106,7 +2106,7 @@ class App(ctk.CTk):
         return self.playlist_store
 
     def playlist_names(self):
-        return self._store().names()
+        return self._store().user_names()
 
     def new_music_list(self, name) -> str:
         name = self._store().create(name)
@@ -2271,7 +2271,7 @@ class App(ctk.CTk):
         store = self._store()
         default = store.state.get("ask_list") or (self.music.viewed if self.music is not None else "")
         parent = self.music if (self.mode == MODE_MUSIC and self.music is not None) else self
-        self.song_dialog = SongListDialog(parent, store.names(), default, songs, self.songs_to_list)
+        self.song_dialog = SongListDialog(parent, store.user_names(), default, songs, self.songs_to_list)
 
     def songs_to_list(self, paths, name):
         """The answer: name = a list, ("new", wanted name), or None (not now)."""

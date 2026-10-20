@@ -10,7 +10,7 @@ import pytest
 
 from app import player
 from app.player import Controller
-from app.playlists import DEFAULT_NAME, PlaylistStore
+from app.playlists import SMART, DEFAULT_NAME, PlaylistStore
 from media_support import ffmpeg, needs_ffmpeg
 from music_support import FakeBackend, make_wav
 
@@ -31,7 +31,8 @@ def tracks_of(store, name):
 
 # ------------------------------------------------------------------------------ playlists
 def test_a_new_store_has_one_empty_list(store):
-    assert store.names() == [DEFAULT_NAME] and store.state["last"] == DEFAULT_NAME
+    assert store.user_names() == [DEFAULT_NAME] and store.state["last"] == DEFAULT_NAME
+    assert store.names() == [DEFAULT_NAME, *SMART]                          # the smart lists always come last
     assert store.tracks(DEFAULT_NAME) == []
 
 
@@ -40,14 +41,14 @@ def test_lists_are_created_renamed_and_deleted_in_order(store):
     b = store.create("Spor")                             # the same name is made unique
     assert (a, b) == ("Spor", "Spor (2)")
     assert store.rename("Spor", "Koşu") == "Koşu"
-    assert store.names() == [DEFAULT_NAME, "Koşu", "Spor (2)"]
+    assert store.user_names() == [DEFAULT_NAME, "Koşu", "Spor (2)"]
     assert store.rename("Koşu", "  ") == "Koşu"              # an empty name changes nothing
     assert store.rename("Koşu", "Spor (2)") == "Spor (2) (2)"   # never overwrites another list
     store.state["last"] = "Spor (2) (2)"
     assert store.delete("Spor (2) (2)") == DEFAULT_NAME      # the neighbour becomes current
     assert store.delete("Spor (2)") == DEFAULT_NAME
     assert store.delete(DEFAULT_NAME) == DEFAULT_NAME        # the last list is emptied, not removed
-    assert store.names() == [DEFAULT_NAME]
+    assert store.user_names() == [DEFAULT_NAME]
 
 
 def test_only_existing_audio_files_are_added(store, songs, tmp_path):
@@ -92,7 +93,7 @@ def test_everything_survives_a_restart(store, songs, tmp_path):
     store.set_state(last=other, volume=35, shuffle=True, repeat="Liste", resume_list=other,
                     resume_path=songs[1], resume_ms=61000, ask_list="Gece")
     again = PlaylistStore(str(tmp_path / "playlists.json"))
-    assert again.names() == [DEFAULT_NAME, "Gece"] and tracks_of(again, "Gece") == ["a", "b"]
+    assert again.user_names() == [DEFAULT_NAME, "Gece"] and tracks_of(again, "Gece") == ["a", "b"]
     assert again.state == {"last": "Gece", "volume": 35, "shuffle": True, "repeat": "Liste", "resume_list": "Gece",
                            "resume_path": songs[1], "resume_ms": 61000, "ask_list": "Gece", "fade": 0,
                            "searches": [], "eq": [0] * 8}
@@ -101,12 +102,12 @@ def test_everything_survives_a_restart(store, songs, tmp_path):
 def test_a_damaged_file_is_ignored(tmp_path):
     path = tmp_path / "playlists.json"
     path.write_text("{not json", encoding="utf-8")
-    assert PlaylistStore(str(path)).names() == [DEFAULT_NAME]
+    assert PlaylistStore(str(path)).user_names() == [DEFAULT_NAME]
     path.write_text(json.dumps({"playlists": {"ok": [{"path": "x.mp3", "title": "x"}, 5, {"path": 1}],
                                               "": [], "bad": "no"},
                                 "state": {"volume": 500, "repeat": "Garip", "shuffle": "yes"}}), encoding="utf-8")
     s = PlaylistStore(str(path))
-    assert s.names() == ["ok"] and tracks_of(s, "ok") == ["x"]
+    assert s.user_names() == ["ok"] and tracks_of(s, "ok") == ["x"]
     assert s.state["volume"] == 100 and s.state["repeat"] == "Kapalı" and s.state["shuffle"] is False
 
 

@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
-from . import equalizer, i18n, lyrics, mediakeys, music_search, smtc, tags
+from . import equalizer, i18n, lyrics, mediakeys, music_search, playlists, smtc, tags
 from . import taskbar as taskbar_module
 from .logs import log
 from .playlists import FADE_CHOICES
@@ -31,6 +31,11 @@ SAVE_DELAY = 1500          # ms: tags that keep arriving are written to the file
 PRUNE_EVERY = 5.0          # s: how often the lists are checked for deleted files
 REMEMBER_EVERY = 5.0       # s: how often the place in the song is noted (written to the file on exit)
 SLEEP_OFF = "😴 Uyku: kapalı"
+SMART_EMPTY = {
+    "⭐ En çok dinlenenler": "Henüz hiçbir şarkıyı dinlemedin.\nBir şarkı 30 saniye çalınca burada sayılır.",
+    "🆕 Son eklenenler": "Listelerinde hiç şarkı yok.\nŞarkı ekleyince en yenileri burada görünür.",
+    "💤 Hiç dinlenmeyenler": "Her şarkıyı en az bir kez dinlemişsin. 🎉",
+}
 SLEEP_TRACK = "Parça bitince"
 SLEEP_CHOICES = [SLEEP_OFF, "15 dk", "30 dk", "45 dk", "60 dk", "90 dk", SLEEP_TRACK]
 SORT_COLUMNS = {"title": "title", "artist": "artist", "time": "time"}
@@ -305,9 +310,13 @@ class MusicWindow(ctk.CTkToplevel):
         ctk.CTkLabel(bar, text="Çalma listesi:", text_color="gray").grid(row=0, column=0, padx=(0, 6))
         self.list_menu = ctk.CTkOptionMenu(bar, values=["-"], width=200, command=self._select_list)
         self.list_menu.grid(row=0, column=1)
+        self.edit_buttons = []          # what a smart list (filled by itself) cannot do
         for col, (text, cmd) in enumerate((("＋", self._new_list), ("✎", self._rename_list),
                                            ("🗑", self._delete_list)), start=2):
-            ctk.CTkButton(bar, text=text, width=36, command=cmd).grid(row=0, column=col, padx=(6, 0))
+            b = ctk.CTkButton(bar, text=text, width=36, command=cmd)
+            b.grid(row=0, column=col, padx=(6, 0))
+            if text != "＋":
+                self.edit_buttons.append(b)
         self.filter_entry = ctk.CTkEntry(bar, placeholder_text="🔎 Bu listede ara", width=200)
         self.filter_entry.grid(row=0, column=5, sticky="e", padx=(12, 0))
         self.filter_entry.bind("<KeyRelease>", lambda e: self._apply_filter(self.filter_entry.get()))
@@ -387,8 +396,10 @@ class MusicWindow(ctk.CTkToplevel):
                    ("✖ Kaldır", self._remove_selected), ("Listeyi temizle", self._clear_list),
                    ("🔀 Karıştır", self._shuffle_list))
         for col, (text, cmd) in enumerate(buttons):
-            ctk.CTkButton(row, text=text, width=36 if len(text) == 1 else 100, command=cmd).grid(
-                row=0, column=col, padx=(0, 6))
+            b = ctk.CTkButton(row, text=text, width=36 if len(text) == 1 else 100, command=cmd)
+            b.grid(row=0, column=col, padx=(0, 6))
+            if text != "🔀 Karıştır":
+                self.edit_buttons.append(b)
         self.queue_btn = ctk.CTkButton(row, text="📋 Sıra", width=90, command=self._open_queue_menu)
         self.queue_btn.grid(row=0, column=len(buttons), padx=(0, 6))
         self.count_label = ctk.CTkLabel(row, text="", text_color="gray")
@@ -551,6 +562,8 @@ class MusicWindow(ctk.CTkToplevel):
 
     def _select_list(self, name):
         self.viewed = name
+        if playlists.is_smart(name) and name != self.playing_list:     # up to date when it is opened
+            self.store.refresh_smart(only=name)
         self.store.set_state(last=name)
         self.sort_by = (None, False)
         self._refresh_tracks()
@@ -633,8 +646,14 @@ class MusicWindow(ctk.CTkToplevel):
         if select:
             self.tree.selection_set([str(i) for i in select if 0 <= i < len(tracks) and self.tree.exists(str(i))])
         self._shown_marker = marker
+        smart = playlists.is_smart(self.viewed)
+        for b in self.edit_buttons:
+            set_if_changed(b, state="disabled" if smart else "normal")
         self._update_count()
-        if not tracks:
+        if not tracks and smart:
+            self.empty_hint.configure(text=SMART_EMPTY.get(self.viewed, ""))
+            self.empty_hint.place(relx=0.5, rely=0.5, anchor="center")
+        elif not tracks:
             self.empty_hint.configure(text="Liste bomboş.\n“＋ Dosya” ya da “📁 Klasör” ile müzik ekle,\n"
                                            "ya da “🔍 Şarkı bul” ile internetten bul.")
             self.empty_hint.place(relx=0.5, rely=0.5, anchor="center")
@@ -655,6 +674,8 @@ class MusicWindow(ctk.CTkToplevel):
         total, complete = self.store.total_ms(self.viewed)
         if complete and total:
             text += f" • {fmt_total(total)}"
+        if playlists.is_smart(self.viewed):
+            text = "✨ Kendiliğinden dolar • " + text
         self.count_label.configure(text=text)
 
     def _apply_filter(self, text):
@@ -777,7 +798,7 @@ class MusicWindow(ctk.CTkToplevel):
         picked = self._selected()
         if not picked:
             return []
-        others = [n for n in self.store.names() if n != self.viewed]
+        others = [n for n in self.store.user_names() if n != self.viewed]
         tracks = self.store.tracks(self.viewed)
         first = tracks[picked[0]] if picked[0] < len(tracks) else None
         has = bool(first) and lyrics.has_lyrics(first["path"])
@@ -790,8 +811,7 @@ class MusicWindow(ctk.CTkToplevel):
                 (words, self._lyrics_for_selected), *again,
                 ("➕ Başka listeye ekle", [(n, lambda n=n: self._copy_selected(n)) for n in others]
                  + [("＋ Yeni liste…", self._copy_to_new_list)]),
-                None,
-                ("✖ Listeden çıkar", self._remove_selected)]
+                *([] if playlists.is_smart(self.viewed) else [None, ("✖ Listeden çıkar", self._remove_selected)])]
 
     def _fill_menu(self, menu, items):
         for entry in items:
@@ -1693,6 +1713,25 @@ class MusicWindow(ctk.CTkToplevel):
             set_if_changed(self.len_label, text=fmt_time(length))
         self._update_marker()
 
+    def _count_listening(self):
+        """A song played for PLAYED_AFTER_MS (a short one: half of it) counts once for the smart lists;
+        played again from the start, it counts again."""
+        c = self.controller
+        path = c.current_path() if c.state == "playing" else None
+        if path != getattr(self, "_listen_path", None):
+            self._listen_path, self._listen_counted = path, False
+        if not path:
+            return
+        at = c.position_ms()
+        if self._listen_counted:
+            if at < 2000:
+                self._listen_counted = False
+            return
+        length = c.length_ms()
+        if at >= (min(playlists.PLAYED_AFTER_MS, length // 2) if length else playlists.PLAYED_AFTER_MS):
+            self._listen_counted = True
+            self.store.count_play(path)
+
     def _tick(self):
         """Four times a second: the end of a track, new answers, the clock. An error in one round
         is logged and the next round still runs (otherwise playback would stop moving on)."""
@@ -1701,6 +1740,7 @@ class MusicWindow(ctk.CTkToplevel):
         try:
             self._check_sleep()
             self.controller.tick()
+            self._count_listening()
             if self.controller.error:
                 self.note(self.controller.error)
                 self.controller.error = ""

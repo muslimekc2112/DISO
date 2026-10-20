@@ -244,6 +244,14 @@ PLAIN = {
     "DISO güncelleniyor… birazdan yeni sürümle açılacak": "Updating DISO… it opens again with the new version in a moment",
     "Kurmak için ⟳ Güncellemeler → DISO → Güncelle": "To install it: ⟳ Updates → DISO → Update",
     "GitHub'da sürüm bulunamadı": "No release found on GitHub",
+    # ---- ✨ smart lists
+    "⭐ En çok dinlenenler": "⭐ Most played", "🆕 Son eklenenler": "🆕 Recently added",
+    "💤 Hiç dinlenmeyenler": "💤 Never played",
+    "Henüz hiçbir şarkıyı dinlemedin.\nBir şarkı 30 saniye çalınca burada sayılır.":
+        "You have not listened to any song yet.\nA song counts here after it played for 30 seconds.",
+    "Listelerinde hiç şarkı yok.\nŞarkı ekleyince en yenileri burada görünür.":
+        "There are no songs in your lists.\nWhen you add some, the newest show up here.",
+    "Her şarkıyı en az bir kez dinlemişsin. 🎉": "You have listened to every song at least once. 🎉",
     # ---- 🎛 equalizer
     "DISO • Ekolayzır": "DISO • Equalizer", "🎛 Ekolayzır": "🎛 Equalizer", "🎛 Ekolayzır…": "🎛 Equalizer…",
     "Hazır bir ayar seç ya da kaydırıcılarla kendin ayarla. Düz bırakırsan ses hiç değişmez.":
@@ -559,7 +567,8 @@ TEMPLATES = [
     ("Yeni videolar ({})", "New videos ({})"),
     ("Başlangıç videonun sonundan sonra (video {})", "The start is after the end of the video (the video is {})"),
     ("Yalnızca {} arası inecek ({})", "Only {} will be downloaded ({})"),
-    ("Eklendi: {} ✂ {}", "Added: {} ✂ {}"), ("Eklendi: {}", "Added: {}"),
+    ("Eklendi: {} ✂ {}", "Added: {} ✂ {}"),
+    ("✨ Kendiliğinden dolar • {}", "✨ Fills by itself • {}"), ("Eklendi: {}", "Added: {}"),
     ("Yeni sürüm: {}. Kurmak için “Güncelle”ye bas.", "New version: {}. Press “Update” to install it."),
     ("Yeni sürüm: {}. “Güncelle” indirme sayfasını açar.", "New version: {}. “Update” opens the download page."),
     ("GitHub'a ulaşamadım: {}", "Could not reach GitHub: {}"), ("İndiremedim: {}", "Could not download it: {}"),
