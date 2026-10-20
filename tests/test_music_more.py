@@ -192,13 +192,12 @@ def test_an_artist_keeps_only_their_songs(fake_ytmusic):
     assert len(music_search.search("dudu", "yok böyle biri")) == 4
 
 
-def test_music_videos_are_added_only_when_few_songs_match_and_never_shorts(fake_ytmusic):
+def test_only_songs_are_searched_never_youtube_videos(fake_ytmusic):
+    """Lyric videos, covers and shorts are YouTube videos: the search asks YouTube Music for songs only."""
     fake_ytmusic.answers["songs"] = [song("a1", "Nadir Şarkı", "Biri", "5K")]
-    fake_ytmusic.answers["videos"] = [song("v1", "Nadir Şarkı (Canlı)", "Biri", "80K", 240),
-                                      song("v2", "Nadir Şarkı #shorts", "Biri", "9M", 30)]
-    assert [r["url"][-2:] for r in music_search.search("nadir şarkı")] == ["v1", "a1"]
-    fake_ytmusic.answers["songs"] = [song(f"s{i}", f"Çok Şarkı {i}", "Biri", f"{i}K") for i in range(6)]
-    assert all(r["url"][-2] == "s" for r in music_search.search("çok şarkı"))
+    fake_ytmusic.answers["videos"] = [song("v1", "Nadir Şarkı (Lyrics)", "Biri", "80K", 240)]
+    assert [r["url"][-2:] for r in music_search.search("nadir şarkı")] == ["a1"]
+    assert {f for _, f, _ in fake_ytmusic.asked} == {"songs"}
 
 
 def test_a_short_answer_is_asked_once_more_and_both_are_used(fake_ytmusic):
@@ -215,30 +214,30 @@ def test_listen_counts_are_read_and_shown_short():
         "", "950", "447 B", "1,1 Mn", "238 Mn", "2,7 Mr"]
 
 
-def test_without_youtube_music_youtube_is_searched_without_shorts(fake_ytdlp, monkeypatch):
+def test_without_youtube_music_the_search_says_so_and_never_searches_youtube(fake_ytdlp, monkeypatch):
+    tries = []
+
     def broken():
-        raise ConnectionError("no YouTube Music")
+        tries.append(1)
+        raise ConnectionError("Read timed out")
     monkeypatch.setattr(music_search, "_ytmusic", broken)
-    fake_ytdlp.answer = {"entries": [
-        {"id": "a1", "url": "https://www.youtube.com/watch?v=a1", "title": "Şımarık", "channel": "Kanal",
-         "duration": 215.0, "view_count": 10},
-        {"id": "b2", "url": "b2", "ie_key": "Youtube", "title": "Tarkan Şımarık", "uploader": "Biri",
-         "duration": None, "view_count": 500},
-        {"id": "s1", "url": "https://www.youtube.com/shorts/s1", "title": "Şımarık kısa", "duration": 20},
-        {"id": "s2", "url": "s2", "title": "Şımarık kısa 2", "duration": 45},
-        {"id": "live", "title": "Canlı yayın", "live_status": "is_live"},
-        {"id": "ch", "title": "Bir kanal", "ie_key": "YoutubeTab", "url": "https://www.youtube.com/@kanal"},
-        {"id": "a1", "url": "https://www.youtube.com/watch?v=a1", "title": "Şarkı 1 tekrar"},
-        {"title": ""}, None]}
-    found = music_search.search("  tarkan   şımarık ")
-    url, opts = fake_ytdlp.asked[-1]
-    assert url == f"ytsearch{music_search.FALLBACK_LIMIT}:tarkan şımarık" and opts["extract_flat"] is True
-    assert opts["socket_timeout"] == music_search.SEARCH_TIMEOUT < 30
-    assert found == [
-        {"url": "https://www.youtube.com/watch?v=b2", "title": "Tarkan Şımarık", "channel": "Biri", "duration": 0,
-         "views": 500},
-        {"url": "https://www.youtube.com/watch?v=a1", "title": "Şımarık", "channel": "Kanal", "duration": 215,
-         "views": 10}]
+    with pytest.raises(music_search.Unreachable) as caught:
+        music_search.search("  tarkan   şımarık ")
+    assert len(tries) == music_search.SEARCH_TRIES == 2 and fake_ytdlp.asked == []     # asked again, then said so
+    assert "YouTube Music'e ulaşılamadı" in str(caught.value)
+
+
+def test_a_slow_first_answer_is_asked_again(fake_ytmusic, monkeypatch):
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) == 1:
+            raise ConnectionError("Read timed out")
+        return fake_ytmusic
+    monkeypatch.setattr(music_search, "_ytmusic", flaky)
+    fake_ytmusic.answers["songs"] = [song("a1", "Şımarık", "Tarkan", "10M")]
+    assert [r["url"][-2:] for r in music_search.search("şımarık")] == ["a1"]
 
 
 def test_an_empty_search_asks_nothing(fake_ytdlp, fake_ytmusic):
@@ -370,47 +369,6 @@ def test_titles_are_cleaned_for_the_search():
     assert lyrics.clean_title("Never Gonna Give You Up (4K Remaster)") == "Never Gonna Give You Up"
     assert lyrics.clean_title("Love (Live)") == "Love (Live)"                    # a real part of the name stays
     assert lyrics.clean_title("(Official Video)") == "(Official Video)"         # never cleaned to nothing
-
-
-def answer(*items):
-    return list(items)
-
-
-def rec(name, duration, synced="", plain="", instrumental=False, artist="Barış Manço"):
-    return {"trackName": name, "artistName": artist, "duration": duration, "syncedLyrics": synced,
-            "plainLyrics": plain, "instrumental": instrumental}
-
-
-def test_synced_lyrics_only_from_a_recording_of_the_same_length():
-    from app import lyrics
-    found = [rec("Gülpembe", 264, synced="[00:01.00]kısa"), rec("Gülpembe", 311, synced="[00:01.00]doğru"),
-             rec("Gülpembe", 290, plain="düz")]
-    assert lyrics.choose(found, "Gülpembe", 312) == "[00:01.00]doğru"
-    assert lyrics.choose(found[:1] + found[2:], "Gülpembe", 312) == "düz"          # nothing timed fits: plain
-    assert lyrics.choose([rec("Başka şarkı", 312, plain="x")], "Gülpembe", 312) is None
-    assert lyrics.choose([rec("Gülpembe", 312, instrumental=True)], "Gülpembe", 312) is None
-
-
-def test_fetch_tries_artist_and_title_then_a_free_search():
-    from app import lyrics
-    asked = []
-
-    class R:
-        def __init__(self, data):
-            self.data = data
-
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return self.data
-
-    def get(url, params=None, **k):
-        asked.append(params)
-        return R([] if "track_name" in params else [rec("Gülpembe", 300, plain="söz")])
-
-    assert lyrics.fetch_lrclib("Barış Manço", "Gülpembe (Official Video)", 300, get=get) == "söz"
-    assert asked == [{"track_name": "Gülpembe", "artist_name": "Barış Manço"}, {"q": "Barış Manço Gülpembe"}]
 
 
 def test_lyrics_are_kept_next_to_the_song(tmp_path):

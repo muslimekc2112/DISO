@@ -73,6 +73,18 @@ test("shouldIntercept: by file type or by size", () => {
   assert.equal(HI.shouldIntercept({ url: "https://a.com/p.jpg", fileSize: 99 * 1048576 }, { ...on, minSizeMB: 0 }), false);
 });
 
+test("shouldIntercept never takes the downloads of the browser's history", () => {
+  const now = Date.parse("2026-10-20T12:00:00.000Z");
+  const item = (extra) => Object.assign({ url: "https://a.com/a.zip", filename: "a.zip" }, extra);
+  const fresh = "2026-10-20T11:59:58.000Z";
+  assert.equal(HI.shouldIntercept(item({ state: "in_progress", startTime: fresh }), on, now), true);
+  assert.equal(HI.shouldIntercept(item({ state: "complete", startTime: fresh }), on, now), false);
+  assert.equal(HI.shouldIntercept(item({ state: "interrupted", startTime: fresh }), on, now), false);
+  assert.equal(HI.shouldIntercept(item({ state: "in_progress", startTime: "2026-10-19T09:00:00.000Z" }), on, now), false);
+  assert.equal(HI.shouldIntercept(item({ state: "in_progress", startTime: "2026-10-20T11:58:30.000Z" }), on, now), false);
+  assert.equal(HI.shouldIntercept(item({ state: "in_progress", startTime: "not a date" }), on, now), false);
+});
+
 test("shouldIntercept looks at the final address after redirects", () => {
   assert.equal(HI.shouldIntercept({ url: "blob:x", finalUrl: "https://cdn.a.com/f.zip", filename: "" }, on), true);
   assert.equal(HI.shouldIntercept({ url: "https://a.com/go", finalUrl: "ftp://a.com/f.zip" }, on), false);

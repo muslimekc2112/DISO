@@ -134,6 +134,8 @@ PLAIN = {
     "Bir satıra tıkla, oradan çalsın": "Click a line to play from there", "Arıyorum…": "Looking…",
     "Çalma listesi:": "Playlist:", "📂 İnenler": "📂 Downloaded", "🔀 Karışık": "🔀 Shuffle",
     "Müzik dosyaları": "Music files", "Sırayı temizle": "Clear the queue", "Arayamadım: ": "Could not search: ",
+    "YouTube Music'e ulaşılamadı, bağlantını kontrol edip tekrar dene":
+        "Could not reach YouTube Music; check your connection and try again",
     "🎉 İndi!": "🎉 Downloaded!", "Hangi çalma listesine ekleyeyim?": "Which playlist should it go to?",
     "Şimdilik ekleme": "Not now", "Yeni listeye bir ad ver": "Give the new list a name",
     " Müzik çalar": " Music player", "🎵 Müzik çalar": "🎵 Music player",
@@ -508,6 +510,7 @@ TEMPLATES = [
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,
 # a list, a file) and stays exactly as it is
 TRANSLATE_PARTS = {
+    "Arayamadım: {}",
     "Liste {} göre sıralandı (tersten)", "Liste {} göre sıralandı", "🔁 Tekrar: {}",
     "{} altyazıyı YouTube vermedi; videonun kendi dilindeki ({}) altyazıyı kaydettim",
     "Tüm indirmeler bitince: {}", "  •  Bitince: {}", "Tüm indirmeler bitti 🎉\n{}", "{}\n\n{} saniye sonra",

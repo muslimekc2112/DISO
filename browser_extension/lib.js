@@ -165,10 +165,21 @@
     return (cookies || []).filter((c) => c && c.name).map((c) => c.name + "=" + c.value).join("; ");
   }
 
+  // How old a download may be and still count as "just started" (ms).
+  const FRESH_MS = 60 * 1000;
+
   // Should the extension take this browser download over? `item` is a chrome DownloadItem.
-  function shouldIntercept(item, opts) {
+  // The browser also reports the downloads of its history as "created" (when it starts, when the
+  // extension wakes up): those are finished, broken off or old - never taken, only a new one is.
+  function shouldIntercept(item, opts, now) {
     if (!opts || !opts.intercept || !item) return false;
     if (item.byExtensionId) return false;              // started by an extension: not ours to take
+    if (item.state && item.state !== "in_progress") return false;
+    if (item.startTime) {
+      const started = Date.parse(item.startTime);
+      const t = now !== undefined ? now : Date.now();
+      if (!(started > t - FRESH_MS)) return false;     // from the history (or a date we cannot read)
+    }
     const url = item.finalUrl || item.url;
     if (!isHttpUrl(url)) return false;                 // blob:, data:, file: ... cannot be fetched again
     const ext = fileExtension(item.filename || url);

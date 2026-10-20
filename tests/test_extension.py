@@ -240,11 +240,12 @@ def test_taking_over_a_browser_download(app):
 
 
 @needs_node
-@pytest.mark.parametrize("scenario", ["intercept-off", "intercept-small", "intercept-blob"])
+@pytest.mark.parametrize("scenario", ["intercept-off", "intercept-small", "intercept-blob", "intercept-history"])
 def test_downloads_that_are_not_ours_stay_with_the_browser(app, scenario):
     api, b = app
     out = run(b.port, scenario)
     assert api.added == [] and out["log"]["cancelled"] == [] and out["log"]["downloaded"] == []
+    assert out["log"]["erased"] == [] and out["log"]["paused"] == []      # the browser's history is left alone
 
 
 @needs_node

@@ -1,25 +1,18 @@
 """Song lyrics for the music player.
 
-Lyrics come first from YouTube Music (the lyrics of the very video a found song was downloaded from, so
-they belong to that song; for other songs YouTube Music is searched). LRCLIB (lrclib.net) adds the time
-of every line ("synced": the player can follow the song), but only when its text is the same song's text:
-LRCLIB alone sometimes has another song of the same name. They are kept next to the song as '<song>.lrc', the usual
-place music players look, so a song carries its lyrics with it. A file without time marks is plain
+Lyrics come only from YouTube Music: the lyrics of the very video a found song was downloaded from, so
+they belong to that song; for other songs (or a video without lyrics) YouTube Music's song of the same
+name and artist. Other lyrics sites are not asked: they too often had another song of the same name.
+Most come with the time of every line ("synced": the player can follow the song). They are kept next
+to the song as '<song>.lrc', the usual place music players look, so a song carries its lyrics with it. A file without time marks is plain
 lyrics. Nothing here touches the window: `Fetcher` works on another thread and the window polls it."""
 import os
 import queue
 import re
 import threading
 
-import requests
-
-from . import brand
 from .logs import log
-from .segmented_downloader import get_proxies
 
-API = "https://lrclib.net/api/search"
-TIMEOUT = 15
-SYNC_TOLERANCE = 4          # s: synced lyrics only from a recording this close in length
 _STAMP = re.compile(r"\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]")
 _META = re.compile(r"^\[(ar|ti|al|by|offset|length|re|ve|au|la|#):.*\]$", re.I)
 _NOISE = re.compile(r"\s*[\(\[](?:official|resmi|lyrics?|sözleri|audio|video|hd|4k|klip|music video|"
@@ -87,36 +80,13 @@ def clean_title(title: str) -> str:
 
 
 def _norm(text: str) -> str:
-    return re.sub(r"[^\w]+", " ", (text or "").casefold()).strip()
+    from .music_search import fold                    # "Şımarık" == "Simarik", as in the song search
+    return fold(text)
 
 
 def _same_name(a: str, b: str) -> bool:
     a, b = _norm(a), _norm(b)
     return bool(a and b) and (a in b or b in a)
-
-
-def choose(found: list, title: str, seconds: float, artist: str = ""):
-    """The best answer of a search: the name must match (and the artist, when it is known); synced
-    lyrics only from a recording about as long as ours (else the lines would come at the wrong time),
-    otherwise plain lyrics."""
-    good = [f for f in found if isinstance(f, dict) and not f.get("instrumental")
-            and (f.get("plainLyrics") or f.get("syncedLyrics"))
-            and _same_name(title, f.get("trackName"))
-            and (not artist or _same_name(artist, f.get("artistName")))]
-    if not good:
-        return None
-
-    def gap(f):
-        try:
-            return abs(float(f.get("duration") or 0) - seconds) if seconds else 0.0
-        except (TypeError, ValueError):
-            return 1e9
-
-    timed = [f for f in good if f.get("syncedLyrics") and (not seconds or gap(f) <= SYNC_TOLERANCE)]
-    if timed:
-        return min(timed, key=gap)["syncedLyrics"]
-    best = min(good, key=gap)
-    return best.get("plainLyrics") or _STAMP.sub("", best.get("syncedLyrics") or "")
 
 
 def video_id_of(url: str) -> str:
@@ -136,24 +106,41 @@ def _lrc_from_lines(lines) -> str:
 def _ytmusic(api=None):
     if api is not None:
         return api
-    from ytmusicapi import YTMusic
-    return YTMusic()
+    from .music_search import _ytmusic as client      # gives up on a hanging request, uses DISO's proxy
+    return client()
 
 
-def ytmusic_lyrics(video_id="", artist="", title="", api=None):
-    """(text, timed) from YouTube Music, or None. With a video id: that video's own lyrics. Without
-    one: the first song YouTube Music finds whose name (and artist) match."""
-    api = _ytmusic(api)
-    if not video_id:
-        query = f"{artist} {clean_title(title)}".strip()
-        for r in (api.search(query, filter="songs", limit=5) or [])[:5]:
-            names = " ".join(a.get("name", "") for a in r.get("artists") or [] if isinstance(a, dict))
-            if r.get("videoId") and _same_name(clean_title(title), r.get("title")) and \
-                    (not artist or _same_name(artist, names)):
-                video_id = r["videoId"]
-                break
-        if not video_id:
-            return None
+def _core(title: str) -> str:
+    """The bare name of a song: 'On & On (Lyrics) feat. Daniel Levi' -> 'on on'."""
+    out = re.sub(r"[\(\[][^\)\]]*[\)\]]", " ", clean_title(title))
+    out = re.split(r"\s(?:feat|ft|featuring)\.?\s", f" {out} ", flags=re.I)[0]
+    return _norm(out)
+
+
+def _same_song(title: str, artist: str, r: dict) -> bool:
+    """A YouTube Music song is this one: the same name (and the same artist when it is known; without
+    an artist the name must be exactly the same, a name alone is too little)."""
+    if not isinstance(r, dict) or not r.get("videoId"):
+        return False
+    names = " ".join(a.get("name", "") for a in r.get("artists") or [] if isinstance(a, dict))
+    if artist:
+        return _same_name(_core(title), _core(r.get("title"))) and _same_name(artist, names)
+    return bool(_core(title)) and _core(title) == _core(r.get("title"))
+
+
+def _songs(api, artist: str, title: str, seconds: float = 0) -> list:
+    """YouTube Music's songs that are this song, the one closest in length first."""
+    query = f"{artist} {clean_title(title)}".strip()
+    found = [r for r in (api.search(query, filter="songs", limit=10) or [])[:10] if _same_song(title, artist, r)]
+
+    def gap(r):
+        length = r.get("duration_seconds")
+        return abs(float(length) - seconds) if seconds and isinstance(length, (int, float)) else 0.0
+    return [r["videoId"] for r in sorted(found, key=gap)]
+
+
+def _lyrics_of(api, video_id: str):
+    """(text, timed) of one YouTube Music video / song, or None."""
     browse = (api.get_watch_playlist(videoId=video_id) or {}).get("lyrics")
     if not browse:
         return None
@@ -169,60 +156,30 @@ def ytmusic_lyrics(video_id="", artist="", title="", api=None):
     return None
 
 
-def similar(a: str, b: str) -> bool:
-    """Two lyrics are the same song's: most words of their first lines are the same."""
-    def words(text):
-        lines = [ln for ln in parse(text)["plain"] if ln.strip()][:6]
-        return set(_norm(" ".join(lines)).split())
-    wa, wb = words(a), words(b)
-    return bool(wa and wb) and len(wa & wb) / max(1, min(len(wa), len(wb))) >= 0.6
-
-
-def fetch(artist: str, title: str, seconds: float = 0, get=None, video_id="", ytm=None):
-    """The lyrics of a song as LRC / plain text, or None. YouTube Music first (it knows the video);
-    LRCLIB's synced lyrics are used when they are the same text (then the lines follow the song).
-    Raises only when no source could be asked at all."""
-    errors = []
-    yt = None
-    try:
-        yt = ytmusic_lyrics(video_id, artist, title, api=ytm)
-    except Exception as e:  # noqa: BLE001 - LRCLIB may still answer
-        errors.append(e)
-        log.info("YouTube Music lyrics failed: %s", e)
-    if yt and yt[1]:
-        return "[re:YouTube Music]\n" + yt[0]
-    lrc = None
-    try:
-        lrc = fetch_lrclib(artist, title, seconds, get=get)
-    except Exception as e:  # noqa: BLE001
-        errors.append(e)
-    if yt:
-        if lrc and parse(lrc)["synced"] and similar(yt[0], lrc):
-            return "[re:YouTube Music + LRCLIB]\n" + lrc
-        return "[re:YouTube Music]\n" + yt[0]
-    if lrc:
-        return "[re:LRCLIB]\n" + lrc
-    if len(errors) == 2:
-        raise errors[-1]
+def ytmusic_lyrics(video_id="", artist="", title="", seconds=0, api=None):
+    """(text, timed) from YouTube Music, or None. First the lyrics of the very video the song was
+    downloaded from; when it has none (or there is no video), YouTube Music's own song of that name
+    and artist, the one closest in length."""
+    api = _ytmusic(api)
+    if video_id:
+        found = _lyrics_of(api, video_id)
+        if found:
+            return found
+    if not (title or "").strip():
+        return None
+    for song in _songs(api, artist, title, seconds)[:2]:
+        if song != video_id:
+            found = _lyrics_of(api, song)
+            if found:
+                return found
     return None
 
 
-def fetch_lrclib(artist: str, title: str, seconds: float = 0, get=None):
-    """LRCLIB's lyrics of a song as LRC / plain text, or None. Raises on network errors."""
-    get = get or requests.get
-    title = clean_title(title)
-    headers = {"User-Agent": f"DISO {brand.VERSION_LABEL} (müzik çalar)"}
-    tries = []
-    if artist:
-        tries.append({"track_name": title, "artist_name": artist})
-    tries.append({"q": f"{artist} {title}".strip()})
-    for params in tries:
-        r = get(API, params=params, headers=headers, timeout=TIMEOUT, proxies=get_proxies())
-        r.raise_for_status()
-        text = choose(r.json() or [], title, seconds, artist)
-        if text:
-            return text
-    return None
+def fetch(artist: str, title: str, seconds: float = 0, video_id="", ytm=None):
+    """The lyrics of a song as LRC / plain text, or None. Only from YouTube Music: other lyrics sites
+    too often had another song of the same name. Raises when YouTube Music cannot be reached."""
+    found = ytmusic_lyrics(video_id, artist, title, seconds, api=ytm)
+    return "[re:YouTube Music]\n" + found[0] if found else None
 
 
 def save(audio_path: str, text: str) -> str:

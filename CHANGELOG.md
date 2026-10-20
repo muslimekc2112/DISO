@@ -2,6 +2,11 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 1.0.1
+- **Fixed (important):** with "Catch browser downloads" on, when the browser started the extension sent **all of the browser's old downloads** to DISO, which downloaded them again (and they were removed from the browser's download history). A starting browser also reports the downloads of its history as "new"; the extension now only catches downloads that are starting right then and never touches finished, broken off or old ones. To update the extension: `chrome://extensions` → DISO → ↻ (reload).
+- **Find songs is YouTube Music only:** the results are songs only; no YouTube videos, lyric videos, music videos or shorts (videos are no longer added when few songs are found, and plain YouTube is no longer searched when YouTube Music cannot be reached; it tries once more and then says "Could not reach YouTube Music").
+- **Lyrics only from YouTube Music:** LRCLIB is no longer used (it could bring the lyrics of another song with the same name). When the downloaded video has no lyrics, those of YouTube Music's song with the same title and artist, the one closest in length, are taken; Turkish letter differences ("Şımarık" / "Simarik") no longer get in the way. For old lyrics that stayed wrong: right-click → "🔄 Wrong lyrics, look again".
+
 ## 1.0
 - **DISO 1.0: out of beta.** Everything below is in it, on Windows and now on Linux too.
 - **Linux:** DISO now runs on Linux too: a `.deb` for Debian, Ubuntu, Mint … and a `.tar.gz` for any distribution (with `install.sh` inside, no administrator password needed). FFmpeg, yt-dlp and Deno come inside; DISO updates them there too (FFmpeg: BtbN builds, checked with SHA-256).

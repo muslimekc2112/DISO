@@ -1,5 +1,5 @@
-"""Where the lyrics come from: YouTube Music first (the video's own lyrics), LRCLIB only to add the line
-times when it is the same text, and never another song that only has the same name."""
+"""Where the lyrics come from: only YouTube Music (the video's own lyrics, else YouTube Music's song of
+the same name and artist), and never another song that only has the same name."""
 import time
 import types
 
@@ -9,13 +9,11 @@ from music_support import make_wav
 from app import lyrics
 
 GULPEMBE = "Sen gülünce güller açar, gülpembe\nBülbüller seni söyler, biz dinlerdik, gülpembe\nSen gelince bahar gelir"
-GULPEMBE_LRC = ("[00:10.00]Sen gülünce güller açar, gülpembe\n[00:16.00]Bülbüller seni söyler, biz dinlerdik, gülpembe\n"
-                "[00:22.00]Sen gelince bahar gelir")
 OTHER_LRC = "[00:05.00]Bambaşka bir şarkının\n[00:09.00]bambaşka sözleri burada\n[00:12.00]hiç benzemiyor"
 
 
 class FakeYTM:
-    """The few calls of ytmusicapi.YTMusic DISO makes."""
+    """The few calls of ytmusicapi.YTMusic DISO makes. `browse` maps a video to its lyrics (None: none)."""
 
     def __init__(self, text=GULPEMBE, timed=None, songs=None, browse="MPLYt_x"):
         self.text, self.timed, self.songs, self.browse = text, timed, songs or [], browse
@@ -27,7 +25,7 @@ class FakeYTM:
 
     def get_watch_playlist(self, videoId=None):
         self.asked.append(("watch", videoId))
-        return {"lyrics": self.browse}
+        return {"lyrics": self.browse.get(videoId) if isinstance(self.browse, dict) else self.browse}
 
     def get_lyrics(self, browse, timestamps=False):
         self.asked.append(("lyrics", browse, timestamps))
@@ -36,19 +34,12 @@ class FakeYTM:
         return {"lyrics": self.text, "hasTimestamps": False}
 
 
-def lrclib(answer):
-    class R:
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return answer
-
-    return lambda url, params=None, **k: R()
+def song(vid, title, artist="Barış Manço", seconds=312):
+    return {"videoId": vid, "title": title, "artists": [{"name": artist}], "duration_seconds": seconds}
 
 
-def rec(name, synced="", plain="", artist="Barış Manço", duration=312):
-    return {"trackName": name, "artistName": artist, "duration": duration, "syncedLyrics": synced, "plainLyrics": plain}
+def watched(api):
+    return [a[1] for a in api.asked if a[0] == "watch"]
 
 
 # ------------------------------------------------------------------------------ the video id
@@ -75,68 +66,63 @@ def test_timed_lyrics_of_youtube_music_become_lrc():
 
 
 def test_without_a_video_the_song_is_searched_by_name_and_artist():
-    songs = [{"videoId": "AAAAAAAAAAA", "title": "Gülpembe", "artists": [{"name": "Başka Biri"}]},
-             {"videoId": "BBBBBBBBBBB", "title": "Gülpembe (Remastered)", "artists": [{"name": "Barış Manço"}]}]
-    api = FakeYTM(songs=songs)
+    api = FakeYTM(songs=[song("AAAAAAAAAAA", "Gülpembe", "Başka Biri"), song("BBBBBBBBBBB", "Gülpembe (Remastered)")])
     assert lyrics.ytmusic_lyrics("", "Barış Manço", "Gülpembe", api=api) == (GULPEMBE, False)
-    assert ("watch", "BBBBBBBBBBB") in api.asked                         # the one with the right artist
+    assert watched(api) == ["BBBBBBBBBBB"]                                  # the one with the right artist
+
+
+def test_a_video_without_lyrics_gets_youtube_musics_own_song():
+    """A lyrics video uploaded by someone has no lyrics on YouTube Music; the real song has."""
+    api = FakeYTM(songs=[song("SONGSONGSON", "On & On (feat. Daniel Levi)", "Cartoon, Jéja, Daniel Levi", 208)],
+                  browse={"LYRICVIDEO1": None, "SONGSONGSON": "MPLYt_x"})
+    assert lyrics.ytmusic_lyrics("LYRICVIDEO1", "Cartoon, Jéja", "On & On (Lyrics) feat. Daniel Levi", 208,
+                                 api=api) == (GULPEMBE, False)
+    assert watched(api) == ["LYRICVIDEO1", "SONGSONGSON"]
+
+
+def test_the_recording_closest_in_length_is_taken():
+    api = FakeYTM(songs=[song("LIVELIVELIV", "Gülpembe", seconds=402), song("STUDIOSTUDI", "Gülpembe", seconds=311)])
+    lyrics.ytmusic_lyrics("", "Barış Manço", "Gülpembe", 312, api=api)
+    assert watched(api) == ["STUDIOSTUDI"]
 
 
 def test_no_matching_song_or_no_lyrics_is_none():
-    assert lyrics.ytmusic_lyrics("", "Barış Manço", "Gülpembe", api=FakeYTM(songs=[
-        {"videoId": "CCCCCCCCCCC", "title": "Dönence", "artists": [{"name": "Barış Manço"}]}])) is None
+    assert lyrics.ytmusic_lyrics("", "Barış Manço", "Gülpembe", api=FakeYTM(songs=[song("CCCCCCCCCCC", "Dönence")])) is None
     assert lyrics.ytmusic_lyrics("zd8IFDgQCUc", api=FakeYTM(browse=None)) is None
 
 
-# ------------------------------------------------------------------------------ the two sources together
-def test_youtube_music_text_with_lrclib_times_when_they_are_the_same_song():
-    text = lyrics.fetch("Barış Manço", "Gülpembe", 312, get=lrclib([rec("Gülpembe", synced=GULPEMBE_LRC)]),
-                        video_id="zd8IFDgQCUc", ytm=FakeYTM())
-    assert lyrics.parse(text)["synced"][0] == (10000, "Sen gülünce güller açar, gülpembe")
-    assert text.startswith("[re:YouTube Music + LRCLIB]")
+def test_without_an_artist_only_exactly_the_same_name_counts():
+    api = FakeYTM(songs=[song("AAAAAAAAAAA", "Love Me Again"), song("BBBBBBBBBBB", "Love (Live)")])
+    assert lyrics.ytmusic_lyrics("", "", "Love", api=api) == (GULPEMBE, False)
+    assert watched(api) == ["BBBBBBBBBBB"]
+    assert lyrics.ytmusic_lyrics("", "", "Love", api=FakeYTM(songs=[song("AAAAAAAAAAA", "Love Me Again")])) is None
 
 
-def test_lrclib_with_another_text_is_not_used():
-    """The bug: LRCLIB had another song of the same name. YouTube Music's text wins."""
-    text = lyrics.fetch("Barış Manço", "Gülpembe", 312, get=lrclib([rec("Gülpembe", synced=OTHER_LRC)]),
-                        video_id="zd8IFDgQCUc", ytm=FakeYTM())
-    assert lyrics.parse(text)["synced"] == [] and "Bülbüller seni söyler" in text and "Bambaşka" not in text
+# ------------------------------------------------------------------------------ fetch: YouTube Music only
+def test_lyrics_come_only_from_youtube_music(monkeypatch):
+    import requests
+
+    def no_other_site(*a, **k):
+        raise AssertionError("asked another lyrics site")
+    monkeypatch.setattr(requests, "get", no_other_site)
+    text = lyrics.fetch("Barış Manço", "Gülpembe", 312, video_id="zd8IFDgQCUc", ytm=FakeYTM())
+    assert text.startswith("[re:YouTube Music]\n") and "Bülbüller seni söyler" in text
+    assert lyrics.fetch("Barış Manço", "Gülpembe", 312, ytm=FakeYTM(songs=[])) is None      # none: no lyrics
 
 
-def test_timed_youtube_music_lyrics_need_nothing_else():
+def test_timed_youtube_music_lyrics_are_kept_with_their_times():
     lines = [types.SimpleNamespace(text="Sen gülünce", start_time=1000)]
-    asked = []
-    text = lyrics.fetch("Barış Manço", "Gülpembe", 312, get=lambda *a, **k: asked.append(a),
-                        video_id="zd8IFDgQCUc", ytm=FakeYTM(timed=lines))
-    assert lyrics.parse(text)["synced"] == [(1000, "Sen gülünce")] and asked == []
+    text = lyrics.fetch("Barış Manço", "Gülpembe", 312, video_id="zd8IFDgQCUc", ytm=FakeYTM(timed=lines))
+    assert lyrics.parse(text)["synced"] == [(1000, "Sen gülünce")]
 
 
-def test_without_youtube_music_lrclib_must_name_the_same_artist():
-    get = lrclib([rec("Gülpembe", synced=OTHER_LRC, artist="Başka Sanatçı")])
-    assert lyrics.fetch("Barış Manço", "Gülpembe", 312, get=get, ytm=FakeYTM(songs=[])) is None
-    get = lrclib([rec("Gülpembe", synced=GULPEMBE_LRC)])
-    assert "[re:LRCLIB]" in lyrics.fetch("Barış Manço", "Gülpembe", 312, get=get, ytm=FakeYTM(songs=[]))
-
-
-def test_one_source_failing_is_not_the_end():
+def test_youtube_music_unreachable_is_an_error_not_other_lyrics():
     class Broken(FakeYTM):
         def get_watch_playlist(self, videoId=None):
             raise OSError("YouTube Music unreachable")
 
-    text = lyrics.fetch("Barış Manço", "Gülpembe", 312, get=lrclib([rec("Gülpembe", synced=GULPEMBE_LRC)]),
-                        video_id="zd8IFDgQCUc", ytm=Broken())
-    assert lyrics.parse(text)["synced"]
-
-    def no_net(*a, **k):
-        raise OSError("no internet")
-
     with pytest.raises(OSError):
-        lyrics.fetch("Barış Manço", "Gülpembe", 312, get=no_net, video_id="zd8IFDgQCUc", ytm=Broken())
-
-
-def test_the_same_song_test():
-    assert lyrics.similar(GULPEMBE, GULPEMBE_LRC) and not lyrics.similar(GULPEMBE, OTHER_LRC)
-    assert not lyrics.similar("", GULPEMBE)
+        lyrics.fetch("Barış Manço", "Gülpembe", 312, video_id="zd8IFDgQCUc", ytm=Broken())
 
 
 def test_the_fetcher_hands_over_the_video(tmp_path):
@@ -180,3 +166,6 @@ def test_wrong_lyrics_can_be_looked_up_again_with_the_songs_own_video(app, monke
         time.sleep(0.02)
     assert asked == ["zd8IFDgQCUc"] and "Bülbüller" in open(lyrics.lyrics_path(song), encoding="utf-8").read()
     assert app.video_id_for(song) == "zd8IFDgQCUc" and app.video_id_for(str(tmp_path / "yok.mp3")) == ""
+    assert lyrics.clean_title("Never Gonna Give You Up (4K Remaster)") == "Never Gonna Give You Up"
+    assert lyrics.clean_title("Love (Live)") == "Love (Live)"                    # a real part of the name stays
+    assert lyrics.clean_title("(Official Video)") == "(Official Video)"         # never cleaned to nothing

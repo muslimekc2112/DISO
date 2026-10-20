@@ -1,10 +1,10 @@
 """Finding songs on the internet for the music player ("🔍 Şarkı bul").
 
-The search is YouTube Music's song search (ytmusicapi; no account, no key), so shorts and ordinary
-videos do not crowd the songs out; the ones that match what was typed come first, most listened to
-first. An artist / channel name narrows the answers to that artist (empty: no narrowing). When
-YouTube Music cannot be reached, yt-dlp's YouTube search is the fallback (without shorts). A pasted
-link is not searched but opened: one video or the songs of a playlist. `Searcher` runs one search at
+The search is only YouTube Music's song search (ytmusicapi; no account, no key): no YouTube videos,
+lyric videos or shorts, only the songs themselves; the ones that match what was typed come first,
+most listened to first. An artist / channel name narrows the answers to that artist (empty: no
+narrowing). When YouTube Music cannot be reached the search says so (it never falls back to plain
+YouTube). A pasted link is not searched but opened: one video or the songs of a playlist. `Searcher` runs one search at
 a time on another thread; only the answer to the newest question is kept (an older, slower one is
 thrown away)."""
 import os
@@ -17,11 +17,9 @@ from .logs import log
 from .utils import app_data_dir, is_url, normalize_url
 
 LIMIT = 50                 # songs asked from YouTube Music
-FALLBACK_LIMIT = 30        # videos asked from YouTube when YouTube Music cannot be reached
-FEW = 5                    # fewer matching songs than this: YouTube Music's music videos are added
 SHORT_ANSWER = 20         # fewer songs than this from YouTube Music: it is asked once more
-SHORT_SECONDS = 60         # a video this short is a short, not a song
 SEARCH_TIMEOUT = 10        # s without an answer before a request is tried again
+SEARCH_TRIES = 2           # YouTube Music not answering this many times: the search says so
 MUSIC_DIR_NAME = "Müzik"
 
 
@@ -30,31 +28,6 @@ def music_dir() -> str:
     path = os.path.join(app_data_dir(), MUSIC_DIR_NAME)
     os.makedirs(path, exist_ok=True)
     return path
-
-
-def _entry_url(e: dict) -> str:
-    u = e.get("webpage_url") or e.get("url") or ""
-    if u.startswith("http"):
-        return u
-    vid = e.get("id") or u
-    return f"https://www.youtube.com/watch?v={vid}" if vid else ""
-
-
-def result_from(e: dict):
-    """One search answer as {url, title, channel, duration (s)}; None for what cannot be a song
-    (a live stream, a channel, an entry without a link)."""
-    if not isinstance(e, dict) or e.get("live_status") in ("is_live", "is_upcoming") or e.get("is_live"):
-        return None
-    if (e.get("ie_key") or "").lower() in ("youtubetab",) or e.get("_type") == "playlist":
-        return None
-    url = _entry_url(e)
-    title = (e.get("title") or "").strip()
-    if not url or not title:
-        return None
-    duration = e.get("duration")
-    return {"url": url, "title": title,
-            "channel": (e.get("channel") or e.get("uploader") or "").strip(),
-            "duration": int(duration) if isinstance(duration, (int, float)) and duration > 0 else 0}
 
 
 class Found(list):
@@ -162,12 +135,6 @@ def arrange(results, words="", artist=""):
                                       order[id(r)]))
 
 
-def matching(results, words="", artist="") -> int:
-    """How many answers really are what was asked (every word, and the artist when given)."""
-    return sum(1 for r in results if has_words(words, _text(r))
-               and (not artist.strip() or has_words(artist, r.get("channel", ""))))
-
-
 def _ytmusic():
     """A YouTube Music client whose requests give up after SEARCH_TIMEOUT (and use DISO's proxy)."""
     import requests
@@ -183,51 +150,24 @@ def _ytmusic():
 
 
 def ytmusic_search(words: str, artist="", api=None, limit=LIMIT) -> list:
-    """YouTube Music's songs for `words` (+ artist); its music videos too when few songs match."""
-    from concurrent.futures import ThreadPoolExecutor
+    """YouTube Music's songs for `words` (+ artist): songs only, never its videos."""
     api = api if api is not None else _ytmusic()
     query = " ".join(f"{words} {artist}".split())
-    # both questions at once: the videos are only looked at when few songs match, but waiting for
-    # the songs first would make every such search twice as slow
-    with ThreadPoolExecutor(2) as pool:
-        songs = pool.submit(api.search, query, filter="songs", limit=limit)
-        videos = pool.submit(api.search, query, filter="videos", limit=20)
-        raw = list(songs.result() or [])
-        if len(raw) < SHORT_ANSWER:
-            # YouTube Music now and then answers with only its first page: once more, both together
-            try:
-                raw += list(api.search(query, filter="songs", limit=limit) or [])
-            except Exception as e:  # noqa: BLE001 - the first answer is still something
-                log.info("YouTube Music asked again, failed: %s", e)
-        found = arrange([ytmusic_result(r) for r in raw], words, artist)
-        if matching(found, words, artist) < FEW:
-            try:
-                more = [v for v in (ytmusic_result(r) for r in videos.result() or [])
-                        if v and v["duration"] > SHORT_SECONDS]
-            except Exception as e:  # noqa: BLE001 - the songs are enough
-                log.info("YouTube Music video search failed: %s", e)
-                more = []
-            found = arrange(found + more, words, artist)
-    return found
+    raw = list(api.search(query, filter="songs", limit=limit) or [])
+    if len(raw) < SHORT_ANSWER:
+        # YouTube Music now and then answers with only its first page: once more, both together
+        try:
+            raw += list(api.search(query, filter="songs", limit=limit) or [])
+        except Exception as e:  # noqa: BLE001 - the first answer is still something
+            log.info("YouTube Music asked again, failed: %s", e)
+    return arrange([ytmusic_result(r) for r in raw], words, artist)
 
 
-def youtube_search(words: str, artist="", limit=FALLBACK_LIMIT) -> list:
-    """yt-dlp's YouTube search, without shorts and live streams (when YouTube Music cannot be reached)."""
-    yt_dlp = ve._yt_dlp()
-    opts = ve.base_opts()
-    # a search is a few small requests: one that hangs is given up sooner and asked again
-    opts.update({"extract_flat": True, "skip_download": True, "noplaylist": False,
-                 "socket_timeout": SEARCH_TIMEOUT, "extractor_retries": 3})
-    query = " ".join(f"{words} {artist}".split())
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(f"ytsearch{int(limit)}:{query}", download=False) or {}
-    out = []
-    for e in info.get("entries") or []:
-        r = result_from(e)
-        if r and "/shorts/" not in r["url"] and not 0 < r["duration"] <= SHORT_SECONDS:
-            r["views"] = int(e.get("view_count") or 0)
-            out.append(r)
-    return arrange(out, words, artist)
+class Unreachable(Exception):
+    """YouTube Music did not answer (it is the only place songs are searched)."""
+
+    def __str__(self):
+        return "YouTube Music'e ulaşılamadı, bağlantını kontrol edip tekrar dene"
 
 
 def search(query: str, artist="", limit=LIMIT) -> list:
@@ -242,11 +182,13 @@ def search(query: str, artist="", limit=LIMIT) -> list:
                      getattr(entries, "title", "") if len(entries) > 1 else "")
     if not query and not artist:
         return []
-    try:
-        return ytmusic_search(query, artist, limit=limit)
-    except Exception as e:  # noqa: BLE001 - YouTube Music unreachable / changed: plain YouTube instead
-        log.info("YouTube Music search failed, searching YouTube: %s", e)
-        return youtube_search(query, artist)
+    for attempt in range(SEARCH_TRIES):
+        try:
+            return ytmusic_search(query, artist, limit=limit)
+        except Exception as e:  # noqa: BLE001 - a slow connection: asked again, then said so
+            log.info("YouTube Music search failed (%d/%d): %s", attempt + 1, SEARCH_TRIES, e)
+            last = e
+    raise Unreachable() from last
 
 
 SUGGEST_URL = "https://suggestqueries.google.com/complete/search"

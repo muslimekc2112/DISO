@@ -2,6 +2,11 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 1.0.1
+- **Düzeltildi (önemli):** "Tarayıcı indirmelerini yakala" açıkken, tarayıcı açıldığında eklenti tarayıcının **eski indirmelerinin hepsini** DISO'ya gönderip yeniden indirtiyor (ve tarayıcının indirme geçmişinden siliyordu). Tarayıcı açılırken geçmişteki indirmeleri de "yeni" diye bildiriyor; eklenti artık yalnızca o anda başlayan indirmeleri yakalıyor, bitmiş, yarıda kalmış ya da eski indirmelere hiç dokunmuyor. Eklentiyi güncellemek için: `chrome://extensions` → DISO → ↻ (yeniden yükle).
+- **Şarkı bul yalnızca YouTube Music:** sonuçlarda artık yalnızca şarkılar var; YouTube videoları, "lyrics" videoları, klipler ve shorts gelmiyor (az sonuç olunca videolar eklenmiyor, YouTube Music'e ulaşılamazsa düz YouTube'da aranmıyor; bir kez daha deneyip "YouTube Music'e ulaşılamadı" diyor).
+- **Şarkı sözleri yalnızca YouTube Music'ten:** LRCLIB bırakıldı (aynı adlı başka bir şarkının sözlerini getirebiliyordu). İnen videonun sözü yoksa YouTube Music'te aynı ad ve sanatçıdaki, uzunluğu en yakın şarkının sözleri alınıyor; Türkçe harf farkları ("Şımarık" / "Simarik") artık sorun değil. Yanlış kalmış eski sözler için sağ tık → "🔄 Sözler yanlış, yeniden bul".
+
 ## 1.0
 - **DISO 1.0: beta bitti.** Aşağıdakilerin hepsi içinde; Windows'ta ve artık Linux'ta da.
 - **Linux:** DISO artık Linux'ta da çalışıyor: Debian, Ubuntu, Mint … için `.deb` ve her dağıtım için `.tar.gz` (içindeki `install.sh` ile, yönetici şifresi gerekmeden). FFmpeg, yt-dlp ve Deno içinde gelir; DISO onları orada da kendisi günceller (FFmpeg: BtbN derlemeleri, SHA-256 ile doğrulanır).

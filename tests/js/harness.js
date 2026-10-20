@@ -100,7 +100,15 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
     answer = await click({ menuItemId: "hi-selection", selectionText: "nothing" }, { url: page });
   } else if (scenario === "intercept") {
     store.intercept = true;
-    await created({ id: 7, url: SESSION_URL, filename: "C:\\dl\\report.zip", fileSize: 10, referrer: page });
+    await created({ id: 7, url: SESSION_URL, filename: "C:\\dl\\report.zip", fileSize: 10, referrer: page,
+                    state: "in_progress", startTime: new Date().toISOString() });
+  } else if (scenario === "intercept-history") {
+    // what the browser reports when it starts: the downloads of its history, finished or broken off
+    store.intercept = true;
+    const day = new Date(Date.now() - 86400000).toISOString();
+    await created({ id: 1, url: SESSION_URL, filename: "C:\\dl\\report.zip", fileSize: 10, state: "complete", startTime: day });
+    await created({ id: 2, url: "http://shop.example/b.rar", filename: "b.rar", fileSize: 10, state: "interrupted", startTime: day });
+    await created({ id: 3, url: "http://shop.example/c.iso", filename: "c.iso", fileSize: 10, state: "in_progress", startTime: day });
   } else if (scenario === "intercept-off") {
     await created({ id: 7, url: SESSION_URL, filename: "report.zip", fileSize: 10 });
   } else if (scenario === "intercept-small") {
