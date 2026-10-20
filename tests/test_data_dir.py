@@ -129,4 +129,4 @@ def test_the_settings_are_found_in_the_new_place_after_the_move(isolated_home, l
 def test_the_playlists_come_along(isolated_home, legacy):
     from app.playlists import PlaylistStore
     store = PlaylistStore()
-    assert store.names() == ["Çalma listem"] and os.path.dirname(store.path) == str(new_dir(isolated_home))
+    assert store.user_names() == ["Çalma listem"] and os.path.dirname(store.path) == str(new_dir(isolated_home))

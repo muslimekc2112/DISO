@@ -6,7 +6,7 @@ PUBLISHER = "ISO"                     # the folder it installs under: C:\\Progra
 APP_ID = "DISO"                       # in file names, the registry, locks; the browser extension looks for it
 EXE_NAME = APP_ID + ".exe"
 
-VERSION = "1.0.1"                     # numbers only (Windows and Chrome want that)
+VERSION = "1.1.0"                     # numbers only (Windows and Chrome want that)
 CHANNEL = ""                          # "beta" before 1.0; empty: a finished release
 _SHORT = VERSION[:-2] if VERSION.count(".") == 2 and VERSION.endswith(".0") else VERSION     # 1.0.0 -> 1.0
 VERSION_LABEL = f"{_SHORT} {CHANNEL}" if CHANNEL else _SHORT          # what the user sees: 1.0

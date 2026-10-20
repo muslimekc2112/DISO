@@ -2,31 +2,23 @@
 
 **[English](README.md) | Türkçe**
 
-Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. **Windows ve Linux** için. **Sürüm 1.0**. Arayüz **Türkçe ve İngilizce**.
+Dosya, video ve müzik indirme yöneticisi, yanında bir müzik çalar. **Windows** için. **Sürüm 1.1**. Arayüz **Türkçe ve İngilizce**.
 
 Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlantılı, IDM/FDM gibi), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X ve daha fazlası.
 
 ## Windows'ta kurulum (Python'u olmayan bir bilgisayar için)
-`DISO-Setup-1.0.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
+`DISO-Setup-1.1.exe` dosyasına çift tıkla, **Kur**'a bas. Python, FFmpeg, yt-dlp ve YouTube için gereken Deno paketin içinde, ayrıca bir şey kurman gerekmez.
 - **Yönetici izni ister:** DISO bu bilgisayardaki herkes için `C:\Program Files\ISO\DISO` klasörüne kurulur. Windows "izin ver?" diye sorar, **Evet** de.
 - Başlat menüsüne ve masaüstüne kısayol koyar, "Uygulamalar" listesine yazılır. İstersen Windows ile birlikte başlar.
 - **Hangi tarayıcılara eklenti kurulacağını sorar** (linke sağ tık → "DISO ile indir", IDM gibi) ve eklemene yardım eder; bkz. [Tarayıcı eklentisi](#-tarayıcı-eklentisi).
-- **Güncelleme:** yeni kurulum dosyasını çalıştırman yeter. Çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
+- **Güncelleme:** DISO yeni sürüm çıkınca haber verir; `⟳ Güncellemeler` → **DISO** → **Güncelle** dersen kurulum dosyasını indirir, SHA-256 ile doğrular ve kurar (Windows izin ister), sonra yeni sürümle açılır. Sen istemeden hiçbir şey indirmez. Yeni kurulum dosyasını elle çalıştırmak da olur: çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
 - **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
 - **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır, ya da Başlat menüsünde DISO'ya sağ tık → Kaldır (Windows önce kendi uygulama listesini açar; orada DISO'nun yanındaki Kaldır'a bas), ya da Başlat menüsündeki "DISO'yu Kaldır". Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Setup-1.0.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
+- **Sessiz kurulum:** `DISO-Setup-1.1.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
 - Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
 
-## Linux'ta kurulum
-İki yol var; ikisinde de FFmpeg, yt-dlp ve Deno içinde gelir, ayrıca bir şey kurman gerekmez:
-- **Debian, Ubuntu, Linux Mint, Pop!_OS …:** `DISO-1.0-linux-x86_64.deb`. Çift tıkla (Yazılım Merkezi) ya da `sudo apt install ./DISO-1.0-linux-x86_64.deb`. DISO `/opt/diso` klasörüne ve uygulamalar menüsüne gelir; terminalde `diso` ile açılır. Kaldırma: Yazılım Merkezi ya da `sudo apt remove diso`.
-- **Her dağıtım (yönetici şifresi gerekmez):** `DISO-1.0-linux-x86_64.tar.gz` dosyasını aç, klasörün içinde `./install.sh` çalıştır. Dili sorar (Türkçe / English), DISO'yu senin için `~/.local/opt/DISO` klasörüne kurar ve uygulamalar menüsüne koyar. Menüdeki **"DISO'yu Kaldır"** (ya da `~/.local/opt/DISO/uninstall.sh`) onu kaldırır; ayarlarının ve çalma listelerinin de silinip silinmeyeceğini sorar.
-- DISO verilerini `~/.local/share/DISO` içinde tutar. Tepsi simgesi için masaüstünde bir tepsi olmalı (GNOME: "AppIndicator" eklentisi); yoksa DISO'yu yeniden açmak penceresini geri getirir.
-
-**Yalnızca Windows'ta olanlar:** klavyenin medya tuşları, görev çubuğu önizlemesindeki ⏮ ⏯ ⏭ düğmeleri ve Windows'un medya paneli. Geri kalan her şey (indirmeler, müzik çalar, eklenti, güncellemeler) ikisinde de aynı.
-
 ## 🌐 Dil
-DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta sistem (Windows, Linux) Türkçe ise Türkçe, değilse İngilizce başlar. Sonra istediğin zaman ana pencerenin sol üstündeki **TR | EN** ile ya da Ayarlar → **Dil** ile değiştirebilirsin (DISO yeniden açılır). Kurulum ve kaldırma pencereleri DISO'da seçtiğin dille açılır, üstlerinde **Türkçe | English** seçici vardır; kurulumda seçtiğin dil DISO'nun dili de olur. Tarayıcı eklentisi tarayıcının dilini kullanır.
+DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta Windows Türkçe ise Türkçe, değilse İngilizce başlar. Sonra istediğin zaman ana pencerenin sol üstündeki **TR | EN** ile ya da Ayarlar → **Dil** ile değiştirebilirsin (DISO yeniden açılır). Kurulum ve kaldırma pencereleri DISO'da seçtiğin dille açılır, üstlerinde **Türkçe | English** seçici vardır; kurulumda seçtiğin dil DISO'nun dili de olur. Tarayıcı eklentisi tarayıcının dilini kullanır.
 
 ## Geliştirici kurulumu
 1. Python 3.10+ kur (kurulumda **"Add Python to PATH"** işaretli olsun).
@@ -43,6 +35,8 @@ DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konu�
 - Linki yapıştır, **⬇ İndir**'e bas. "Otomatik" modda DISO dosya mı video mu kendi anlar.
 - `📄` ile bir `.txt` dosyasındaki bütün linkleri ekleyebilir, `Ctrl+V` ile panodaki linkleri listeye atabilirsin. Listede zaten olan link tekrar eklenmez.
 - **ℹ** düğmesi bir linkin kalitelerini, boyutlarını ve altyazı dillerini gösterir; istediğin kaliteyle ya da MP3 olarak tek tıkla indirirsin.
+- **✂ Sadece bir kısmını indir:** ℹ penceresinde **Başlangıç** ve **Bitiş** yaz (`1:30`, `1:02:03` ya da saniye). Penceredeki İndir / MP3 düğmeleri videonun yalnızca o kısmını indirir (videonun tamamı inmez); dosya `Ad [1.30–2.45].mp4` gibi kaydedilir.
+- **📺 Kanal takibi** (link satırındaki 📺): bir kanalın linkini, `@kanaladı`nı ya da bir videosunu yapıştırıp **Takip et**. DISO kanallara arada bir bakar (30 dakikada bir … günde bir) ve yeni video gelince **bildirim** verir; düğmede yeni video sayısı görünür (`📺 3`). **Hiçbir şeyi kendiliğinden indirmez:** istediğini seçip **MP4** ya da **MP3** indirirsin, gerisini **Gördüm** ile listeden kaldırırsın.
 - **Oynatma listesi** kutusu işaretliyken bir liste linki eklersen hangi videoların inecek olduğunu seçebilirsin.
 - **Altyazı** menüsü (Türkçe / İngilizce / tüm diller) altyazıyı videonun yanına `.srt` olarak kaydeder ve MP4'ün içine de koyar (oynatıcıda altyazı seçeneği olarak çıkar). YouTube bazen kendi çevirisini (ör. İngilizceden Türkçeye) vermez; o zaman videonun kendi dilindeki altyazıyı kaydeder ve bunu satırda söyler. Altyazı alınamasa bile video her zaman iner. MP3'lere videonun küçük resmi **kapak resmi** olarak gömülür.
 - **Türe göre klasör** kutusu dosyaları Video, Müzik, Arşiv, Belge, Program, Resim, Diğer klasörlerine ayırır.
@@ -69,6 +63,8 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarıyla ayr
 - **🔀 Karıştır** düğmesi listeye kalıcı olarak yeni bir rastgele sıra verir (beğenmezsen `Ctrl+Z` eski sıraya döndürür). Sırayı bozmadan karışık dinlemek istersen oynatıcıdaki **🔀 Karışık** kutusunu kullan.
 - **🎤 Şarkı sözleri:** çalan (ya da seçtiğin) şarkının sözü varsa oynatıcının sağ üstünde **🎤 Sözler** düğmesi çıkar, yoksa hiç görünmez. Sözler penceresinde zamanlı sözler şarkıyla birlikte akar: söylenen satır büyük ve renkli, bir satıra tıklarsan şarkı oraya atlar; yazıyı A−/A+ ile büyütüp küçültebilirsin. Sözler yalnızca **YouTube Music**'ten gelir (DISO'dan inen şarkıda o videonun kendi sözleri, yoksa YouTube Music'te aynı ad ve sanatçıdaki, uzunluğu en yakın şarkı); böylece yalnızca adı aynı olan başka bir şarkının sözleri gelmez. Şarkının yanına `şarkı.lrc` olarak kaydedilir. Yanlış gelirse sağ tık → "🔄 Sözler yanlış, yeniden bul" ya da sözler penceresindeki "Yanlışsa yeniden bul". "Şarkı bul" ile indirdiğin şarkıların sözleri kendiliğinden aranır; başka bir şarkı için sağ tık → "Şarkı sözlerini internette bul".
 - **😴 Uyku zamanlayıcısı:** 15–90 dakika sonra ya da çalan parça bitince müziği durdurur.
+- **🎛 Ekolayzır** (`🎛 EQ` düğmesi ya da ⚙ menüsü): 8 bant (60 Hz – 15 kHz) ve hazır ayarlar (Bas güçlü, Tiz güçlü, Vokal, Pop, Rock, Elektronik, Hip-hop, Klasik müzik, Akustik, Gece). Düz bırakırsan ses hiç değişmez; ayarlarsan şarkı kaldığı yerden FFmpeg ile, ayarlı sesle çalar.
+- **✨ Akıllı listeler:** listelerin sonunda **⭐ En çok dinlenenler**, **🆕 Son eklenenler** ve **💤 Hiç dinlenmeyenler**. Bütün listelerinden kendiliğinden dolarlar (bir şarkı 30 saniye çalınca dinlenmiş sayılır, atladıkların sayılmaz); elle değiştirilmezler.
 - **Klavyedeki medya tuşları** (çal/duraklat, ileri, geri, durdur) DISO öndeyken de arkadayken de çalışır. Tuşları yalnızca müzik çalarken (ya da duraklatılmışken) alır; durdurunca tarayıcıya ve diğer programlara geri bırakır.
 - Desteklenen biçimler Windows'un çalabildikleridir: mp3, wav, wma, m4a, aac. Windows'un doğrudan açamadığı dosyaların (kapak resmi büyük MP3'ler, Opus sesli videolar) çalınabilir bir kopyası ilk çalışta arka planda hazırlanır.
 

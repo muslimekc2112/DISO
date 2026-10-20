@@ -132,7 +132,7 @@ def test_every_text_of_the_settings_fits_and_the_version_is_at_the_top(app):
             canvas.yview_moveto(pos)
             pump(panel, 0.15)
             assert cut_texts(panel) == [], (size, pos)
-    assert panel.version_label.grid_info()["row"] == 0 and "1.0" in panel.version_label.cget("text")
+    assert panel.version_label.grid_info()["row"] == 0 and "1.1" in panel.version_label.cget("text")
 
 
 # --------------------------------------------------------------------------- TR | EN

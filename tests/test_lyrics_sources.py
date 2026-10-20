@@ -161,7 +161,7 @@ def test_wrong_lyrics_can_be_looked_up_again_with_the_songs_own_video(app, monke
     music.tree.selection_set("0")
     items = {e[0]: e[1] for e in music.track_menu_items() if e}
     items["🔄 Sözler yanlış, yeniden bul"]()
-    end = time.time() + 5
+    end = time.time() + 20                   # the length is read with ffprobe first: slow when the PC is busy
     while time.time() < end and "Bambaşka" in open(lyrics.lyrics_path(song), encoding="utf-8").read():
         time.sleep(0.02)
     assert asked == ["zd8IFDgQCUc"] and "Bülbüller" in open(lyrics.lyrics_path(song), encoding="utf-8").read()

@@ -2,39 +2,30 @@
 
 **English | [Türkçe](README.tr.md)**
 
-A download manager for files, videos and music, with a music player built in. For **Windows and Linux**. **Version 1.0**. The interface speaks **English and Turkish**.
+A download manager for files, videos and music, with a music player built in. For **Windows**. **Version 1.1**. The interface speaks **English and Turkish**.
 
 Paste a link and leave the rest to DISO: **files** (split into parts over many connections, like IDM/FDM), **video (MP4)**, **MP3**, YouTube / Instagram / TikTok / X and more.
 
 ## Installing on Windows (on a PC without Python)
-Double-click `DISO-Setup-1.0.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
+Double-click `DISO-Setup-1.1.exe` and press **Install**. Python, FFmpeg, yt-dlp and the Deno that YouTube needs are all inside the package; there is nothing else to install.
 - **It asks for administrator rights:** DISO is installed for everyone on the PC, in `C:\Program Files\ISO\DISO`. Windows asks "allow?"; say **Yes**.
 - It adds Start menu and desktop shortcuts and appears in the "Apps" list. If you like, it starts together with Windows.
 - It asks **which browsers should get the extension** (right-click a link → "Download with DISO", like IDM) and helps you add it; see [Browser extension](#-browser-extension).
-- **Updating:** just run the new setup file. It closes a running DISO and installs into the same folder; your settings and playlists stay.
+- **Updating:** DISO tells you when a new version is out; `⟳ Updates` → **DISO** → **Update** downloads the setup, checks it with SHA-256 and installs it (Windows asks for permission), then DISO opens again with the new version. Nothing is downloaded unless you ask. Running the new setup file by hand works too: it closes a running DISO and installs into the same folder; your settings and playlists stay.
 - **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
 - **Uninstalling:** Settings → Apps → DISO → Uninstall, or right-click DISO in the Start menu → Uninstall (Windows first opens its list of apps; press Uninstall next to DISO there), or "Uninstall DISO" in the Start menu. Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
-- **Silent install:** `DISO-Setup-1.0.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- **Silent install:** `DISO-Setup-1.1.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
 - Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
-## Installing on Linux
-Two ways; FFmpeg, yt-dlp and Deno are inside both, there is nothing else to install:
-- **Debian, Ubuntu, Linux Mint, Pop!_OS …:** `DISO-1.0-linux-x86_64.deb`. Double-click it (Software Center), or `sudo apt install ./DISO-1.0-linux-x86_64.deb`. DISO goes to `/opt/diso` and the applications menu; `diso` starts it from a terminal. Uninstall: Software Center, or `sudo apt remove diso`.
-- **Any distribution (no administrator password):** unpack `DISO-1.0-linux-x86_64.tar.gz` and run `./install.sh` in that folder. It asks the language (Türkçe / English), installs DISO for you in `~/.local/opt/DISO` and puts it into the applications menu. **"Uninstall DISO"** in the menu (or `~/.local/opt/DISO/uninstall.sh`) removes it and asks whether your settings and playlists should go too.
-- DISO keeps its data in `~/.local/share/DISO`. The tray icon needs a desktop with a tray (GNOME: the "AppIndicator" extension); without one, DISO opening again brings its window back.
-
-**What only Windows has:** the media keys of the keyboard, the ⏮ ⏯ ⏭ buttons on the taskbar preview and Windows' media panel. Everything else (downloads, music player, extension, updates) works the same on both.
-
 ## 🌐 Language
-DISO, its installer and its browser extension speak **English and Turkish**. On the first start DISO uses Turkish if the system (Windows, Linux) is in Turkish, and English otherwise. You can switch at any time with **TR | EN** at the top left of the main window, or Settings → **Language** (DISO restarts). The setup and uninstall windows start in the language you chose in DISO and have a **Türkçe | English** switch at the top; the language chosen in setup becomes DISO's language too. The browser extension uses the browser's language.
+DISO, its installer and its browser extension speak **English and Turkish**. On the first start DISO uses Turkish if Windows is in Turkish, and English otherwise. You can switch at any time with **TR | EN** at the top left of the main window, or Settings → **Language** (DISO restarts). The setup and uninstall windows start in the language you chose in DISO and have a **Türkçe | English** switch at the top; the language chosen in setup becomes DISO's language too. The browser extension uses the browser's language.
 
 ## For developers
 1. Install Python 3.10+ (tick **"Add Python to PATH"** in its installer).
 2. Double-click `run.bat`: it installs the libraries and starts the program. (By hand: `pip install -r requirements.txt`, then `python main.py`)
 3. `build.bat` makes a portable single-file `DISO.exe` that needs no install (`build.bat --no-ffmpeg` for a smaller one). It unpacks itself to a temporary folder at every start, so it takes a few seconds to open.
 4. `python tools/build_installer.py` makes the setup package: it builds the program as a folder (`build\app\DISO`, `python tools/build_exe.py --onedir`), downloads Deno and checks its SHA-256, and writes `dist\DISO-Setup-<version>.exe`. The installed DISO is a folder, so it opens in 2–3 seconds.
-5. **Linux:** `python tools/build_unix.py` on a Linux PC makes the `.deb` and the `.tar.gz`. GitHub Actions does it for every release on its own Linux machine, tests the result from the outside (`tools/unix/smoke.py`: selftest, the browser's native host, a real download, a screenshot), installs and removes it, and attaches it to the release (`.github/workflows/unix.yml`).
-6. The icons are made from one picture: after changing `IKON\icon.png`, run `python tools/make_icons.py`.
+5. The icons are made from one picture: after changing `IKON\icon.png`, run `python tools/make_icons.py`.
 
 The name, publisher, version and GitHub address are written in one place: `app/brand.py`. The program's texts are written in Turkish; their English is in `app/lang_en.py` (the keys are the Turkish texts as shown on screen).
 
@@ -44,6 +35,8 @@ The name, publisher, version and GitHub address are written in one place: `app/b
 - Paste a link and press **⬇ Download**. In "Automatic" mode DISO works out by itself whether it is a file or a video.
 - `📄` adds every link in a `.txt` file, and `Ctrl+V` puts the links on the clipboard into the list. A link already in the list is not added again.
 - The **ℹ** button shows a link's qualities, sizes and subtitle languages; download the quality you want, or MP3, with one click.
+- **✂ Download only a part:** type a **Start** and an **End** in the ℹ window (`1:30`, `1:02:03` or seconds). The window's Download / MP3 buttons then download only that part (not the whole video first); the file is saved like `Name [1.30–2.45].mp4`.
+- **📺 Followed channels** (📺 in the link row): paste a channel's link, its `@name` or one of its videos and press **Follow**. DISO looks at the channels now and then (every 30 minutes … once a day) and sends a **notification** when a new video comes; the button shows how many are new (`📺 3`). **It never downloads anything by itself:** pick what you want and download it as **MP4** or **MP3**, and clear the rest with **Seen**.
 - With **Playlist** ticked, adding a playlist link lets you choose which videos to download.
 - The **subtitles** menu (Turkish / English / all languages) saves subtitles as `.srt` next to the video and also puts them inside the MP4 (players offer them as a subtitle track). YouTube sometimes refuses its own translation (e.g. English to Turkish); then the subtitles in the video's own language are saved and the row says so. The video is always downloaded, even when the subtitles are not. MP3s get the video's thumbnail embedded as **cover art**.
 - **Folders by type** sorts files into Video, Music, Archives, Documents, Programs, Images and Other folders.
@@ -70,6 +63,8 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 - The **🔀 Shuffle** button gives the list a new random order for good (`Ctrl+Z` brings the old order back if you don't like it). To listen in random order without changing the list, use the **🔀 Shuffle** box in the player.
 - **🎤 Lyrics:** when the playing (or selected) song has lyrics, a **🎤 Lyrics** button appears at the top right of the player; otherwise it is not shown. In the lyrics window timed lyrics scroll with the song: the line being sung is big and coloured, clicking a line jumps there, and A−/A+ change the text size. Lyrics come only from **YouTube Music** (for a song downloaded by DISO, that very video's lyrics; otherwise YouTube Music's song with the same title and artist, the one closest in length), so they are never another song's that only has the same name. They are saved next to the song as `song.lrc`. If they are wrong: right-click → "🔄 Wrong lyrics, look again", or "Wrong? Look again" in the lyrics window. Songs downloaded with "Find songs" get their lyrics looked up by themselves; for other songs, right-click → "Find lyrics online".
 - **😴 Sleep timer:** stops the music after 15–90 minutes, or when the current song ends.
+- **🎛 Equalizer** (the `🎛 EQ` button or the ⚙ menu): 8 bands (60 Hz – 15 kHz) and ready-made settings (Bass boost, Treble boost, Vocal, Pop, Rock, Electronic, Hip-hop, Classical, Acoustic, Night). Left flat, the sound does not change at all; set, the song goes on from the same moment through FFmpeg with the new sound.
+- **✨ Smart lists:** at the end of your lists, **⭐ Most played**, **🆕 Recently added** and **💤 Never played**. They fill themselves from all your lists (a song counts as listened to after 30 seconds; skipped ones do not count) and cannot be changed by hand.
 - **The media keys on your keyboard** (play/pause, next, previous, stop) work whether DISO is in front or not. DISO only takes them while music is playing (or paused); once stopped, it gives them back to the browser and other programs.
 - Supported formats are the ones Windows can play: mp3, wav, wma, m4a, aac. For files Windows cannot open directly (MP3s with large cover art, videos with Opus sound) a playable copy is made in the background the first time they play.
 

@@ -2,7 +2,14 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
-## 1.0.1
+## 1.1
+- **Yalnızca Windows:** Linux sürümü bırakıldı (1.0'ın Linux paketleri olduğu gibi kalır, yenisi çıkmayacak).
+- **🔄 DISO kendini güncelliyor:** yeni sürüm çıkınca haber verir; `⟳ Güncellemeler` → DISO → **Güncelle** dersen indirir, SHA-256 ile doğrular, kurar ve yeni sürümle açılır. Sen istemeden hiçbir şey indirmez; Windows'un izin sorusuna "hayır" dersen DISO çalışmaya devam eder.
+- **📺 Kanal takibi:** takip ettiğin kanallara yeni video gelince bildirim; hiçbir şeyi kendiliğinden indirmez, seçtiklerini MP4 / MP3 indirirsin.
+- **✂ Video kırpma:** ℹ penceresinde Başlangıç / Bitiş yaz, videonun yalnızca o kısmı iner.
+- **🎛 Ekolayzır:** 8 bant ve hazır ayarlar; düzken ses hiç değişmez.
+- **✨ Akıllı listeler:** ⭐ En çok dinlenenler, 🆕 Son eklenenler, 💤 Hiç dinlenmeyenler.
+- **Düzeltildi:** en küçük pencere boyutunda "Panoyu izle" kesiliyordu; İngilizcede "Eklendi: MP3" gibi bildirimler çevrilmiyordu.
 - **Düzeltildi (önemli):** "Tarayıcı indirmelerini yakala" açıkken, tarayıcı açıldığında eklenti tarayıcının **eski indirmelerinin hepsini** DISO'ya gönderip yeniden indirtiyor (ve tarayıcının indirme geçmişinden siliyordu). Tarayıcı açılırken geçmişteki indirmeleri de "yeni" diye bildiriyor; eklenti artık yalnızca o anda başlayan indirmeleri yakalıyor, bitmiş, yarıda kalmış ya da eski indirmelere hiç dokunmuyor. Eklentiyi güncellemek için: `chrome://extensions` → DISO → ↻ (yeniden yükle).
 - **Şarkı bul yalnızca YouTube Music:** sonuçlarda artık yalnızca şarkılar var; YouTube videoları, "lyrics" videoları, klipler ve shorts gelmiyor (az sonuç olunca videolar eklenmiyor, YouTube Music'e ulaşılamazsa düz YouTube'da aranmıyor; bir kez daha deneyip "YouTube Music'e ulaşılamadı" diyor).
 - **Şarkı sözleri yalnızca YouTube Music'ten:** LRCLIB bırakıldı (aynı adlı başka bir şarkının sözlerini getirebiliyordu). İnen videonun sözü yoksa YouTube Music'te aynı ad ve sanatçıdaki, uzunluğu en yakın şarkının sözleri alınıyor; Türkçe harf farkları ("Şımarık" / "Simarik") artık sorun değil. Yanlış kalmış eski sözler için sağ tık → "🔄 Sözler yanlış, yeniden bul".

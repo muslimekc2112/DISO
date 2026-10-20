@@ -2,7 +2,14 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
-## 1.0.1
+## 1.1
+- **Windows only:** the Linux version is dropped (1.0's Linux packages stay as they are; no new ones will come).
+- **🔄 DISO updates itself:** it tells you when a new version is out; `⟳ Updates` → DISO → **Update** downloads it, checks it with SHA-256, installs it and opens the new version. Nothing is downloaded unless you ask; say "no" to Windows' permission question and DISO just goes on.
+- **📺 Followed channels:** a notification when a channel you follow gets a new video; nothing is downloaded by itself, you download what you pick as MP4 / MP3.
+- **✂ Video clipping:** type a Start / End in the ℹ window and only that part of the video is downloaded.
+- **🎛 Equalizer:** 8 bands and ready-made settings; left flat, the sound does not change at all.
+- **✨ Smart lists:** ⭐ Most played, 🆕 Recently added, 💤 Never played.
+- **Fixed:** at the smallest window size "Watch clipboard" was cut off; in English, notices like "Added: MP3" were not translated.
 - **Fixed (important):** with "Catch browser downloads" on, when the browser started the extension sent **all of the browser's old downloads** to DISO, which downloaded them again (and they were removed from the browser's download history). A starting browser also reports the downloads of its history as "new"; the extension now only catches downloads that are starting right then and never touches finished, broken off or old ones. To update the extension: `chrome://extensions` → DISO → ↻ (reload).
 - **Find songs is YouTube Music only:** the results are songs only; no YouTube videos, lyric videos, music videos or shorts (videos are no longer added when few songs are found, and plain YouTube is no longer searched when YouTube Music cannot be reached; it tries once more and then says "Could not reach YouTube Music").
 - **Lyrics only from YouTube Music:** LRCLIB is no longer used (it could bring the lyrics of another song with the same name). When the downloaded video has no lyrics, those of YouTube Music's song with the same title and artist, the one closest in length, are taken; Turkish letter differences ("Şımarık" / "Simarik") no longer get in the way. For old lyrics that stayed wrong: right-click → "🔄 Wrong lyrics, look again".

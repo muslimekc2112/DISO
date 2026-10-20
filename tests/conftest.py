@@ -31,7 +31,7 @@ from app.utils import setup_environment  # noqa: E402
 setup_environment()  # the project's ffmpeg/ folder is found like in the real app
 
 # the Windows installer (hizli_setup: registry, UAC, Program Files) and its build exist only on Windows;
-# macOS / Linux have their own setup files, tested in test_unix_support.py and by .github/workflows/unix.yml
+# macOS / Linux have their own setup files (no longer built: DISO is for Windows only), tested in test_unix_support.py
 collect_ignore_glob = [] if sys.platform.startswith("win") else ["test_setup_*.py", "test_build_installer.py"]
 
 
