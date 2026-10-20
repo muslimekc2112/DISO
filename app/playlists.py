@@ -14,6 +14,7 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "resume_list": "", "resume_path": "", "resume_ms": 0,     # where the music stopped last time
                   "ask_list": "",                                           # the list picked last for a found song
                   "fade": 0,                                                # s of cross-fade between songs (0: none)
+                  "eq": [0] * 8,                                            # 🎛 the equalizer, dB per band (equalizer.py)
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
 MAX_SEARCHES = 15
@@ -98,6 +99,8 @@ class PlaylistStore:
         self.state["resume_ms"] = max(0, self.state["resume_ms"])
         if self.state["fade"] not in FADE_CHOICES:
             self.state["fade"] = 0
+        from .equalizer import clean
+        self.state["eq"] = clean(self.state["eq"])
         self.state["searches"] = [q for q in self.state["searches"] if isinstance(q, str) and q.strip()][:MAX_SEARCHES]
         if self.state["repeat"] not in REPEAT_MODES:
             self.state["repeat"] = "Kapalı"

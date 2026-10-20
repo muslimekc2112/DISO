@@ -81,6 +81,7 @@ class SdlBackend:
         self._paused_for = 0.0
         self._eof = False
         self._playing = False         # play was started and the user did not stop / pause it
+        self._filter = ""             # ffmpeg -af (the equalizer); "" = the sound as it is
         self.last_error = ""
 
     @staticmethod
@@ -101,8 +102,10 @@ class SdlBackend:
         args = [ffmpeg, "-nostdin", "-v", "error"]
         if at_ms > 0:
             args += ["-ss", f"{at_ms / 1000:.3f}"]
-        args += ["-i", self._path, "-vn", "-f", "s16le", "-acodec", "pcm_s16le", "-ac", str(CHANNELS),
-                 "-ar", str(RATE), "pipe:1"]
+        args += ["-i", self._path, "-vn"]
+        if self._filter:
+            args += ["-af", self._filter]
+        args += ["-f", "s16le", "-acodec", "pcm_s16le", "-ac", str(CHANNELS), "-ar", str(RATE), "pipe:1"]
         try:
             self._proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                           stderr=subprocess.DEVNULL, **subprocess_flags())
@@ -261,6 +264,16 @@ class SdlBackend:
         with self._lock:
             self._volume = max(0, min(100, int(percent)))
             self._channel.set_volume(self._volume / 100)
+
+    def set_filter(self, text: str):
+        """The equalizer's ffmpeg filter; a song that plays goes on from the same moment with it."""
+        with self._lock:
+            text = text or ""
+            if text == self._filter:
+                return
+            self._filter = text
+            if self._path is not None and (self._proc is not None or self._playing):
+                self.seek(self.position_ms())        # the decoder starts again there, with the new filter
 
     def is_playing(self) -> bool:
         with self._lock:

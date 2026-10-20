@@ -71,7 +71,9 @@ def make_app(monkeypatch, isolated_home):
     def no_channel(url):
         raise ConnectionError("no internet in the tests")
     monkeypatch.setattr(channels, "read_channel", no_channel)                  # nor for followed channels
-    from music_support import FakeOverlay, FakeThumbBar
+    from music_support import FakeEqBackend, FakeOverlay, FakeThumbBar
+    from app import player
+    monkeypatch.setattr(player, "new_eq_backend", FakeEqBackend)                # no real sound for the equalizer
     from app import smtc
     from app import taskbar as taskbar_module
     monkeypatch.setattr(smtc, "MediaOverlay", FakeOverlay)                    # not Windows' real media panel

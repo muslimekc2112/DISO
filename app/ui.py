@@ -2296,13 +2296,13 @@ class App(ctk.CTk):
         if self.music is not None:
             return True
         try:
-            backend = player.new_backend()
+            backend = player.equalizable()
         except (OSError, AttributeError) as e:
             log.error("music player unavailable: %s", e)
             self.notice("Müzik çaları bu bilgisayarda başlatamadım", 8)
             return False
         try:
-            spare = player.new_backend(alias="hizli_music_b")     # the second voice of a cross-fade
+            spare = player.equalizable(alias="hizli_music_b")     # the second voice of a cross-fade
         except (OSError, AttributeError):
             spare = None
         prepare = playable.Preparer() if player.needs_playable_copies() else None

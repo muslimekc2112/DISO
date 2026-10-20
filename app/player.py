@@ -64,6 +64,140 @@ def new_backend(alias=_ALIAS):
     return SdlBackend(alias)
 
 
+def new_eq_backend(alias=_ALIAS):
+    """The backend that decodes with ffmpeg and takes the equalizer's filter."""
+    from .sdl_player import SdlBackend
+    return SdlBackend(alias)
+
+
+def equalizable(alias=_ALIAS):
+    """The music player's backend with an equalizer (see SwitchingBackend)."""
+    plain = new_backend(alias)
+    if sys.platform.startswith("win"):                  # MCI cannot change the sound: ffmpeg + SDL when needed
+        return SwitchingBackend(plain, lambda: new_eq_backend(alias + "_eq"))
+    return SwitchingBackend(None, lambda: plain)        # already ffmpeg + SDL
+
+
+class SwitchingBackend:
+    """A backend that can put an equalizer on the sound. While the equalizer is flat, `plain` plays
+    (Windows' MCI, as always); once it is set, the song goes on from the same moment on the backend
+    that decodes with ffmpeg (sdl_player, which takes the filter). Without a plain backend (macOS /
+    Linux) the ffmpeg one always plays. When the ffmpeg one cannot be made (no sound output, no pygame)
+    the equalizer cannot be used: set_filter says so and the plain one keeps playing."""
+
+    def __init__(self, plain, make_eq):
+        self.plain, self._make_eq = plain, make_eq
+        self.eq = None
+        self.filter = ""
+        self.volume = 80
+        self._path = None              # what is loaded now (to load it again on the other backend)
+        self._resume_plays = False     # switched while paused: "resume" must start the new backend
+        self.active = plain if plain is not None else self._eq_backend()
+        if self.active is None:
+            raise OSError("no sound output")
+
+    def _eq_backend(self):
+        if self.eq is None:
+            try:
+                self.eq = self._make_eq()
+            except Exception as e:  # noqa: BLE001 - no pygame / no sound device
+                from .logs import log
+                log.info("equalizer backend: %s", e)
+                return None
+        return self.eq
+
+    @property
+    def last_error(self):
+        return getattr(self.active, "last_error", "")
+
+    def __getattr__(self, name):
+        """What only the backend under it has (its alias, ...) is read from the one that plays."""
+        if name in ("active", "plain", "eq", "_make_eq"):
+            raise AttributeError(name)
+        return getattr(self.active, name)
+
+    def set_filter(self, text) -> bool:
+        """Use this ffmpeg filter ("" = none). False when the equalizer cannot be used here."""
+        text = text or ""
+        target = self.plain if not text and self.plain is not None else self._eq_backend()
+        if target is None:
+            return False
+        self.filter = text
+        if target is self.eq and hasattr(self.eq, "set_filter"):
+            self.eq.set_filter(text)
+        if target is not self.active:
+            self._switch(target)
+        return True
+
+    def _switch(self, target):
+        old = self.active
+        at = old.position_ms() if self._path else 0
+        playing = bool(self._path) and old.is_playing()
+        old.stop()
+        old.close()
+        self.active = target
+        target.set_volume(self.volume)
+        if not self._path:
+            return
+        if not target.load(self._path):
+            self._path = None
+            return
+        if at:
+            target.seek(at)
+        if playing:
+            target.play()
+        self._resume_plays = not playing
+
+    # ------------------------------------------------------------------ the backend API
+    def load(self, path):
+        self._resume_plays = False
+        ok = self.active.load(path)
+        self._path = path if ok else None
+        return ok
+
+    def play(self):
+        self._resume_plays = False
+        self.active.play()
+
+    def resume(self):
+        if self._resume_plays:
+            self._resume_plays = False
+            self.active.play()
+        else:
+            self.active.resume()
+
+    def pause(self):
+        self.active.pause()
+
+    def stop(self):
+        self._resume_plays = False
+        self.active.stop()
+
+    def close(self):
+        self._resume_plays = False
+        self._path = None
+        self.active.close()
+
+    def set_volume(self, percent):
+        self.volume = max(0, min(100, int(percent)))
+        self.active.set_volume(self.volume)
+
+    def seek(self, ms):
+        self.active.seek(ms)
+
+    def position_ms(self):
+        return self.active.position_ms()
+
+    def length_ms(self):
+        return self.active.length_ms()
+
+    def is_playing(self):
+        return self.active.is_playing()
+
+    def finished(self):
+        return self.active.finished()
+
+
 def needs_playable_copies() -> bool:
     """Only MCI refuses files that are fine (see playable.py); ffmpeg reads them all."""
     return sys.platform.startswith("win")

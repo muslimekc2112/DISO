@@ -49,14 +49,14 @@ def test_play_next_and_add_to_the_line_from_the_menu(music_app, songs):
     music.tree.selection_set("2")
     menu(music.track_menu_items())["➕ Sıraya ekle"]()
     assert music.queue_btn.cget("text") == "📋 Sıra (2)"
-    music.controller.backend.ended = True
+    music.controller.backend.active.ended = True
     music._tick()
     assert music.controller.current_title() == "Gece"
     assert music.now_label.cget("text") == "Gece" and "▶" not in [music.tree.item(i, "values")[0] for i in music.tree.get_children()]
-    music.controller.backend.ended = True
+    music.controller.backend.active.ended = True
     music._tick()
     assert music.controller.current_title() == "Aksam"
-    music.controller.backend.ended = True
+    music.controller.backend.active.ended = True
     music._tick()
     assert music.controller.current_title() == "Ogle"                      # the list goes on after the first song
 
@@ -96,7 +96,8 @@ def test_the_cross_fade_is_chosen_in_the_menu_and_remembered(music_app):
 
 def test_the_app_gives_the_player_a_second_voice_for_fades(music_app):
     app, music = music_app
-    assert isinstance(music.controller.spare, FakeBackend) and music.controller.spare is not music.controller.backend
+    spare, backend = music.controller.spare, music.controller.backend
+    assert isinstance(spare.active, FakeBackend) and spare.active is not backend.active
 
 
 # ------------------------------------------------------------------------------ mini player
@@ -118,7 +119,7 @@ def test_the_mini_player_steps_in_and_out(music_app, songs):
     mini.next_btn.invoke()
     music._tick()
     assert mini.title_label.cget("text") == "Aksam"
-    music.controller.backend.position = 2500
+    music.controller.backend.active.position = 2500
     music._tick()
     assert abs(mini.bar.get() - 0.5) < 0.01
     mini.big_btn.invoke()

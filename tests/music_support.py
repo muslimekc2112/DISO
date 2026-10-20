@@ -49,6 +49,9 @@ class FakeBackend:
     def position_ms(self):
         return self.position
 
+    def is_playing(self):
+        return self.playing and not self.ended
+
     def length_ms(self):
         return self.length
 
@@ -61,6 +64,18 @@ class FakeBackend:
     def finished(self):
         return self.ended
 
+
+
+
+class FakeEqBackend(FakeBackend):
+    """The equalizer's backend (sdl_player) in the tests: remembers the filter it was given."""
+
+    def __init__(self, alias=""):
+        super().__init__(alias)
+        self.filter = ""
+
+    def set_filter(self, text):
+        self.filter = text
 
 class FakeReader:
     """Same interface as app.tags.TagReader, answered by the test instead of ffprobe."""

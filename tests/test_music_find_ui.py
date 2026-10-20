@@ -467,7 +467,7 @@ def test_the_sleep_timer_can_stop_after_the_song(music_app, songs):
     add(music, songs)
     music._play_selected()
     music._set_sleep(SLEEP_TRACK)
-    music.controller.backend.ended = True
+    music.controller.backend.active.ended = True
     music._tick()
     assert music.controller.state == "stopped" and music.controller.current_title() == "Sabah"
     assert music.sleep_menu.get() == SLEEP_OFF
@@ -494,7 +494,7 @@ def test_the_place_in_the_song_is_remembered_and_play_goes_on_from_there(music_a
     add(music, songs)
     music.tree.selection_set("2")
     music._play_selected()
-    music.controller.backend.position = 83000
+    music.controller.backend.active.position = 83000
     music.shutdown()
     music.destroy()
     st = app._store().state
@@ -527,7 +527,7 @@ def test_choosing_another_song_ignores_the_place(music_app, songs, monkeypatch):
     again = make_music(app, monkeypatch)
     again.tree.selection_set("0")
     again._toggle()
-    assert again.controller.current_title() == "Sabah" and again.controller.backend.position == 0
+    assert again.controller.current_title() == "Sabah" and again.controller.backend.active.position == 0
 
 
 def test_a_remembered_song_that_was_deleted_is_not_offered(music_app, songs, monkeypatch):
@@ -665,7 +665,7 @@ def test_synced_lyrics_follow_the_song_and_a_click_jumps(music_app, songs):
     win = music.lyrics_window
     assert win.synced and win.lines() == ["Birinci satır", "İkinci satır", "♪", "Dördüncü satır"]
     assert "akar" in win.badge.cget("text") and win.title_label.cget("text") == "Sabah"
-    music.controller.backend.position = 6000
+    music.controller.backend.active.position = 6000
     music._tick()
     assert win.current == 1 and win.text.tag_ranges("now")
     now = win.text.get(*win.text.tag_ranges("now")).strip()
@@ -674,7 +674,7 @@ def test_synced_lyrics_follow_the_song_and_a_click_jumps(music_app, songs):
     bbox = win.text.bbox("4.0")
     if bbox:
         win._on_click(type("E", (), {"x": bbox[0] + 2, "y": bbox[1] + 2})())
-        assert music.controller.backend.position == 12000
+        assert music.controller.backend.active.position == 12000
     win._resize(+4)
     assert win.size == 20 and win.current == 1
 

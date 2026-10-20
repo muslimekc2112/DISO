@@ -95,6 +95,13 @@ def collect() -> dict:
         info["ytmusic"] = True
     except Exception as e:  # noqa: BLE001
         info["ytmusic"] = f"error: {type(e).__name__}: {e}"
+    try:   # 🎛 the equalizer plays with ffmpeg + SDL: pygame (and SDL's DLLs) must be inside the exe
+        os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+        import pygame
+        from . import equalizer
+        info["equalizer"] = bool(pygame.mixer) and bool(equalizer.ffmpeg_filter(equalizer.PRESETS["Rock"]))
+    except Exception as e:  # noqa: BLE001
+        info["equalizer"] = f"error: {type(e).__name__}: {e}"
     return info
 
 

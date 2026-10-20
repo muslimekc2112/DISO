@@ -107,7 +107,7 @@ def test_closing_the_app_stops_the_music_and_saves_the_lists(music_app, songs):
     path = music.store.path
     music.store.lists[music.viewed].append({"path": songs[2], "title": "Aksam"})   # not saved yet
     app._on_close()
-    assert music.controller.state == "stopped" and music.controller.backend.loaded is None
+    assert music.controller.state == "stopped" and music.controller.backend.active.loaded is None
     assert "Aksam" in open(path, encoding="utf-8").read()
 
 
@@ -194,7 +194,7 @@ def test_dragging_the_volume_writes_the_file_once(music_app):
     music.store.save = lambda: writes.append(music.store.state["volume"])
     for v in range(10, 90, 4):
         music._on_volume(v)
-    assert writes == [] and music.controller.backend.volume == 86       # nothing written during the drag
+    assert writes == [] and music.controller.backend.active.volume == 86       # nothing written during the drag
     time.sleep(0.7)
     app.update()
     assert writes == [86]
@@ -243,7 +243,7 @@ def test_next_previous_and_the_end_of_a_track(music_app, songs):
     assert music.controller.index == 1
     music._previous()
     assert music.controller.index == 0
-    music.controller.backend.ended = True
+    music.controller.backend.active.ended = True
     music._tick()
     assert music.controller.index == 1 and marks(music)[1] == "▶"
 
@@ -252,7 +252,7 @@ def test_the_clock_and_the_seek_bar(music_app, songs):
     app, music = music_app
     add(music, songs)
     music._toggle()
-    backend = music.controller.backend
+    backend = music.controller.backend.active          # the one under the equalizer's switch
     backend.position, backend.length = 61000, 200000
     music._update_status()
     assert music.pos_label.cget("text") == "1:01" and music.len_label.cget("text") == "3:20"
@@ -320,7 +320,7 @@ def test_shuffle_repeat_and_volume_reach_the_controller(music_app):
     music._cycle_repeat()
     assert music.controller.repeat == "Kapalı"
     music._on_volume(42)
-    assert music.controller.backend.volume == 42
+    assert music.controller.backend.active.volume == 42
 
 
 def test_an_unplayable_track_is_reported(music_app, songs):

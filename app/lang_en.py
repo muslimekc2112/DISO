@@ -244,6 +244,14 @@ PLAIN = {
     "DISO güncelleniyor… birazdan yeni sürümle açılacak": "Updating DISO… it opens again with the new version in a moment",
     "Kurmak için ⟳ Güncellemeler → DISO → Güncelle": "To install it: ⟳ Updates → DISO → Update",
     "GitHub'da sürüm bulunamadı": "No release found on GitHub",
+    # ---- 🎛 equalizer
+    "DISO • Ekolayzır": "DISO • Equalizer", "🎛 Ekolayzır": "🎛 Equalizer", "🎛 Ekolayzır…": "🎛 Equalizer…",
+    "Hazır bir ayar seç ya da kaydırıcılarla kendin ayarla. Düz bırakırsan ses hiç değişmez.":
+        "Pick a ready-made setting or set it yourself with the sliders. Left flat, the sound does not change at all.",
+    "Sıfırla": "Reset", "Ses olduğu gibi çalıyor": "The sound plays as it is", "Ekolayzır açık": "Equalizer on",
+    "Ekolayzır bu bilgisayarda çalışmıyor: ses çıkışı açılamadı": "The equalizer does not work on this PC: no sound output",
+    "Düz": "Flat", "Bas güçlü": "Bass boost", "Tiz güçlü": "Treble boost", "Vokal": "Vocal", "Elektronik": "Electronic",
+    "Klasik müzik": "Classical", "Akustik": "Acoustic", "Gece (kısık bas)": "Night (less bass)", "Özel": "Custom",
     # ---- ✂ only a part of a video
     "✂ Sadece bir kısmını indir": "✂ Download only a part", "Zamanı 1:30 ya da 1:02:03 gibi yaz": "Write the time like 1:30 or 1:02:03",
     "Bitişi de yaz (videonun uzunluğunu bilmiyorum)": "Write the end too (I do not know how long the video is)",

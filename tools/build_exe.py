@@ -35,7 +35,6 @@ def command(no_ffmpeg: bool = False, onedir: bool = False) -> list:
            "--noconfirm", "--name", "DISO", "--icon", os.path.join("assets", "icon.ico"),
            "--collect-all", "customtkinter", "--collect-all", "yt_dlp", "--collect-all", "certifi",
            "--hidden-import", "pystray._win32", "--version-file", _version_file(),
-           "--exclude-module", "pygame",                 # the music player of macOS / Linux (sdl_player.py)
            "--add-data", f"assets{sep}assets", "--add-data", f"browser_extension{sep}browser_extension"]
     if onedir:
         cmd += ["--distpath", ONEDIR_DIST, "--workpath", os.path.join(ROOT, "build", "app-work"),
@@ -44,6 +43,8 @@ def command(no_ffmpeg: bool = False, onedir: bool = False) -> list:
         cmd += ["--collect-all", "yt_dlp_ejs"]
     if importlib.util.find_spec("winrt"):               # Windows' media panel (song, cover, buttons)
         cmd += ["--collect-all", "winrt"]
+    if importlib.util.find_spec("pygame"):              # the equalizer's player (sdl_player.py; SDL's DLLs come with it)
+        cmd += ["--hidden-import", "pygame"]
     if importlib.util.find_spec("ytmusicapi"):          # lyrics from YouTube Music (with its language files)
         cmd += ["--collect-all", "ytmusicapi"]
     if not no_ffmpeg and os.path.exists(os.path.join(ROOT, "ffmpeg", "ffmpeg.exe")):

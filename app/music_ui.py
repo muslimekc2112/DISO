@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
-from . import i18n, lyrics, mediakeys, music_search, smtc, tags
+from . import equalizer, i18n, lyrics, mediakeys, music_search, smtc, tags
 from . import taskbar as taskbar_module
 from .logs import log
 from .playlists import FADE_CHOICES
@@ -210,6 +210,9 @@ class MusicWindow(ctk.CTkToplevel):
         controller.repeat = store.state["repeat"]
         controller.set_volume(store.state["volume"])
         controller.fade_ms = int(store.state["fade"]) * 1000
+        self.eq_window = None
+        if not equalizer.is_flat(store.state["eq"]):
+            self.apply_eq(store.state["eq"], remember=False)
 
         self._build_top()
         self._build_toolbars()
@@ -241,15 +244,17 @@ class MusicWindow(ctk.CTkToplevel):
         self.view_switch.grid(row=0, column=2, sticky="e")
         self.mini_btn = ctk.CTkButton(head, text="🗗 Mini", width=78, height=32, command=self.open_mini)
         self.mini_btn.grid(row=0, column=3, padx=(8, 0))
+        self.eq_btn = ctk.CTkButton(head, text="🎛 EQ", width=64, height=32, command=self.open_eq)
+        self.eq_btn.grid(row=0, column=4, padx=(8, 0))
         self.menu_btn = ctk.CTkButton(head, text="⚙", width=40, height=32, command=self._open_player_menu)
-        self.menu_btn.grid(row=0, column=4, padx=(8, 0))
+        self.menu_btn.grid(row=0, column=5, padx=(8, 0))
 
     def player_menu_items(self):
         """The ⚙ menu: cross-fade length, the mini player, the keyboard shortcuts."""
         fade = self.store.state["fade"]
         fades = [((("● " if s == fade else "   ") + (f"{s} sn" if s else "Kapalı")), lambda s=s: self.set_fade(s))
                  for s in FADE_CHOICES]
-        items = [("🎚 Şarkılar arası geçiş", fades), ("🗗 Mini oynatıcı", self.open_mini)]
+        items = [("🎚 Şarkılar arası geçiş", fades), ("🎛 Ekolayzır…", self.open_eq), ("🗗 Mini oynatıcı", self.open_mini)]
         shortcuts = getattr(self.app, "open_shortcuts", None)
         if shortcuts:
             items += [None, ("⌨ Klavye kısayolları  (F1)", shortcuts)]
@@ -261,6 +266,31 @@ class MusicWindow(ctk.CTkToplevel):
         x = self.menu_btn.winfo_rootx()
         y = self.menu_btn.winfo_rooty() + self.menu_btn.winfo_height()
         self._popup(menu, type("E", (), {"x_root": x, "y_root": y})())
+
+    # ------------------------------------------------------------------ 🎛 equalizer
+    def apply_eq(self, gains, remember=True) -> bool:
+        """Put this equalizer setting on the sound (both voices of a cross-fade). False: not possible here."""
+        gains = equalizer.clean(gains)
+        text = equalizer.ffmpeg_filter(gains)
+        ok = True
+        for backend in (self.controller.backend, self.controller.spare):
+            if backend is not None and hasattr(backend, "set_filter"):
+                ok = backend.set_filter(text) and ok
+        if ok and remember:
+            self.store.set_state(eq=gains)
+        return ok
+
+    def open_eq(self):
+        from .eq_ui import EqualizerWindow
+        try:
+            if self.eq_window is not None and self.eq_window.winfo_exists():
+                self.eq_window.deiconify()
+                self.eq_window.lift()
+                return self.eq_window
+        except tk.TclError:
+            pass
+        self.eq_window = EqualizerWindow(self)
+        return self.eq_window
 
     def set_fade(self, seconds):
         self.store.set_state(fade=int(seconds))
