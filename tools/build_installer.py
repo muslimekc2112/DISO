@@ -18,11 +18,13 @@ import argparse
 import glob
 import hashlib
 import json
+import lzma
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import urllib.request
 import zipfile
@@ -169,9 +171,33 @@ def extension_entries(folder):
     return out
 
 
-def make_payload(folder, app, uninstaller, deno_exe, version, deno_version="", label="", extension=None):
+ARCHIVE = "payload.tar.xz"
+# x86 code compresses better after the BCJ filter; a dictionary bigger than ffmpeg.exe lets ffprobe.exe (nearly
+# the same program) be stored as little more than a reference to it: 210 MB -> ~30 MB (zlib: ~76 MB)
+XZ_FILTERS = [{"id": lzma.FILTER_X86}, {"id": lzma.FILTER_LZMA2, "preset": 6, "dict_size": 128 << 20}]
+
+
+def pack(folder, files, filters=None):
+    """Put the payload's files into one solid .tar.xz (in their order) and remove the loose copies.
+    Returns the archive's {"name", "size", "sha256"}."""
+    path = os.path.join(folder, ARCHIVE)
+    with lzma.LZMAFile(path, "w", format=lzma.FORMAT_XZ, filters=filters or XZ_FILTERS) as xz:
+        with tarfile.open(fileobj=xz, mode="w|", format=tarfile.PAX_FORMAT) as tar:
+            for item in files:
+                tar.add(os.path.join(folder, *item["name"].split("/")), arcname=item["name"], recursive=False)
+    for item in files:
+        os.remove(os.path.join(folder, *item["name"].split("/")))
+    for root, dirs, names in os.walk(folder, topdown=False):
+        if root != folder and not os.listdir(root):
+            os.rmdir(root)
+    return {"name": ARCHIVE, "size": os.path.getsize(path), "sha256": sha256(path)}
+
+
+def make_payload(folder, app, uninstaller, deno_exe, version, deno_version="", label="", extension=None,
+                 packed=False, filters=None):
     """Copy the files and write payload.json (name, destination, size, checksum of each).
-    `app` is the program: dist/DISO.exe, or the folder build/app/DISO; `extension` the browser extension."""
+    `app` is the program: dist/DISO.exe, or the folder build/app/DISO; `extension` the browser extension.
+    packed: the files go into one .tar.xz (the setup unpacks them while it installs): a much smaller setup."""
     if os.path.isdir(folder):
         shutil.rmtree(folder)
     os.makedirs(folder)
@@ -186,9 +212,11 @@ def make_payload(folder, app, uninstaller, deno_exe, version, deno_version="", l
         os.makedirs(os.path.dirname(path), exist_ok=True)
         shutil.copy2(src, path)
         files.append({"name": name, "dest": dest, "size": os.path.getsize(path), "sha256": sha256(path)})
+    data = {"version": version, "label": label or version, "deno": deno_version, "files": files}
+    if packed:
+        data["archive"] = pack(folder, files, filters)
     with open(os.path.join(folder, "payload.json"), "w", encoding="utf-8") as f:
-        json.dump({"version": version, "label": label or version, "deno": deno_version, "files": files}, f,
-                  ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, indent=2)
     return files
 
 
@@ -225,9 +253,11 @@ def main(argv):
     uninstaller = pyinstaller("Uninstall", os.path.join(ROOT, "hizli_setup", "uninstall_main.py"),
                               write_version_file(os.path.join(versions, "uninstall.txt"), "DISO Kaldırıcı",
                                                  "Uninstall.exe", __version__, __version_label__))
+    log("packing the payload (xz: a few minutes) ...")
     files = make_payload(PAYLOAD, APP_DIR, uninstaller, deno_exe, __version__, deno_version, __version_label__,
-                         extension=os.path.join(ROOT, "browser_extension"))
-    log(f"payload: {len(files)} files, {sum(f['size'] for f in files) / 1048576:.0f} MB")
+                         extension=os.path.join(ROOT, "browser_extension"), packed=True)
+    packed_mb = os.path.getsize(os.path.join(PAYLOAD, ARCHIVE)) / 1048576
+    log(f"payload: {len(files)} files, {sum(f['size'] for f in files) / 1048576:.0f} MB, packed {packed_mb:.0f} MB")
     name = setup_name(brand)
     for old in glob.glob(os.path.join(DIST, "DISO-Kurulum*.exe")) + glob.glob(os.path.join(DIST, "DISO-Setup*.exe")):          # an older version's setup must not be mistaken for this one
         os.remove(old)

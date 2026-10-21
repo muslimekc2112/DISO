@@ -4,6 +4,7 @@ import dataclasses
 import datetime
 import gc
 import os
+import pathlib
 import queue
 import re
 import threading
@@ -16,7 +17,7 @@ import customtkinter as ctk
 
 from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import backup, channels, classic_ui, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists
+from . import backup, channels, classic_ui, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists, repair
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
 from .extra_ui import HistoryWindow, ShortcutsWindow
@@ -140,6 +141,8 @@ class ItemActions:
             names = self.app.playlist_names()
             cmds.append(("Müzik listesine ekle", [(n, lambda n=n: self.app.add_to_music_list(it, n)) for n in names]
                          + [("＋ Yeni liste…", self._add_to_new_music_list)]))
+        if finished:
+            cmds.append(("🔧 Dosyayı kontrol et / onar", lambda: self.app.check_file(it)))
         if it.state in (DONE, ERROR, CANCELLED, PAUSED):
             cmds.append(("Baştan indir", self._redownload))
         cmds.append(("Listeden kaldır", self._remove))
@@ -490,6 +493,13 @@ class SettingsPanel(ctk.CTkToplevel):
         self.proxy_test_btn.pack(side="left", padx=(6, 0))
         _, self.proxy_hint = self._add(card, "Proxy", "http://adres:port veya socks5://adres:port", proxy_box)
 
+        self.clip_ask_switch = self._switch(card, command=lambda: app.apply_setting(
+            "clip_ask", bool(self.clip_ask_switch.get())))
+        self._set_switch(self.clip_ask_switch, cfg.get("clip_ask"))
+        self._add(card, "Kopyalanan linki indirmeden önce sor",
+                  "“Panoyu izle” açıkken kopyaladığın link için köşede küçük bir pencere çıkar: MP4, MP3 ya da "
+                  "İndir. Kapalıysa sormadan listeye eklerim.", self.clip_ask_switch)
+
         self.dup_switch = self._switch(card, command=lambda: app.apply_setting(
             "block_duplicates", bool(self.dup_switch.get())))
         self._set_switch(self.dup_switch, cfg.get("block_duplicates"))
@@ -583,10 +593,8 @@ class SettingsPanel(ctk.CTkToplevel):
         self.theme_menu = ctk.CTkOptionMenu(card, values=list(THEMES), width=150,
                                             command=lambda v: app.apply_setting("theme", v))
         self.theme_menu.set(cfg.get("theme"))
-        self._add(card, "Görünüm", "Nostalji stili hep açık renktir" if self.nostalgia
+        self._add(card, "Görünüm", "Koyu ya da açık gri (değişince DISO yeniden açılır)" if self.nostalgia
                   else "Koyu, açık ya da Windows ne derse o", self.theme_menu)
-        if self.nostalgia:
-            self.theme_menu.configure(state="disabled")
         self.look_menu = ctk.CTkOptionMenu(card, values=look.STYLES, width=150,
                                            command=lambda v: app.apply_setting("look", v))
         self.look_menu.set(cfg.get("look"))
@@ -633,7 +641,7 @@ class SettingsPanel(ctk.CTkToplevel):
             from tkinter import ttk
             page = ttk.Frame(self.body, style="Classic.TFrame")
             self.body.add(page, text=i18n.tr(title))
-            scroll = ctk.CTkScrollableFrame(page, fg_color="transparent")
+            scroll = ctk.CTkScrollableFrame(page, fg_color=look.N_FACE)      # a ttk page has no colour to take
             scroll.pack(fill="both", expand=True, padx=4, pady=6)
             card = ctk.CTkFrame(scroll, fg_color="transparent")
             card.pack(fill="x")
@@ -1478,8 +1486,30 @@ class App(NostalgiaWindow, ctk.CTk):
             self._last_clip = text
             urls = [u for u in re.split(r"\s+", text) if is_url(u)]
             if urls and len(urls) == len(text.split()):
+                if self.cfg.get("clip_ask"):
+                    self.ask_clip(urls)
+                    return
                 self.add_urls(urls)
                 self.notice(f"Panodan eklendi: {urls[0][:60]}")
+
+    def ask_clip(self, urls):
+        """📋 A link was copied: a small window in the corner asks what to do with it (it goes by itself)."""
+        from .extra_ui import ClipPrompt
+        old = getattr(self, "clip_prompt", None)
+        try:
+            if old is not None and old.winfo_exists():
+                old.destroy()
+        except TclError:
+            pass
+        self.clip_prompt = ClipPrompt(self, urls, self._clip_chosen)
+        return self.clip_prompt
+
+    def _clip_chosen(self, urls, kind):
+        """The answer of the clipboard window: None = no, else "auto" / "video" / "audio"."""
+        if kind is None:
+            return
+        if self.add_urls(urls, kind=kind) == 1:
+            self.notice(f"Panodan eklendi: {urls[0][:60]}")
 
     def _on_ctrl_v(self, event=None):
         """Ctrl+V on the list (not in a text box) adds the links in the clipboard."""
@@ -1528,10 +1558,10 @@ class App(NostalgiaWindow, ctk.CTk):
         self.url_entry.insert(0, text)
 
     def _import_file(self):
-        """Add every link of a .txt file (one per line, or any text that contains links)."""
-        path = filedialog.askopenfilename(title="Linklerin olduğu dosya",
-                                          filetypes=[("Metin dosyaları", "*.txt *.csv *.url *.list"),
-                                                     ("Tüm dosyalar", "*.*")])
+        """Add every link of a .txt file (one per line, or any text that contains links), or a .torrent file."""
+        path = filedialog.askopenfilename(title="Linklerin olduğu dosya ya da torrent",
+                                          filetypes=[("Linkler ve torrentler", "*.txt *.csv *.url *.list *.torrent"),
+                                                     ("Torrent dosyaları", "*.torrent"), ("Tüm dosyalar", "*.*")])
         if path:
             self._add_from_paths([path])
 
@@ -1562,11 +1592,86 @@ class App(NostalgiaWindow, ctk.CTk):
     def notice(self, text, seconds=6):
         self._notice, self._notice_until = text, time.time() + seconds
 
-    def add_urls(self, urls):
+    # ------------------------------------------------------------------ 🔧 is the file whole?
+    def check_file(self, item):
+        """🔧 Look whether a finished download is whole; offer to finish or download again what is not."""
+        if getattr(item, "_checking", False):
+            return
+        item._checking = True
+        self.notice(f"🔧 “{item.display_name}” kontrol ediliyor…", 30)
+        url = item.url if item.kind == "file" else ""          # a video page says nothing about the file's size
+
+        def work():
+            try:
+                verdict = repair.check(item.final_path, url, item.request_headers())
+            except Exception as e:  # noqa: BLE001 - said to the user
+                verdict = repair.Verdict(repair.UNKNOWN, str(e))
+            self._ui_calls.put(lambda: self._file_checked(item, verdict))
+        threading.Thread(target=work, daemon=True, name="check-file").start()
+
+    def _file_checked(self, item, v):
+        item._checking = False
+        name = item.display_name
+        if v.status == repair.OK:
+            self.notice(f"✓ “{name}” sağlam, eksiği yok", 10)
+        elif v.status == repair.UNKNOWN:
+            self.notice(f"“{name}” kontrol edilemedi: {v.detail}", 10)
+        elif v.status == repair.SHORT and v.resumable:
+            if messagebox.askyesno("DISO", f"{name}\n\nDosyanın sonu eksik ({human_size(v.missing)} eksik).\n"
+                                           "Yalnız eksik kısmı indirip dosyayı tamamlayayım mı?", parent=self):
+                self._complete_file(item)
+        else:
+            if v.status in (repair.MISSING, repair.EMPTY):
+                why = "Dosya yerinde yok." if v.status == repair.MISSING else "Dosya boş."
+                text = f"{name}\n\n{why}\nBozuk dosyayı silip baştan indireyim mi?"
+            elif v.status == repair.SHORT:
+                text = f"{name}\n\nDosyanın sonu eksik ({human_size(v.missing)} eksik).\nBozuk dosyayı silip baştan indireyim mi?"
+            else:
+                text = f"{name}\n\nDosya bozuk görünüyor ({v.detail}).\nBozuk dosyayı silip baştan indireyim mi?"
+            if messagebox.askyesno("DISO", text, parent=self):
+                if item.final_path and os.path.isfile(item.final_path):
+                    try:
+                        os.remove(item.final_path)
+                    except OSError as e:
+                        self.notice(f"Dosya silinemedi: {e}", 10)
+                        return
+                self.manager.redownload(item)
+
+    def _complete_file(self, item):
+        """Download the missing end of a finished file (the part that is there stays)."""
+        item._checking = True
+        path = item.final_path
+
+        def work():
+            try:
+                added = repair.complete_tail(path, item.url, item.request_headers(),
+                                             progress=lambda n: setattr(item, "message", f"🔧 Eksik kısım: {human_size(n)}"))
+                problem = repair.read_through(path)
+                result = (added, problem)
+            except Exception as e:  # noqa: BLE001 - said to the user
+                result = (None, str(e))
+            self._ui_calls.put(lambda: self._file_completed(item, *result))
+        threading.Thread(target=work, daemon=True, name="complete-file").start()
+
+    def _file_completed(self, item, added, problem):
+        item._checking = False
+        item.message = ""
+        if added is None:
+            self.notice(f"Tamamlanamadı: {problem}. “Baştan indir” ile yeniden indirebilirsin.", 12)
+        elif problem:
+            self.notice(f"Eksik kısım eklendi ama dosya hâlâ bozuk ({problem}). “Baştan indir”i dene.", 12)
+        else:
+            self.notice(f"✓ “{item.display_name}” tamamlandı ({human_size(added)} eklendi)", 10)
+        self.manager.save()
+
+    def add_urls(self, urls, kind=None):
         """Add links; returns how many were accepted. Links already in the list are skipped
         (unless that is switched off in the settings). With 'Oynatma listesi' ticked the link is
-        opened as a playlist first (see _playlist_ready)."""
+        opened as a playlist first (see _playlist_ready). `kind` ("video", "audio" ...) overrides
+        what is chosen in the window."""
         s = self._settings()
+        if kind:
+            s.kind = kind
         skip = bool(self.cfg.get("block_duplicates"))
         good = [normalize_url(u) for u in urls if is_url(u)]
         added = duplicates = 0
@@ -1647,10 +1752,13 @@ class App(NostalgiaWindow, ctk.CTk):
 
     # ----------------------------------------------------------------- text files
     def _add_from_paths(self, paths):
-        """Links from text files (the 📄 button)."""
+        """Links from text files (the 📄 button); a .torrent file is downloaded as a torrent (🧲)."""
         urls = []
         for p in paths:
-            urls += urls_from_file(p)
+            if p.lower().endswith(".torrent"):
+                urls.append(pathlib.Path(os.path.abspath(p)).as_uri())
+            else:
+                urls += urls_from_file(p)
         if not urls:
             self.notice("O dosyada tek bir link bile bulamadım")
             return 0
@@ -1826,6 +1934,8 @@ class App(NostalgiaWindow, ctk.CTk):
         elif key == "speed_limit":
             LIMITER.set_rate(SPEED_LIMITS[value] * 1024)
             self.notice("Hız sınırı kalktı, tam gaz" if SPEED_LIMITS[value] == 0 else f"Hız sınırı: {value}")
+        elif key == "theme" and self.nostalgia:
+            self.after(150, self._offer_restart)          # its grey is chosen when it starts
         elif key == "theme":
             # Not inside the dropdown's own callback: on Windows that still runs inside the native
             # menu loop, and re-coloring every widget there can leave the buttons without clicks.

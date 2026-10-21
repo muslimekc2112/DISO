@@ -12,7 +12,7 @@
     port: 17653,           // must be the same as "Extension port" in the app's settings
     intercept: false,      // take over the browser's own downloads
     minSizeMB: 5,          // ... of this size or bigger (0 = only by file type)
-    extensions: "zip,rar,7z,tar,gz,iso,exe,msi,apk,dmg,mp4,mkv,avi,mov,webm,mp3,flac,wav,pdf",
+    extensions: "zip,rar,7z,tar,gz,iso,exe,msi,apk,dmg,mp4,mkv,avi,mov,webm,mp3,flac,wav,pdf,torrent",
     badge: true,           // show a short tick on the toolbar button after sending
     launchApp: true,       // start DISO through the native host when it is closed
   };
@@ -126,6 +126,11 @@
     return typeof u === "string" && /^https?:\/\/[^\s]+$/i.test(u);
   }
 
+  // what DISO takes: http(s) links and magnet links (DISO downloads torrents with aria2)
+  function isSendable(u) {
+    return isHttpUrl(u) || (typeof u === "string" && /^magnet:\?[^\s]+$/i.test(u));
+  }
+
   // "ZIP, .rar ,7z" -> ["zip", "rar", "7z"]
   function parseExtensions(text) {
     const seen = new Set();
@@ -146,7 +151,7 @@
 
   // every http(s) link of a text, in order, without repeats
   function extractUrls(text) {
-    const found = String(text || "").match(/https?:\/\/[^\s<>"']+/gi) || [];
+    const found = String(text || "").match(/(?:https?:\/\/|magnet:\?)[^\s<>"']+/gi) || [];
     const out = [];
     found.forEach((raw) => {
       let u = raw.replace(/[.,;]+$/, "");
@@ -155,7 +160,7 @@
         if (u.split(close).length - 1 > u.split(open).length - 1) u = u.slice(0, -1).replace(/[.,;]+$/, "");
         else break;
       }
-      if (isHttpUrl(u) && !out.includes(u)) out.push(u);
+      if (isSendable(u) && !out.includes(u)) out.push(u);
     });
     return out;
   }
@@ -193,6 +198,7 @@
   // stream (DISO looks at it and downloads the video, or the file it turns out to be).
   const PAGE_EXTENSIONS = ["html", "htm", "xhtml", "shtml", "php", "asp", "aspx", "jsp", "cgi", "pl", "m3u8", "mpd"];
   function linkKind(url) {
+    if (/^magnet:/i.test(String(url || ""))) return "auto";       // a torrent: DISO knows it by its link
     let path = "";
     try {
       path = new URL(url).pathname;
@@ -208,7 +214,7 @@
 
   // the body of POST /add
   function buildPayload({ urls, referer, userAgent, cookies, kind }) {
-    const p = { urls: (urls || []).filter(isHttpUrl) };
+    const p = { urls: (urls || []).filter(isSendable) };
     if (referer && isHttpUrl(referer)) p.referer = referer;
     if (userAgent) p.userAgent = String(userAgent);
     if (cookies) p.cookies = String(cookies);
@@ -228,5 +234,5 @@
 
   return { APP_ID, HOST, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
            extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult, pageFileLinks, sizeText, statusText,
-           linkKind };
+           linkKind, isSendable };
 });

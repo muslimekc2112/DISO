@@ -152,3 +152,14 @@ test("linkKind: a file's link is a file, a page or a stream is left for DISO to 
     assert.equal(HI.linkKind(u), u.endsWith(".zip?") ? "file" : "auto", u);
   }
 });
+
+test("magnet links go to DISO too (it downloads torrents), .torrent files are caught", () => {
+  const magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Ubuntu";
+  assert.equal(HI.isSendable(magnet), true);
+  assert.equal(HI.isSendable("magnet:"), false);
+  assert.equal(HI.isHttpUrl(magnet), false);                      // never fetched by the extension itself
+  assert.deepEqual(HI.buildPayload({ urls: [magnet, "javascript:1"] }), { urls: [magnet] });
+  assert.deepEqual(HI.extractUrls(`indir: ${magnet} ve https://a.com/b.`), [magnet, "https://a.com/b"]);
+  assert.equal(HI.linkKind(magnet), "auto");
+  assert.ok(HI.parseExtensions(HI.DEFAULTS.extensions).includes("torrent"));
+});

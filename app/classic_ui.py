@@ -14,6 +14,7 @@ from tkinter import TclError, ttk
 import customtkinter as ctk
 
 from . import brand, classic_icons, i18n, look
+from .config import THEMES
 from .models import (CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED, PROCESSING, QUEUED, RESOLVING,
                      SUBTITLE_CHOICES, WAITING)
 from .utils import human_eta, human_size, open_file, open_in_file_manager
@@ -136,15 +137,33 @@ def scale_of(widget) -> float:
 
 
 def style_tree(widget, name=TREE_STYLE):
-    """The tables in the look of Windows itself (its own list view theme), Tahoma, white."""
+    """The tables in the look of Windows itself (its own list view theme), Tahoma, white. Dark: the same
+    in dark grey (Windows' own theme cannot be dark, the plain one takes the colours)."""
     style = ttk.Style(widget)
-    theme = "vista" if "vista" in style.theme_names() else "clam"
+    dark = look.is_dark_nostalgia()
+    theme = "vista" if "vista" in style.theme_names() and not dark else "clam"
     if style.theme_use() != theme:              # once per window root: switching restyles every ttk widget
         style.theme_use(theme)
     linespace = tkfont.Font(root=widget, font=FONT).metrics("linespace")
     style.configure(name, background=look.N_FIELD, fieldbackground=look.N_FIELD, foreground=look.N_TEXT,
                     font=FONT, rowheight=linespace + int(7 * scale_of(widget)))
     style.configure(name + ".Heading", font=FONT)
+    if dark:
+        style.configure(name, bordercolor=look.N_FRAME, lightcolor=look.N_FIELD, darkcolor=look.N_FIELD)
+        style.configure(name + ".Heading", background=look.N_BUTTON, foreground=look.N_TEXT, relief="raised",
+                        bordercolor=look.N_BORDER, lightcolor=look.N_HIGH, darkcolor=look.N_FACE)
+        style.map(name + ".Heading", background=[("active", look.N_HOVER)])
+        style.map(name, background=[("selected", look.N_SELECT)], foreground=[("selected", "#FFFFFF")])
+        for bar in ("Vertical.TScrollbar", "Horizontal.TScrollbar"):
+            style.configure(bar, background=look.N_BUTTON, troughcolor=look.N_FACE, bordercolor=look.N_BORDER,
+                            arrowcolor=look.N_TEXT, lightcolor=look.N_HIGH, darkcolor=look.N_FACE)
+            style.map(bar, background=[("disabled", look.N_FACE), ("pressed", look.N_BORDER), ("active", look.N_HOVER)],
+                      arrowcolor=[("disabled", look.N_DISABLED)])
+        style.configure("TNotebook", background=look.N_FACE, bordercolor=look.N_BORDER)
+        style.configure("TNotebook.Tab", background=look.N_BUTTON, foreground=look.N_TEXT, bordercolor=look.N_BORDER,
+                        lightcolor=look.N_HIGH)
+        style.map("TNotebook.Tab", background=[("selected", look.N_FACE)])
+        style.configure("Classic.TFrame", background=look.N_FACE)
     return style
 
 
@@ -451,6 +470,12 @@ class NostalgiaWindow:
         self._n_cache = {}
         self._progress = {}                               # item id -> its progress window
         self._n_scale = scale_of(self)
+        if look.is_dark_nostalgia():                      # plain tk widgets that name no colour: dark grey too
+            for pattern, colour in (("*Background", look.N_FACE), ("*Foreground", look.N_TEXT),
+                                    ("*activeBackground", look.N_HOVER), ("*activeForeground", look.N_TEXT),
+                                    ("*selectColor", look.N_FIELD), ("*highlightBackground", look.N_FACE),
+                                    ("*troughColor", look.N_FACE), ("*disabledForeground", look.N_DISABLED)):
+                self.option_add(pattern, colour, "widgetDefault")
         style_tree(self)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
@@ -501,6 +526,12 @@ class NostalgiaWindow:
             styles.add_radiobutton(label=name, value=name, variable=self._look_var,
                                    command=lambda n=name: self._n_choose("look", n))
         view.add_cascade(label="Görünüm stili", menu=styles)
+        self._theme_var = tk.StringVar(value=self.cfg.get("theme"))
+        themes = tk.Menu(view, tearoff=0)
+        for name in THEMES:
+            themes.add_radiobutton(label=name, value=name, variable=self._theme_var,
+                                   command=lambda n=name: self._n_choose("theme", n))
+        view.add_cascade(label="Renk (açık / koyu)", menu=themes)
         self._language_var = tk.StringVar(value=self.cfg.get("language"))
         languages = tk.Menu(view, tearoff=0)
         for name in i18n.LANGUAGES:
@@ -545,6 +576,7 @@ class NostalgiaWindow:
         """The menu's ticks follow the setting (a 'not now' answer leaves the look as it is until DISO starts)."""
         try:
             self._look_var.set(self.cfg.get("look"))
+            self._theme_var.set(self.cfg.get("theme"))
             self._language_var.set(self.cfg.get("language"))
         except (AttributeError, TclError):
             pass
@@ -686,7 +718,7 @@ class NostalgiaWindow:
         self.search_entry.pack(side="top", fill="x", pady=(0, 4))
         self.search_entry.bind("<KeyRelease>", lambda e: self._sync_rows())
         self.search_entry.bind("<Escape>", lambda e: self._clear_search())
-        head = tk.Label(left, text=i18n.tr("Kategoriler"), font=BOLD, bg="#E3E3E3", anchor="w", bd=1,
+        head = tk.Label(left, text=i18n.tr("Kategoriler"), font=BOLD, bg=look.N_HEADER, fg=look.N_TEXT, anchor="w", bd=1,
                         relief="raised", padx=4)
         head.pack(side="top", fill="x")
         self.category_tree = tree = ttk.Treeview(left, show="tree", selectmode="browse", style=TREE_STYLE)
@@ -711,8 +743,8 @@ class NostalgiaWindow:
             table.heading(name, text=i18n.tr(text), anchor=anchor,
                           command=(lambda v=sort: self._n_sort(v)) if sort else "")
             table.column(name, width=int(width * s), minwidth=int(40 * s), anchor=anchor, stretch=stretch)
-        table.tag_configure("error", foreground="#C00000")
-        table.tag_configure("done", foreground="#1F1F1F")
+        table.tag_configure("error", foreground=look.N_ERROR_TEXT)
+        table.tag_configure("done", foreground=look.N_DONE_TEXT)
         table.grid(row=0, column=0, sticky="nsew")
         ys = ttk.Scrollbar(right, orient="vertical", command=table.yview)
         ys.grid(row=0, column=1, sticky="ns")

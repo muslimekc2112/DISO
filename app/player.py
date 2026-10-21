@@ -17,13 +17,15 @@ except (ImportError, ValueError):  # not Windows
 
 from .logs import log
 
-AUDIO_EXTENSIONS = (".mp3", ".wav", ".wma", ".m4a", ".aac", ".mp4")
+# what Windows' MCI cannot open, but ffmpeg (the equalizer's player) plays as it is: lossless and Ogg sound
+FFMPEG_EXTENSIONS = (".flac", ".ogg", ".oga", ".opus", ".aiff", ".aif", ".mka", ".wv", ".ape")
+AUDIO_EXTENSIONS = (".mp3", ".wav", ".wma", ".m4a", ".aac", ".mp4") + FFMPEG_EXTENSIONS
 REPEAT_MODES = ("Kapalı", "Liste", "Tek")      # off / whole list / one track
 _ALIAS = "hizli_music"
 
 
 # what a finished download must be to go into a playlist by itself (a .mp4 is more likely a video)
-MUSIC_EXTENSIONS = (".mp3", ".wav", ".wma", ".m4a", ".aac")
+MUSIC_EXTENSIONS = (".mp3", ".wav", ".wma", ".m4a", ".aac") + FFMPEG_EXTENSIONS
 
 
 def is_audio(path: str) -> bool:
@@ -32,6 +34,11 @@ def is_audio(path: str) -> bool:
 
 def is_music(path: str) -> bool:
     return os.path.splitext(path)[1].lower() in MUSIC_EXTENSIONS
+
+
+def needs_ffmpeg(path) -> bool:
+    """A file only the ffmpeg player plays as it is (MCI would need a converted copy of it)."""
+    return bool(path) and os.path.splitext(path)[1].lower() in FFMPEG_EXTENSIONS
 
 
 def artist_and_title(track: dict):
@@ -119,7 +126,8 @@ class SwitchingBackend:
     def set_filter(self, text) -> bool:
         """Use this ffmpeg filter ("" = none). False when the equalizer cannot be used here."""
         text = text or ""
-        target = self.plain if not text and self.plain is not None else self._eq_backend()
+        plain_ok = self.plain is not None and not needs_ffmpeg(self._path)     # a FLAC stays on ffmpeg
+        target = self.plain if not text and plain_ok else self._eq_backend()
         if target is None:
             return False
         self.filter = text
@@ -148,9 +156,27 @@ class SwitchingBackend:
             target.play()
         self._resume_plays = not playing
 
+    def _use(self, target):
+        """Play the next file on `target` (nothing is loaded again: a new file comes)."""
+        if target is None or target is self.active:
+            return
+        self.active.stop()
+        self.active.close()
+        self.active = target
+        target.set_volume(self.volume)
+        if target is self.eq and hasattr(target, "set_filter"):
+            target.set_filter(self.filter)
+
     # ------------------------------------------------------------------ the backend API
     def load(self, path):
+        """FLAC, Ogg, Opus ... go straight to the ffmpeg player (MCI cannot open them); the others back to
+        MCI when no equalizer is set."""
         self._resume_plays = False
+        if self.plain is not None:
+            if needs_ffmpeg(path):
+                self._use(self._eq_backend())
+            elif not self.filter:
+                self._use(self.plain)
         ok = self.active.load(path)
         self._path = path if ok else None
         return ok
@@ -357,12 +383,24 @@ class Controller:
         self._rng = rng or random.Random()
         self._history = []            # indexes already played (for "previous" in shuffle mode)
         self._played = set()          # indexes played in this shuffle round
+        self.gain = None              # 🔊 even volume: path -> share of the volume (None: every song as it is)
 
     # ------------------------------------------------------------------ volume
     def set_volume(self, percent):
         self.volume = max(0, min(100, int(percent)))
         if self._fade is None:
-            self.backend.set_volume(self.volume)
+            self.backend.set_volume(self._level())
+
+    def _level(self, path=None) -> int:
+        """The volume a song is played at: the user's, less for a song louder than the others (🔊)."""
+        path = path or self.current_path()
+        share = self.gain(path) if self.gain is not None and path else 1.0
+        return int(round(self.volume * share))
+
+    def relevel(self):
+        """The current song's loudness became known (or even volume was switched): play it at its level."""
+        if self._fade is None and self.state in ("playing", "paused"):
+            self.backend.set_volume(self._level())
 
     # ------------------------------------------------------------------ queue
     def set_tracks(self, tracks, keep_current=False):
@@ -451,7 +489,7 @@ class Controller:
     def _start(self, backend, path):
         opened = self._load(backend, path)
         if opened is True:
-            backend.set_volume(self.volume)
+            backend.set_volume(self._level(path))
             backend.play()
         return opened
 
@@ -515,6 +553,32 @@ class Controller:
         self.extra = None
         self.state = "stopped"
 
+    def let_go(self, path):
+        """The file of the song that sounds now is about to be rewritten (🏷 its tags): close it and say
+        where it was, for take_back(). None when that file is not open."""
+        current = self.current_path()
+        if self.state not in ("playing", "paused") or not current or not os.path.isfile(path)                 or os.path.normcase(os.path.abspath(current)) != os.path.normcase(os.path.abspath(path)):
+            return None
+        self._end_fade()
+        place = (self.backend.position_ms(), self.state)
+        self.backend.stop()
+        self.backend.close()
+        return place
+
+    def take_back(self, place):
+        """Open the song again after let_go(), at the same second, playing or paused as it was."""
+        if place is None:
+            return
+        path = self.current_path()
+        if not path or self._start(self.backend, path) is not True:
+            self.state = "stopped"
+            return
+        if place[0]:
+            self.backend.seek(place[0])
+        if place[1] == "paused":
+            self.backend.pause()
+        self.state = place[1]
+
     def next(self, automatic=False) -> bool:
         target = self._next_target(automatic)
         if target is None:
@@ -572,7 +636,7 @@ class Controller:
             return False
         self.spare.set_volume(0)
         self.spare.play()
-        old = self.backend
+        old, old_level = self.backend, self._level()
         self.backend, self.spare = self.spare, old      # the new song is "the" song from now on
         if kind == "queue":
             if self.queue and self.queue[0] is what:
@@ -584,14 +648,14 @@ class Controller:
             self.extra = None
             self.index = what
             self._played.add(what)
-        self._fade = (self._clock(), old)
+        self._fade = (self._clock(), old, old_level)
         return True
 
     def _step_fade(self):
-        start, old = self._fade
+        start, old, old_level = self._fade
         part = min(1.0, (self._clock() - start) * 1000 / max(1, self.fade_ms))
-        self.backend.set_volume(int(self.volume * part))
-        old.set_volume(int(self.volume * (1 - part)))
+        self.backend.set_volume(int(self._level() * part))
+        old.set_volume(int(old_level * (1 - part)))
         if part >= 1.0 or old.finished():
             self._end_fade()
 
@@ -599,11 +663,11 @@ class Controller:
         """Finish a cross-fade at once: the old song goes, the new one is at full volume."""
         if self._fade is None:
             return
-        _, old = self._fade
+        old = self._fade[1]
         self._fade = None
         old.stop()
         old.close()
-        self.backend.set_volume(self.volume)
+        self.backend.set_volume(self._level())
 
     def tick(self):
         """Called a few times a second: moves on when the track has ended (or fades into the next)."""
@@ -629,7 +693,7 @@ class Controller:
         path = track["path"]
         copy = self.prepare.ready(path)
         if copy and self.backend.load(copy):
-            self.backend.set_volume(self.volume)
+            self.backend.set_volume(self._level(path))
             self.backend.play()
             self.state = "playing"
             return

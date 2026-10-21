@@ -42,6 +42,9 @@ DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konu�
 - **Türe göre klasör** kutusu dosyaları Video, Müzik, Arşiv, Belge, Program, Resim, Diğer klasörlerine ayırır.
 - Her satırda ⏸/▶ (duraklat/devam), 📂 (klasörü aç), ✖ (kaldır) var; **sağ tık** menüsü ve çift tıkla açma da. DISO kapansa bile yarım indirmeler kaldığı yerden devam eder. Satırın solundaki renkli şerit durumu gösterir (iniyor, bitti, hata, beklemede).
 - Listede arama, filtre, sıralama ve kutucukla çoklu seçim (toplu başlat/duraklat/sil) var. Kısayollar: `Ctrl+F` ara, `Ctrl+A` hepsini seç, `Delete` seçilenleri sil.
+- **🧲 Torrent:** magnet linki, `.torrent` linki ya da `📄` ile `.torrent` dosyası ekle; aria2 ile iner (ilk torrentte bir kereliğine ~2.5 MB indirilir, SHA-256 ile doğrulanır). Bitince paylaşmaya devam etmez.
+- **🔧 Dosyayı kontrol et / onar** (biten indirmeye sağ tık): sonu eksikse yalnız eksik kısmı indirir, bozuksa baştan indirmeyi önerir.
+- **📋 Panoyu izle** açıkken kopyaladığın link için köşede küçük bir pencere sorar: İndir / MP4 / MP3 / Hayır.
 - Bağlantı koparsa indirme **kendi kendine tekrar dener** (10, 30, 60 sn… artan beklemeyle) ve kaldığı yerden sürer.
 - İndirme bitince ses ve Windows bildirimi gelir.
 
@@ -66,7 +69,9 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarıyla ayr
 - **🎛 Ekolayzır** (`🎛 EQ` düğmesi ya da ⚙ menüsü): 8 bant (60 Hz – 15 kHz) ve hazır ayarlar (Bas güçlü, Tiz güçlü, Vokal, Pop, Rock, Elektronik, Hip-hop, Klasik müzik, Akustik, Gece). Düz bırakırsan ses hiç değişmez; ayarlarsan şarkı kaldığı yerden FFmpeg ile, ayarlı sesle çalar.
 - **✨ Akıllı listeler:** listelerin sonunda **⭐ En çok dinlenenler**, **🆕 Son eklenenler** ve **💤 Hiç dinlenmeyenler**. Bütün listelerinden kendiliğinden dolarlar (bir şarkı 30 saniye çalınca dinlenmiş sayılır, atladıkların sayılmaz); elle değiştirilmezler.
 - **Klavyedeki medya tuşları** (çal/duraklat, ileri, geri, durdur) DISO öndeyken de arkadayken de çalışır. Tuşları yalnızca müzik çalarken (ya da duraklatılmışken) alır; durdurunca tarayıcıya ve diğer programlara geri bırakır.
-- Desteklenen biçimler Windows'un çalabildikleridir: mp3, wav, wma, m4a, aac. Windows'un doğrudan açamadığı dosyaların (kapak resmi büyük MP3'ler, Opus sesli videolar) çalınabilir bir kopyası ilk çalışta arka planda hazırlanır.
+- Desteklenen biçimler: mp3, wav, wma, m4a, aac, **flac, ogg, opus, aiff, wv, ape, mka** (bunlar FFmpeg ile doğrudan çalar).
+- **🔊 Ses seviyesini eşitle** (⚙ menüsü), **🏷 şarkı bilgilerini ve kapağı düzenle** (sağ tık), **✎ sözleri elle yaz / yapıştır**, **📤 / 📥 .m3u** listeleri dışa / içe aktar.
+- Windows'un doğrudan açamadığı dosyaların (kapak resmi büyük MP3'ler, Opus sesli videolar) çalınabilir bir kopyası ilk çalışta arka planda hazırlanır.
 
 #### 🔍 Şarkı bul
 Müzik çaların üstündeki **🔍 Şarkı bul** sekmesine şarkının adını yaz (YouTube linki de olur), istersen yanındaki **Sanatçı / kanal** kutusuna sanatçıyı yaz (boş da olur; tek başına sanatçı da yeter), Enter'a bas. Arama yalnızca YouTube Music'te yapılır ve yalnızca şarkılar gelir (YouTube videoları, lyrics videoları, shorts gelmez); yazdığına uyan şarkılar en üstte, en çok dinlenen önce. Sonuçlarda başlık, sanatçı, dinlenme ve süre görünür.
@@ -79,7 +84,7 @@ Müzik çaların üstündeki **🔍 Şarkı bul** sekmesine şarkının adını 
 - Aynı şarkıyı iki kez indirmez: iniyorsa bekler, inmişse yeniden listeye eklemeyi sorar, yarım kaldıysa kaldığı yerden sürer.
 
 ### ⚙ Ayarlar
-Aynı anda indirme sayısı (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, "Dene" düğmesiyle), bildirimler, **zamanlayıcı**, **kapatınca arka planda çalış** (sistem tepsisi), **Windows ile başlat**, tema (koyu/açık/sistem), görünüm stili (Yeni / Klasik / **Nostalji**: 2000'lerin indirme yöneticileri gibi menü, araç çubuğu, kategoriler ve tablo), **dil** (Türkçe/English), "tüm indirmeler bitince" eylemi (DISO'yu kapat / uyut / bilgisayarı kapat) ve günlük dosyası. Seçtiğin her şey kapanıp açılınca hatırlanır.
+Aynı anda indirme sayısı (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, "Dene" düğmesiyle), bildirimler, **zamanlayıcı**, **kapatınca arka planda çalış** (sistem tepsisi), **Windows ile başlat**, tema (koyu/açık/sistem), görünüm stili (Yeni / Klasik / **Nostalji**: 2000'lerin indirme yöneticileri gibi menü, araç çubuğu, kategoriler ve tablo; açık ya da koyu gri), **dil** (Türkçe/English), "tüm indirmeler bitince" eylemi (DISO'yu kapat / uyut / bilgisayarı kapat) ve günlük dosyası. Seçtiğin her şey kapanıp açılınca hatırlanır.
 
 **Yedek ve yardım:** 💾 Yedek al (ayarlar, çalma listeleri, indirme listesi ve geçmiş tek `.disoyedek` dosyasına), 📂 Yedeği yükle (başka bilgisayardan getir), 📊 İndirme geçmişi (ne zaman ne indi, ne kadar hızlı, en çok hangi siteden; listeden silinenler de kalır), ⌨ Klavye kısayolları (her yerde **F1**).
 
@@ -102,7 +107,7 @@ DISO'nun IDM'deki gibi bir tarayıcı eklentisi var: **Chrome, Edge, Brave, Oper
 **Firefox:** Firefox kendi manifest dosyasını istediği için rehberi kullan (eklentinin Firefox kopyasını hazırlar) ya da sürümdeki `DISO-firefox-extension-<sürüm>.zip` dosyasını al; sonra `about:debugging` → "Bu Firefox" → **Geçici eklenti yükle** → onun `manifest.json`'u (ya da zip'in kendisi). Firefox yalnızca imzalı eklentileri kalıcı tuttuğu için Firefox kapanınca eklenti de kalkar.
 
 ## Testler (geliştirenler için)
-`run_tests.bat` (ya da `python -m pytest`) tüm testleri çalıştırır. İnternet gerekmez: testler yerel bir sunucuyla Range desteği olmayan, bağlantısı kopan, bağlantı sınırı koyan sunucuları, sahte bir proxy'yi ve sahte bir PyPI'yi taklit eder. Eklentinin mantığı `node` ile de sınanır. İngilizce arayüz ve İngilizce kurulum ayrı bir süreçte gerçekten açılıp ekranda Türkçe yazı kalmadığı denetlenir. Gerçek FFmpeg gerektiren testler `ffmpeg/` klasöründe (veya PATH'te) ffmpeg yoksa, pencere testleri ekran yoksa, eklenti testleri node yoksa atlanır. Kurulum paketi testleri (`-m installer`) paket derlenmişse gerçek `DISO-Setup` dosyasını geçici bir yerde çalıştırır, gerçek Başlat menüne ya da kayıt defterine dokunmaz.
+`run_tests.bat` (ya da `python -m pytest`) tüm testleri çalıştırır. İnternet gerekmez: testler yerel bir sunucuyla Range desteği olmayan, bağlantısı kopan, bağlantı sınırı koyan sunucuları, sahte bir proxy'yi ve sahte bir PyPI'yi taklit eder. Eklentinin mantığı `node` ile de sınanır. İngilizce arayüz ve İngilizce kurulum ayrı bir süreçte gerçekten açılıp ekranda Türkçe yazı kalmadığı denetlenir. Gerçek FFmpeg gerektiren testler `ffmpeg/` klasöründe (veya PATH'te) ffmpeg yoksa, pencere testleri ekran yoksa, eklenti testleri node yoksa, gerçek torrent testleri (yerel bir izleyici ve paylaşan bir aria2 ile, internetsiz) aria2 kurulu değilse atlanır. Kurulum paketi testleri (`-m installer`) paket derlenmişse gerçek `DISO-Setup` dosyasını geçici bir yerde çalıştırır, gerçek Başlat menüne ya da kayıt defterine dokunmaz.
 - Sadece hızlı testler: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
 - Tek dosya: `python -m pytest tests/test_downloader.py`
 - Kurulumu pencere açmadan denetle: `python main.py --selftest sonuc.json`

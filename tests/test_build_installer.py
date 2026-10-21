@@ -354,3 +354,58 @@ def test_updating_a_one_file_install_to_the_folder_version_leaves_nothing_old(tm
         assert not dest.exists()
     finally:
         core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
+
+
+# ------------------------------------------------------------------------------ the packed payload (a small setup)
+def test_a_packed_payload_is_one_small_archive_and_installs_the_same(tmp_path):
+    from hizli_setup import core
+    app = tmp_path / "DISO"
+    expected = app_folder(app)
+    big = os.urandom(200_000)
+    (app / "_internal" / "ffmpeg" / "ffmpeg.exe").write_bytes(big + b"ffmpeg")
+    (app / "_internal" / "ffmpeg" / "ffprobe.exe").write_bytes(big + b"ffprobe")      # nearly the same program
+    expected["_internal/ffmpeg/ffmpeg.exe"] = big + b"ffmpeg"
+    expected["_internal/ffmpeg/ffprobe.exe"] = big + b"ffprobe"
+    un = tmp_path / "u.exe"
+    un.write_bytes(b"U" * 50)
+    payload = tmp_path / "payload"
+    filters = [{"id": __import__("lzma").FILTER_LZMA2, "preset": 1, "dict_size": 4 << 20}]
+    files = bi.make_payload(str(payload), str(app), str(un), None, "2.0.0", packed=True, filters=filters)
+    assert sorted(os.listdir(payload)) == ["payload.json", "payload.tar.xz"]
+    archive = json.loads((payload / "payload.json").read_text(encoding="utf-8"))["archive"]
+    assert archive["size"] == os.path.getsize(payload / "payload.tar.xz") < 300_000      # ffprobe costs nearly nothing
+    assert sum(f["size"] for f in files) > 400_000
+    env = core.test_env(str(tmp_path / "world"))
+    dest = tmp_path / "Program Files" / "ISO" / "DISO"
+    seen = []
+    try:
+        core.install(str(payload), core.Options(install_dir=str(dest)), env, closer=lambda f: 0,
+                     progress=lambda part, text: seen.append(part))
+        for rel, data in expected.items():
+            assert dest.joinpath(*rel.split("/")).read_bytes() == data
+        assert seen == sorted(seen) and seen[-1] == 1.0                                   # the bar only goes forward
+        core.uninstall(str(dest), env, closer=lambda f: 0)
+        assert not (tmp_path / "Program Files" / "ISO").exists()
+    finally:
+        core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
+
+
+def test_a_damaged_packed_payload_is_refused_before_anything_is_touched(tmp_path):
+    from hizli_setup import core
+    app = tmp_path / "a.exe"
+    app.write_bytes(b"A" * 5000)
+    un = tmp_path / "u.exe"
+    un.write_bytes(b"U" * 500)
+    payload = tmp_path / "payload"
+    bi.make_payload(str(payload), str(app), str(un), None, "1.0.0", packed=True,
+                    filters=[{"id": __import__("lzma").FILTER_LZMA2, "preset": 1}])
+    raw = bytearray((payload / "payload.tar.xz").read_bytes())
+    raw[len(raw) // 2] ^= 0xFF
+    (payload / "payload.tar.xz").write_bytes(bytes(raw))
+    env = core.test_env(str(tmp_path / "world"))
+    try:
+        with pytest.raises(core.SetupError, match="bozulmuş"):
+            core.install(str(payload), core.Options(install_dir=str(tmp_path / "dest")), env, closer=lambda f: 0)
+        assert not (tmp_path / "dest").exists()
+    finally:
+        core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))

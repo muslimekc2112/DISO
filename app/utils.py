@@ -248,7 +248,7 @@ def media_folder(base: str, kind: str, sort: bool) -> str:
 
 
 # ------------------------------------------------------------------------------- URLs
-_URL_RE = re.compile(r"^https?://\S+$", re.I)
+_URL_RE = re.compile(r"^(?:https?://\S+|magnet:\?\S+|file:///\S+\.torrent)$", re.I)   # 🧲 torrents too
 
 
 def normalize_url(text: str) -> str:
@@ -262,7 +262,7 @@ def is_url(text: str) -> bool:
     return bool(_URL_RE.match(normalize_url(text)))
 
 
-_FIND_URLS = re.compile(r"(?:https?://|www\.)[^\s<>\"']+", re.I)
+_FIND_URLS = re.compile(r"(?:https?://|www\.|magnet:\?)[^\s<>\"']+", re.I)
 
 
 def extract_urls(text: str) -> list:

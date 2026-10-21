@@ -42,6 +42,9 @@ The name, publisher, version and GitHub address are written in one place: `app/b
 - **Folders by type** sorts files into Video, Music, Archives, Documents, Programs, Images and Other folders.
 - Every row has ⏸/▶ (pause/resume), 📂 (open folder) and ✖ (remove), plus a **right-click** menu and double-click to open. Unfinished downloads go on from where they stopped, even after DISO was closed. The coloured strip on the left of a row shows its state (downloading, done, error, paused).
 - The list has search, filters, sorting and checkboxes for picking several rows (start/pause/delete them together). Shortcuts: `Ctrl+F` search, `Ctrl+A` select all, `Delete` delete the selected ones.
+- **🧲 Torrents:** add a magnet link, a `.torrent` link or a `.torrent` file with `📄`; aria2 downloads it (downloaded once with the first torrent, ~2.5 MB, checked with SHA-256). It is not shared on when finished.
+- **🔧 Check / repair the file** (right-click a finished download): only the missing end is downloaded when that is all that is wrong; a broken file can be downloaded again.
+- With **📋 Watch clipboard** on, a small window in the corner asks about a link you copy: Download / MP4 / MP3 / No.
 - If the connection drops, the download **retries by itself** (after 10, 30, 60 s… growing waits) and goes on from where it stopped.
 - A sound and a Windows notification tell you when a download is done.
 
@@ -66,7 +69,9 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 - **🎛 Equalizer** (the `🎛 EQ` button or the ⚙ menu): 8 bands (60 Hz – 15 kHz) and ready-made settings (Bass boost, Treble boost, Vocal, Pop, Rock, Electronic, Hip-hop, Classical, Acoustic, Night). Left flat, the sound does not change at all; set, the song goes on from the same moment through FFmpeg with the new sound.
 - **✨ Smart lists:** at the end of your lists, **⭐ Most played**, **🆕 Recently added** and **💤 Never played**. They fill themselves from all your lists (a song counts as listened to after 30 seconds; skipped ones do not count) and cannot be changed by hand.
 - **The media keys on your keyboard** (play/pause, next, previous, stop) work whether DISO is in front or not. DISO only takes them while music is playing (or paused); once stopped, it gives them back to the browser and other programs.
-- Supported formats are the ones Windows can play: mp3, wav, wma, m4a, aac. For files Windows cannot open directly (MP3s with large cover art, videos with Opus sound) a playable copy is made in the background the first time they play.
+- Supported formats: mp3, wav, wma, m4a, aac, **flac, ogg, opus, aiff, wv, ape, mka** (these play directly with FFmpeg).
+- **🔊 Even out the volume** (⚙ menu), **🏷 edit a song's details and cover** (right-click), **✎ write / paste lyrics**, **📤 / 📥 export / import .m3u** lists.
+- For files Windows cannot open directly (MP3s with large cover art, videos with Opus sound) a playable copy is made in the background the first time they play.
 
 #### 🔍 Find songs
 Type a song name (or a YouTube link) in the **🔍 Find songs** tab at the top of the music player, optionally an artist in the **Artist / channel** box next to it (it may stay empty; an artist alone is enough too), and press Enter. The search is done only on YouTube Music and brings only songs (no YouTube videos, lyric videos or shorts); the songs that match what you typed come first, the most listened to first. The results show title, artist, plays and length.
@@ -79,7 +84,7 @@ Type a song name (or a YouTube link) in the **🔍 Find songs** tab at the top o
 - The same song is never downloaded twice: if it is downloading DISO waits, if it is done it asks whether to add it to a list again, and if it stopped halfway it goes on from there.
 
 ### ⚙ Settings
-Number of downloads at the same time (1–8), a total **speed limit**, the number of automatic retries, a **proxy** (http / socks5, with a "Test" button), notifications, the **scheduler**, **keep running when closed** (system tray), **start with Windows**, theme (dark/light/system), style (New / Classic / **Nostalgia**: menu bar, toolbar, categories and a table, like the download managers of the 2000s), **language** (Türkçe/English), what to do "when all downloads finish" (close DISO / sleep / shut down the PC) and the log file. Everything you choose is remembered.
+Number of downloads at the same time (1–8), a total **speed limit**, the number of automatic retries, a **proxy** (http / socks5, with a "Test" button), notifications, the **scheduler**, **keep running when closed** (system tray), **start with Windows**, theme (dark/light/system), style (New / Classic / **Nostalgia**: menu bar, toolbar, categories and a table, like the download managers of the 2000s; light or dark grey), **language** (Türkçe/English), what to do "when all downloads finish" (close DISO / sleep / shut down the PC) and the log file. Everything you choose is remembered.
 
 **Backup and help:** 💾 Back up (settings, playlists, download list and history in one `.disoyedek` file), 📂 Restore (bring them from another PC), 📊 Download history (what was downloaded when, how fast, from which sites the most; rows you removed from the list stay here), ⌨ Keyboard shortcuts (**F1** everywhere).
 
@@ -102,7 +107,7 @@ DISO has a browser extension for **Chrome, Edge, Brave, Opera, Vivaldi** (and Fi
 **Firefox:** Firefox needs its own manifest, so use the guide (it prepares a Firefox copy of the extension) or `DISO-firefox-extension-<version>.zip` from the release; then on `about:debugging` → "This Firefox" → **Load Temporary Add-on** → its `manifest.json` (or the zip). Firefox only keeps signed add-ons, so this one goes away when Firefox closes.
 
 ## Tests (for developers)
-`run_tests.bat` (or `python -m pytest`) runs every test. No internet is needed: the tests imitate servers without Range support, servers that drop connections or limit them, a fake proxy and a fake PyPI on a local server. The extension's logic is also tested with `node`. The English interface and the English installer are really opened in a process of their own, and the tests check that no Turkish text is left on screen. Tests that need a real FFmpeg are skipped without ffmpeg in `ffmpeg/` (or on PATH), window tests without a display, extension tests without node. The setup package tests (`-m installer`) run the real `DISO-Setup` file in a temporary place if the package was built; they never touch your real Start menu or registry.
+`run_tests.bat` (or `python -m pytest`) runs every test. No internet is needed: the tests imitate servers without Range support, servers that drop connections or limit them, a fake proxy and a fake PyPI on a local server. The extension's logic is also tested with `node`. The English interface and the English installer are really opened in a process of their own, and the tests check that no Turkish text is left on screen. Tests that need a real FFmpeg are skipped without ffmpeg in `ffmpeg/` (or on PATH), window tests without a display, extension tests without node, the real torrent tests (a local tracker and a seeding aria2, no internet) without aria2. The setup package tests (`-m installer`) run the real `DISO-Setup` file in a temporary place if the package was built; they never touch your real Start menu or registry.
 - Only the quick tests: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
 - One file: `python -m pytest tests/test_downloader.py`
 - Check the installation without opening a window: `python main.py --selftest result.json`

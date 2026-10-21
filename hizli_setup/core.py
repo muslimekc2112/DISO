@@ -6,8 +6,10 @@ steps (copy and check everything under temporary names, then swap), and any erro
 computer back the way it was."""
 import hashlib
 import json
+import lzma
 import os
 import shutil
+import tarfile
 import time
 import winreg
 from dataclasses import dataclass, field
@@ -368,6 +370,32 @@ def load_payload(payload_dir):
     return data
 
 
+def _sources(payload_dir, data):
+    """(item, open file) for every file of the payload, in order: the loose files, or the files coming out of
+    the packed .tar.xz one after the other (read once, never unpacked to a temporary folder first)."""
+    files = data["files"]
+    archive = data.get("archive")
+    if not archive:
+        for item in files:
+            yield item, open(os.path.join(payload_dir, item["name"]), "rb")
+        return
+    wanted = {item["name"]: item for item in files}
+    seen = set()
+    try:
+        with tarfile.open(os.path.join(payload_dir, archive["name"]), mode="r|xz") as tar:
+            for member in tar:
+                item = wanted.get(member.name)
+                if item is None or not member.isfile() or member.name in seen:
+                    continue
+                seen.add(member.name)
+                yield item, tar.extractfile(member)
+    except (tarfile.TarError, EOFError, lzma.LZMAError) as e:       # it was checked whole before: hardly ever
+        raise SetupError("Kurulum paketi açılamadı (bozuk inmiş olabilir). Kurulum dosyasını yeniden indir.") from e
+    missing = [name for name in wanted if name not in seen]
+    if missing:
+        raise SetupError(f"Kurulum paketinde “{missing[0]}” yok. Kurulum dosyasını yeniden indir.")
+
+
 # ----------------------------------------------------------------------------------- install
 def install(payload_dir, options: Options, env: Env, progress=_noop, closer=winapi.close_programs_in,
             shortcut=winapi.create_shortcut, free_space=winapi.free_space, now=time.time) -> Result:
@@ -380,7 +408,8 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
 
     # ---- before touching anything: is it all there, and is there room?
     progress(0.0, "Dosyalara bakıyorum…")
-    for item in files:
+    archive = data.get("archive")
+    for item in [archive] if archive else files:              # a packed payload: its files are checked as they come out
         src = os.path.join(payload_dir, item["name"])
         if not os.path.isfile(src):
             raise SetupError(f"Kurulum paketinde “{item['name']}” yok. Kurulum dosyasını yeniden indir.")
@@ -427,13 +456,12 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
             created_dirs.append(target)
         total = sum(item["size"] for item in files) or 1
         done = 0
-        for item in files:
+        for item, fin in _sources(payload_dir, data):
             dest = os.path.join(target, item["dest"])
             _make_dirs(os.path.dirname(dest), created_dirs)
             temp = dest + ".new"
-            src = os.path.join(payload_dir, item["name"])
             staged.append(temp)
-            with open(src, "rb") as fin, open(temp, "wb") as fout:
+            with fin, open(temp, "wb") as fout:
                 while True:
                     block = fin.read(4 << 20)
                     if not block:

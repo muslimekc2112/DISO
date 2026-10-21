@@ -15,6 +15,7 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "ask_list": "",                                           # the list picked last for a found song
                   "fade": 0,                                                # s of cross-fade between songs (0: none)
                   "eq": [0] * 8,                                            # 🎛 the equalizer, dB per band (equalizer.py)
+                  "level": False,                                           # 🔊 even volume (loudness.py)
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
 # ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)
@@ -465,3 +466,61 @@ class PlaylistStore:
                 changed = True
         if changed and _persist:
             self.save()
+
+
+# ------------------------------------------------------------------ .m3u files
+def write_m3u(tracks, target: str) -> int:
+    """Save tracks as an .m3u / .m3u8 list (UTF-8) that other players and phones read. A song in the list's
+    folder (or below it) is written relative to it, so the folder can be copied as a whole; the others
+    with their full path. Returns how many songs were written."""
+    base = os.path.dirname(os.path.abspath(target))
+    lines = ["#EXTM3U"]
+    for t in tracks:
+        path = os.path.abspath(t["path"])
+        artist, title = artist_and_title(t)
+        seconds = int((t.get("duration") or 0) / 1000) or -1
+        lines.append(f"#EXTINF:{seconds},{artist + ' - ' if artist else ''}{title}")
+        try:
+            rel = os.path.relpath(path, base)
+        except ValueError:                                  # another drive
+            rel = path
+        lines.append(path if rel.startswith("..") or os.path.isabs(rel) else rel)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\r\n") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(tmp, target)
+    return len(tracks)
+
+
+def read_m3u(source: str) -> list:
+    """The music files an .m3u / .m3u8 / .pls list names, in order (relative paths are read from the
+    list's folder, file:/// addresses too). Lines that are not files on this computer are left out."""
+    from urllib.parse import unquote, urlsplit
+    raw = open(source, "rb").read()
+    for codec in ("utf-8-sig", "cp1254", "latin-1"):        # old players wrote the Windows code page
+        try:
+            text = raw.decode(codec)
+            break
+        except UnicodeDecodeError:
+            continue
+    base = os.path.dirname(os.path.abspath(source))
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line.lower().startswith("file") and "=" in line and source.lower().endswith(".pls"):
+            line = line.split("=", 1)[1].strip()            # File1=C:\music\a.mp3
+        if not line or line.startswith("#") or "=" in line and source.lower().endswith(".pls"):
+            continue
+        if line.lower().startswith("file:"):
+            parts = urlsplit(line)
+            line = unquote(parts.path)
+            if parts.netloc:                                # file://server/share/a.mp3
+                line = f"\\{parts.netloc}{line}"
+            elif len(line) > 2 and line[0] == "/" and line[2] == ":":
+                line = line[1:]                             # file:///C:/music/a.mp3
+        elif "://" in line:
+            continue                                        # an internet radio, not a file
+        path = os.path.normpath(os.path.join(base, line))
+        if is_audio(path) and os.path.isfile(path):
+            out.append(path)
+    return out

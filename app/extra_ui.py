@@ -1,11 +1,13 @@
-"""Two small windows of the download side: the download history with its numbers (📊), and the list of
-keyboard shortcuts (F1)."""
+"""Small windows of the download side: the download history with its numbers (📊), the list of keyboard
+shortcuts (F1), and the corner window that asks what to do with a copied link (📋)."""
 import datetime
 import os
+import tkinter as tk
 from tkinter import ttk
 
 import customtkinter as ctk
 
+from . import look
 from .i18n import tr
 from .music_ui import style_table
 from .ui_common import fit_geometry, set_window_icon
@@ -40,6 +42,69 @@ SHORTCUTS = [
         ("Esc", "Sözler penceresini ve küçük pencereleri kapat"),
     ]),
 ]
+
+
+class ClipPrompt(ctk.CTkToplevel):
+    """📋 "Panoyu izle": a link was copied. A small window in the bottom right corner (over the other
+    programs, also when DISO is in the tray) asks what to do: download it (as chosen in DISO), as MP4, as
+    MP3, or nothing. It goes by itself after a while; `answer(urls, kind or None)` is called once."""
+
+    SECONDS = 15
+    WIDTH, HEIGHT = 380, 128
+
+    def __init__(self, parent, urls, answer):
+        super().__init__(parent)
+        self.urls, self._answer, self._answered = list(urls), answer, False
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
+        self.configure(border_width=1, border_color=look.N_FRAME if look.is_nostalgia() else ("gray70", "gray30"))
+        first = self.urls[0]
+        what = first if len(first) <= 52 else first[:49] + "…"
+        title = "📋 Bu linki indireyim mi?" if len(self.urls) == 1 else f"📋 {len(self.urls)} linki indireyim mi?"
+        ctk.CTkLabel(self, text=title, anchor="w", font=ctk.CTkFont(size=14, weight="bold")).pack(
+            fill="x", padx=14, pady=(10, 0))
+        ctk.CTkLabel(self, text=what, anchor="w", text_color=look.grey_text()).pack(fill="x", padx=14)
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=(8, 10))
+        self.buttons = {}
+        for key, text, kind in (("go", "⬇ İndir", "auto"), ("video", "🎬 MP4", "video"),
+                                ("audio", "🎵 MP3", "audio"), ("no", "Hayır", None)):
+            b = ctk.CTkButton(row, text=text, width=80, height=30, command=lambda k=kind: self.choose(k))
+            if kind is None:
+                b.configure(fg_color="transparent", border_width=1, text_color=("gray20", "gray85"))
+            b.pack(side="left", padx=4)
+            self.buttons[key] = b
+        self.bind("<Escape>", lambda e: self.choose(None))
+        self._place()
+        self._timer = self.after(self.SECONDS * 1000, lambda: self.choose(None))
+
+    def _place(self):
+        """Bottom right, above the taskbar (the work area of the main screen)."""
+        self.update_idletasks()
+        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+        right, bottom = self.winfo_screenwidth(), self.winfo_screenheight() - 48
+        try:
+            import ctypes
+            from ctypes import wintypes
+            area = wintypes.RECT()
+            if ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(area), 0):   # SPI_GETWORKAREA
+                right, bottom = area.right, area.bottom
+        except (AttributeError, OSError):
+            pass
+        self.geometry(f"+{max(0, right - w - 16)}+{max(0, bottom - h - 16)}")
+
+    def choose(self, kind):
+        if self._answered:
+            return
+        self._answered = True
+        try:
+            self.after_cancel(self._timer)
+        except (tk.TclError, ValueError):
+            pass
+        try:
+            self.destroy()
+        finally:
+            self._answer(self.urls, kind)
 
 
 class ShortcutsWindow(ctk.CTkToplevel):

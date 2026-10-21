@@ -12,13 +12,13 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
-from . import equalizer, i18n, look, lyrics, mediakeys, music_search, playlists, smtc, tags
+from . import equalizer, i18n, look, loudness, lyrics, mediakeys, music_search, playlists, smtc, tags
 from . import taskbar as taskbar_module
 from .logs import log
 from .playlists import FADE_CHOICES
 from .player import AUDIO_EXTENSIONS, REPEAT_MODES, artist_and_title, track_label
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon
-from .utils import is_url, open_in_file_manager
+from .utils import is_url, open_in_file_manager, sanitize_filename
 
 MODE_DOWNLOAD = "İndirme modu"
 MODE_MUSIC = "Müzik çalar modu"
@@ -94,7 +94,7 @@ def placeholder_image(px=COVER_PX * 2, shown=COVER_PX):
     """The 'no cover' tile, one colour for each appearance."""
     from PIL import Image
     if look.is_nostalgia():                      # a plain grey square, like the album art of old players
-        tile = Image.new("RGB", (px, px), "#D4D0C8")
+        tile = Image.new("RGB", (px, px), look.N_BUTTON if look.is_dark_nostalgia() else "#D4D0C8")
         return ctk.CTkImage(light_image=tile, dark_image=tile, size=(shown, shown))
     tiles = [rounded(Image.new("RGB", (px, px), colour), px // 8) for colour in ("#EADFF0", "#2A1B36")]
     return ctk.CTkImage(light_image=tiles[0], dark_image=tiles[1], size=(shown, shown))
@@ -155,7 +155,7 @@ class MusicWindow(ctk.CTkToplevel):
     _ttk_ready = False
 
     def __init__(self, app, store, controller, on_close, on_mode, reader=None, keys=None, searcher=None,
-                 lyrics_fetcher=None, suggester=None, previewer=None, overlay=None, thumbbar=None):
+                 lyrics_fetcher=None, suggester=None, previewer=None, overlay=None, thumbbar=None, leveler=None):
         super().__init__(app)
         set_window_icon(self)
         self.app = app
@@ -173,6 +173,8 @@ class MusicWindow(ctk.CTkToplevel):
         self.overlay = overlay if overlay is not None else smtc.MediaOverlay()
         self.thumbbar = thumbbar if thumbbar is not None else taskbar_module.ThumbBar()
         self.mini = None                             # the small always-on-top player, while it is open
+        self.leveler = leveler if leveler is not None else loudness.Leveler()      # 🔊 even volume
+        self._level_for = None                       # the song whose coming ones were last sent to be measured
         self.preview = None                          # {"result", "path", "until", "resume"} while a preview sounds
         self._preview_backend = None
         self._preview_wanted = None                  # the result whose preview is being made
@@ -218,6 +220,7 @@ class MusicWindow(ctk.CTkToplevel):
         controller.repeat = store.state["repeat"]
         controller.set_volume(store.state["volume"])
         controller.fade_ms = int(store.state["fade"]) * 1000
+        controller.gain = self.leveler.gain if store.state["level"] else None
         self.eq_window = None
         if not equalizer.is_flat(store.state["eq"]):
             self.apply_eq(store.state["eq"], remember=False)
@@ -265,7 +268,10 @@ class MusicWindow(ctk.CTkToplevel):
         fade = self.store.state["fade"]
         fades = [((("● " if s == fade else "   ") + (f"{s} sn" if s else "Kapalı")), lambda s=s: self.set_fade(s))
                  for s in FADE_CHOICES]
-        items = [("🎚 Şarkılar arası geçiş", fades), ("🎛 Ekolayzır…", self.open_eq), ("🗗 Mini oynatıcı", self.open_mini)]
+        level = ("✓ " if self.store.state["level"] else "   ") + "🔊 Ses seviyesini eşitle"
+        items = [("🎚 Şarkılar arası geçiş", fades), ("🎛 Ekolayzır…", self.open_eq), ("🗗 Mini oynatıcı", self.open_mini),
+                 (level, lambda: self.set_level(not self.store.state["level"])),
+                 None, ("📤 Bu listeyi dışa aktar (.m3u)…", self.export_list), ("📥 Liste içe aktar (.m3u)…", self.import_list)]
         shortcuts = getattr(self.app, "open_shortcuts", None)
         if shortcuts:
             items += [None, ("⌨ Klavye kısayolları  (F1)", shortcuts)]
@@ -280,7 +286,8 @@ class MusicWindow(ctk.CTkToplevel):
                        ("İndirme moduna geç", mode)]),
             ("Liste", [("Yeni liste…", self._new_list), ("Yeniden adlandır…", self._rename_list),
                        ("Listeyi sil", self._delete_list), None, ("Karıştır", self._shuffle_list),
-                       ("Karıştırmayı geri al", self._undo_shuffle), ("Listeyi temizle", self._clear_list)]),
+                       ("Karıştırmayı geri al", self._undo_shuffle), ("Listeyi temizle", self._clear_list), None,
+                       ("Dışa aktar (.m3u)…", self.export_list), ("İçe aktar (.m3u)…", self.import_list)]),
             ("Çalma", [("Çal / duraklat", self._toggle), ("Önceki", self._previous), ("Sonraki", self._next),
                        ("Durdur", self._stop), None, ("Tekrar", self._cycle_repeat)]),
             ("Araçlar", [("Şarkı bul", lambda: self._show_view(VIEW_FIND)),
@@ -330,6 +337,38 @@ class MusicWindow(ctk.CTkToplevel):
             pass
         self.eq_window = EqualizerWindow(self)
         return self.eq_window
+
+    def set_level(self, on):
+        """🔊 Even volume: a song louder than the others plays softer (its loudness is measured once)."""
+        self.store.set_state(level=bool(on))
+        self.controller.gain = self.leveler.gain if on else None
+        self.controller.relevel()
+        self._measure_coming()
+        self.note("🔊 Ses seviyesi eşitleniyor: çok yüksek kaydedilmiş şarkılar biraz kısık çalar" if on
+                  else "🔊 Ses seviyesi eşitleme kapandı: her şarkı kendi sesiyle çalar")
+
+    def _measure_coming(self):
+        """Measure the song that plays and the ones after it (a few at a time, in the background)."""
+        if not self.store.state["level"]:
+            return
+        c = self.controller
+        coming = [c.current_path()] + [t["path"] for t in c.queue[:2]]
+        if c.tracks and c.index >= 0:
+            coming += [c.tracks[(c.index + k) % len(c.tracks)]["path"] for k in (1, 2)]
+        for path in coming:
+            if path:
+                self.leveler.request(path)
+
+    def _take_levels(self):
+        if self.controller.gain is None:
+            return
+        current = self.controller.current_path()
+        if current != self._level_for:               # a new song: measure it and the next ones
+            self._level_for = current
+            self._measure_coming()
+        measured = self.leveler.drain()
+        if current and any(playlists.same_file(p, current) for p in measured):
+            self.controller.relevel()
 
     def set_fade(self, seconds):
         self.store.set_state(fade=int(seconds))
@@ -798,6 +837,54 @@ class MusicWindow(ctk.CTkToplevel):
             self._sync_queue()
             self._refresh_tracks()
 
+    # ------------------------------------------------------------------ .m3u
+    def _pick_m3u_target(self, name):
+        return filedialog.asksaveasfilename(parent=self, title="Listeyi dışa aktar", defaultextension=".m3u8",
+                                            initialfile=sanitize_filename(name) + ".m3u8",
+                                            filetypes=[("Çalma listesi", "*.m3u8 *.m3u"), ("Hepsi", "*.*")])
+
+    def _pick_m3u_source(self):
+        return filedialog.askopenfilename(parent=self, title="Liste içe aktar",
+                                          filetypes=[("Çalma listesi", "*.m3u8 *.m3u *.pls"), ("Hepsi", "*.*")])
+
+    def export_list(self):
+        """📤 The list shown, as an .m3u8 file that other players and phones read."""
+        tracks = self.store.tracks(self.viewed)
+        if not tracks:
+            self.note("Liste boş, dışa aktaracak şarkı yok")
+            return None
+        target = self._pick_m3u_target(self.viewed)
+        if not target:
+            return None
+        try:
+            n = playlists.write_m3u(tracks, target)
+        except OSError as e:
+            self.note(f"Liste kaydedilemedi: {e}", 8)
+            return None
+        self.note(f"📤 {n} şarkı “{os.path.basename(target)}” dosyasına yazıldı", 8)
+        return target
+
+    def import_list(self):
+        """📥 An .m3u / .m3u8 / .pls file of another player becomes a new list with its name."""
+        source = self._pick_m3u_source()
+        if not source:
+            return None
+        try:
+            paths = playlists.read_m3u(source)
+        except OSError as e:
+            self.note(f"Liste okunamadı: {e}", 8)
+            return None
+        if not paths:
+            self.note("O listedeki şarkıların hiçbiri bu bilgisayarda yok", 8)
+            return None
+        name = self.store.create(os.path.splitext(os.path.basename(source))[0] or "Liste")
+        n = self.store.add(name, paths)
+        self.viewed = name
+        self.store.set_state(last=name)
+        self._refresh_lists()
+        self.note(f"📥 “{name}” listesine {n} şarkı geldi", 8)
+        return name
+
     def _move(self, offset):
         picked = self._selected()
         if picked and self.filter_text.strip():
@@ -848,6 +935,8 @@ class MusicWindow(ctk.CTkToplevel):
                 ("➕ Sıraya ekle", self._queue_selected),
                 ("📂 Klasörde göster", self._reveal_selected),
                 (words, self._lyrics_for_selected), *again,
+                ("✎ Sözleri elle yaz / düzenle", lambda: self.edit_lyrics(first)),
+                ("🏷 Bilgileri düzenle (ad, sanatçı, kapak)…", lambda: self.edit_tags(first)),
                 ("➕ Başka listeye ekle", [(n, lambda n=n: self._copy_selected(n)) for n in others]
                  + [("＋ Yeni liste…", self._copy_to_new_list)]),
                 *([] if playlists.is_smart(self.viewed) else [None, ("✖ Listeden çıkar", self._remove_selected)])]
@@ -1005,6 +1094,56 @@ class MusicWindow(ctk.CTkToplevel):
                 pass
         self.lyrics_window = LyricsWindow(self, on_seek=self._seek_ms, on_find=self.find_lyrics)
         self.lyrics_window.show(track)
+
+    # ------------------------------------------------------------------ 🏷 tags by hand
+    def edit_tags(self, track):
+        """🏷 The tag editor for this song (its name, artist, album, year, genre and cover, in the file)."""
+        if not track:
+            return None
+        if not os.path.isfile(track["path"]):
+            self.note("Bu parçanın dosyası yerinde yok")
+            return None
+        from .tag_editor_ui import TagEditor
+        win = getattr(self, "tag_editor", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.destroy()
+        except tk.TclError:
+            pass
+        self.tag_editor = TagEditor(self, track["path"], write=tags.write_tags, done=self._tags_written,
+                                    before=self.controller.let_go)
+        return self.tag_editor
+
+    def _tags_written(self, path, fields, error, place):
+        """The tag editor has written (or failed to write) the file: the song goes on, everything shows the new names."""
+        self.controller.take_back(place)
+        if error:
+            return
+        info = {"title": fields.get("title", ""), "artist": fields.get("artist", ""), "album": fields.get("album", "")}
+        for tracks in self.store.lists.values():
+            for t in tracks:
+                if playlists.same_file(t["path"], path):
+                    for key, name in (("title", "tag_title"), ("artist", "artist"), ("album", "album")):
+                        if info[key]:
+                            t[name] = info[key]
+                        else:
+                            t.pop(name, None)
+        self.store.save()
+        self.reader.request(path)
+        self._covers.pop(path, None)
+        self._refresh_rows_for({path: info})
+        if self._cover_path is not None and playlists.same_file(self._cover_path, path):
+            self._cover_path = None                       # read the cover again
+        self._show_now_playing()
+        self.note("🏷 Şarkının bilgileri kaydedildi")
+
+    def edit_lyrics(self, track):
+        """✎ Write or paste the lyrics of this song by hand."""
+        if not track:
+            return
+        self.open_lyrics(track)
+        if self.lyrics_window is not None:
+            self.lyrics_window.edit()
 
     def find_lyrics(self, track) -> bool:
         """Look the song's lyrics up on the internet (in the background)."""
@@ -1793,6 +1932,7 @@ class MusicWindow(ctk.CTkToplevel):
             self._take_answer()
             self._take_lyrics()
             self._follow_lyrics()
+            self._take_levels()
             self._update_result_states()
             self._update_downloads()
             self._update_queue_button()
@@ -1889,7 +2029,8 @@ class MusicWindow(ctk.CTkToplevel):
             self.controller.stop()
         except Exception:  # noqa: BLE001 - closing anyway
             pass
-        for step in (self.stop_preview, lambda: self.close_mini(show=False), self.thumbbar.detach, self.overlay.close):
+        for step in (self.stop_preview, lambda: self.close_mini(show=False), self.thumbbar.detach, self.overlay.close,
+                     self.leveler.stop):
             try:
                 step()
             except Exception:  # noqa: BLE001 - closing anyway
@@ -2041,6 +2182,9 @@ class LyricsWindow(ctk.CTkToplevel):
         self.empty_text.pack()
         self.find_btn = ctk.CTkButton(self.empty, text="🔎 İnternette ara", command=self._find)
         self.find_btn.pack(pady=(12, 0))
+        ctk.CTkButton(self.empty, text="✎ Kendim yazayım / yapıştırayım", fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=self.edit).pack(pady=(8, 0))
+        self.editing = False
 
         foot = ctk.CTkFrame(self, fg_color="transparent")
         foot.grid(row=2, column=0, sticky="ew", padx=16, pady=(4, 14))
@@ -2052,7 +2196,12 @@ class LyricsWindow(ctk.CTkToplevel):
         self.again_btn = ctk.CTkButton(foot, text="🔄 Yanlışsa yeniden bul", width=150, fg_color="transparent",
                                        border_width=1, text_color=("gray20", "gray85"), command=self._find)
         self.again_btn.grid(row=0, column=3, padx=(0, 8))
-        ctk.CTkButton(foot, text="Kapat", width=90, command=self.destroy).grid(row=0, column=4)
+        self.edit_btn = ctk.CTkButton(foot, text="✎ Düzenle", width=90, fg_color="transparent", border_width=1,
+                                      text_color=("gray20", "gray85"), command=self.edit)
+        self.edit_btn.grid(row=0, column=4, padx=(0, 8))
+        self.close_btn = ctk.CTkButton(foot, text="Kapat", width=90, command=self.destroy)
+        self.close_btn.grid(row=0, column=5)
+        self.foot = foot
         self.bind("<Escape>", lambda e: self.destroy())
         try:
             self.transient(parent)
@@ -2073,6 +2222,8 @@ class LyricsWindow(ctk.CTkToplevel):
 
     def show(self, track):
         """Show this song's lyrics (or say there are none and offer to look)."""
+        if self.editing:
+            self._end_edit()
         self.track, self.path = track, track["path"]
         self.data = lyrics.load(self.path)
         self.current = -1
@@ -2086,7 +2237,9 @@ class LyricsWindow(ctk.CTkToplevel):
             self.find_btn.configure(state="normal", text="🔎 İnternette ara")
             self.empty.place(relx=0.5, rely=0.45, anchor="center")
             set_if_changed(self.hint, text="")
+            self.edit_btn.grid_remove()
             return
+        self.edit_btn.grid()
         self.empty.place_forget()
         self.again_btn.configure(state="normal", text="🔄 Yanlışsa yeniden bul")
         self.box.grid()
@@ -2094,6 +2247,63 @@ class LyricsWindow(ctk.CTkToplevel):
         self.badge.configure(text="  ⏱ Şarkıyla akar  " if self.synced else "  📝 Sözler  ")
         set_if_changed(self.hint, text="Bir satıra tıkla, oradan çalsın" if self.synced else "")
         self._fill()
+
+    # ------------------------------------------------------------------ ✎ by hand
+    def edit(self):
+        """The lyrics as an editable text: fix a line, or paste lyrics found elsewhere. Lines like
+        '[01:23.45] words' keep following the song; without time marks they are plain lyrics."""
+        if self.path is None:
+            return
+        self.editing = True
+        self.empty.place_forget()
+        self.badge.grid_remove()
+        self.box.grid()
+        t = self.text
+        t.configure(state="normal", cursor="xterm")
+        t.delete("1.0", "end")
+        for tag in ("now", "past", "next", "all"):
+            t.tag_remove(tag, "1.0", "end")
+        family = ctk.ThemeManager.theme.get("CTkFont", {}).get("family", "Segoe UI")
+        t.tag_configure("edit", font=(family if isinstance(family, str) else "Segoe UI", 12), justify="left")
+        t.insert("1.0", lyrics.raw(self.path), ("edit",))
+        t.focus_set()
+        set_if_changed(self.hint, text="Boş kaydedersen sözler silinir")
+        for b in (self.again_btn, self.edit_btn):
+            b.grid_remove()
+        self.save_btn = ctk.CTkButton(self.foot, text="💾 Kaydet", width=90, command=self.save_edit)
+        self.save_btn.grid(row=0, column=3, padx=(0, 8))
+        self.close_btn.configure(text="Vazgeç", command=self._cancel_edit)
+
+    def save_edit(self):
+        text = self.text.get("1.0", "end")
+        try:
+            found = lyrics.write_by_hand(self.path, text)
+        except OSError as e:
+            messagebox.showerror("DISO", f"Sözler kaydedilemedi: {e}", parent=self)
+            return
+        self._end_edit()
+        self.show(self.track)
+        changed = getattr(self.master, "_update_lyrics_button", None)
+        if changed:
+            changed()
+        note = getattr(self.master, "note", None)
+        if note:
+            note("🎤 Sözler kaydedildi" if found else "🎤 Sözler silindi")
+
+    def _cancel_edit(self):
+        self._end_edit()
+        self.show(self.track)
+
+    def _end_edit(self):
+        self.editing = False
+        btn = getattr(self, "save_btn", None)
+        if btn is not None:
+            btn.destroy()
+            self.save_btn = None
+        self.again_btn.grid()
+        self.edit_btn.grid()
+        self.close_btn.configure(text="Kapat", command=self.destroy)
+        self.text.tag_remove("edit", "1.0", "end")
 
     def _colors(self):
         theme = ctk.ThemeManager.theme
@@ -2128,7 +2338,7 @@ class LyricsWindow(ctk.CTkToplevel):
     # ------------------------------------------------------------------ following the song
     def follow(self, track, ms):
         """Called by the player a few times a second while it plays."""
-        if track is None:
+        if track is None or self.editing:
             return
         if track["path"] != self.path:
             self.show(track)
@@ -2159,7 +2369,7 @@ class LyricsWindow(ctk.CTkToplevel):
             return -1
 
     def _on_click(self, event):
-        if not self.synced:
+        if self.editing or not self.synced:
             return None
         i = self._line_under(event)
         if 0 <= i < len(self.data["synced"]):

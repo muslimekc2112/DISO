@@ -185,6 +185,27 @@ def fetch(artist: str, title: str, seconds: float = 0, video_id="", ytm=None):
     return "[re:YouTube Music]\n" + found[0] if found else None
 
 
+def raw(audio_path: str) -> str:
+    """The lyrics file of this song as it is written (time marks and all), "" when there is none."""
+    try:
+        with open(lyrics_path(audio_path), encoding="utf-8-sig") as f:
+            return f.read()
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
+def write_by_hand(audio_path: str, text: str) -> bool:
+    """✎ Lyrics written or pasted by the user. Empty text deletes the lyrics (True: there are lyrics now)."""
+    if (text or "").strip():
+        save(audio_path, text)
+        return True
+    try:
+        os.remove(lyrics_path(audio_path))
+    except OSError:
+        pass
+    return False
+
+
 def save(audio_path: str, text: str) -> str:
     path = lyrics_path(audio_path)
     tmp = path + ".tmp"

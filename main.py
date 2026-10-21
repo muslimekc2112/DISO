@@ -46,7 +46,7 @@ def main(argv) -> int:
     i18n.set_language(cfg.get("language"))   # the interface language; before the first window exists
     from app import native_host
     threading.Thread(target=_register_host, args=(native_host,), daemon=True, name="native-host").start()
-    look.apply(Config().get("look"))      # colours and shapes; before the first window exists
+    look.apply(cfg.get("look"), cfg.get("theme"))   # colours and shapes; before the first window exists
     app = App(minimized="--minimized" in argv)
     app.mainloop()
     if app.restart_requested:

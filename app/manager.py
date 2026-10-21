@@ -17,7 +17,7 @@ import threading
 import time
 from urllib.parse import urlsplit
 
-from . import jobs
+from . import jobs, torrent
 from . import video_engine as ve
 from .logs import log
 from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED, PROCESSING,
@@ -289,6 +289,8 @@ class DownloadManager:
                 os.remove(p)
             except OSError:
                 pass
+        if item.temp_files and torrent.is_torrent_link(item.url):     # a torrent's own folders, now empty
+            torrent.remove_empty_dirs(item.temp_files, item.folder)
         item.temp_files = []
 
     def _dispatch(self):
@@ -351,6 +353,14 @@ class DownloadManager:
 
     def _run(self, item: Item):
         try:
+            if torrent.is_torrent_link(item.url):          # 🧲 whatever was chosen: aria2 downloads it
+                torrent.run(item)
+                item.state = DONE
+                item.fraction = 1.0
+                item.retries = 0
+                self.events.put(("done", item))
+                log.info("done: %s -> %s", item.url, item.final_path)
+                return
             if item.kind == "auto":
                 jobs.classify(item)
             elif item.kind in ("video", "audio") and item.origin != "music":

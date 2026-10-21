@@ -262,3 +262,90 @@ class TagReader:
         self._jobs.put(None)
         self._thread.join(timeout=1)
         self.save()
+
+
+# ------------------------------------------------------------------ 🏷 writing tags (the tag editor)
+FIELDS = ("title", "artist", "album", "date", "genre")
+COVER_FORMATS = (".mp3", ".m4a", ".mp4", ".aac", ".flac")     # files that can carry a cover picture
+KEEP, REMOVE = "keep", "remove"                              # cover: as it is / take it out (else a picture file)
+
+
+def read_fields(path: str) -> dict:
+    """{field: text} of FIELDS as written in the file now ("" when missing)."""
+    ffprobe = _tool("ffprobe")
+    tags = {}
+    if ffprobe:
+        try:
+            proc = _run([ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path])
+            data = json.loads(_text(proc.stdout) or "{}")
+            for part in [data.get("format") or {}] + list(data.get("streams") or []):
+                for k, v in (part.get("tags") or {}).items():
+                    tags.setdefault(str(k).lower(), v)
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            log.info("cannot read tags of %s: %s", path, e)
+    out = {f: _clean(tags.get(f)) for f in FIELDS}
+    out["date"] = out["date"] or _clean(tags.get("year"))
+    return out
+
+
+def _cover_jpeg(picture: str, target: str) -> str:
+    """The chosen picture as a JPEG of at most 800 pixels (what every player shows)."""
+    from PIL import Image
+    with Image.open(picture) as im:
+        im = im.convert("RGB")
+        im.thumbnail((800, 800))
+        im.save(target, "JPEG", quality=90)
+    return target
+
+
+def write_args(path: str, out: str, fields: dict, cover=KEEP, picture="") -> list:
+    """ffmpeg arguments (without the program) that copy `path` to `out` with these tags. The sound is
+    copied as it is (nothing is converted)."""
+    ext = os.path.splitext(path)[1].lower()
+    args = ["-y", "-hide_banner", "-loglevel", "error", "-i", path]
+    if cover not in (KEEP, REMOVE):
+        args += ["-i", picture]
+    if cover == KEEP:
+        args += ["-map", "0"]
+    else:
+        args += ["-map", "0:a"]
+        if cover not in (KEEP, REMOVE):
+            args += ["-map", "1:0", "-disposition:v:0", "attached_pic"]
+    args += ["-c", "copy", "-map_metadata", "0"]
+    ogg = ext in (".ogg", ".oga", ".opus")                     # Ogg keeps its tags on the sound stream
+    for f in FIELDS:
+        if f in fields:
+            args += ["-metadata:s:a:0" if ogg else "-metadata", f"{f}={_clean(fields[f])}"]
+    if ext == ".mp3":
+        args += ["-id3v2_version", "3"]
+    return args + [out]
+
+
+def write_tags(path: str, fields: dict, cover=KEEP) -> None:
+    """🏷 Write title / artist / album / year / genre (and the cover: KEEP, REMOVE or a picture file) into
+    the file. A copy is made next to it and put in its place only when ffmpeg made it well, so the song is
+    never left half written. Raises OSError with the reason when it cannot be done."""
+    ffmpeg = _tool("ffmpeg")
+    if not ffmpeg:
+        raise OSError("FFmpeg yok")
+    if cover not in (KEEP, REMOVE) and os.path.splitext(path)[1].lower() not in COVER_FORMATS:
+        cover = KEEP
+    folder, name = os.path.split(os.path.abspath(path))
+    stem, ext = os.path.splitext(name)
+    out = os.path.join(folder, f".{stem}.diso-tags{ext}")
+    picture = os.path.join(folder, f".{stem}.diso-cover.jpg")
+    try:
+        if cover not in (KEEP, REMOVE):
+            _cover_jpeg(cover, picture)
+        proc = _run([ffmpeg] + write_args(path, out, fields, cover, picture))
+        if proc.returncode != 0 or not os.path.isfile(out) or os.path.getsize(out) == 0:
+            raise OSError(_text(proc.stderr).strip().splitlines()[-1] if proc.stderr.strip() else "FFmpeg yazamadı")
+        os.replace(out, path)
+    except subprocess.SubprocessError as e:
+        raise OSError(str(e)) from e
+    finally:
+        for leftover in (out, picture):
+            try:
+                os.remove(leftover)
+            except OSError:
+                pass
