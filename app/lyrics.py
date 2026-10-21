@@ -10,8 +10,11 @@ import os
 import queue
 import re
 import threading
+import time
 
 from .logs import log
+
+RETRY_WAIT = 2                                      # seconds before asking again after a dropped connection
 
 _STAMP = re.compile(r"\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]")
 _META = re.compile(r"^\[(ar|ti|al|by|offset|length|re|ve|au|la|#):.*\]$", re.I)
@@ -233,7 +236,12 @@ class Fetcher:
                     from . import tags
                     seconds = (tags.probe(path).get("duration") or 0) / 1000
                 extra = {"video_id": video_id} if video_id else {}
-                text = (self._find or fetch)(artist, title, seconds, **extra)
+                try:
+                    text = (self._find or fetch)(artist, title, seconds, **extra)
+                except OSError as e:                        # a dropped connection: once more, a bit later
+                    log.info("lyrics for %s, asking again: %s", path, e)
+                    time.sleep(RETRY_WAIT)
+                    text = (self._find or fetch)(artist, title, seconds, **extra)
                 if text and os.path.isfile(path):
                     save(path, text)
                     found = True

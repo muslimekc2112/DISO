@@ -155,6 +155,16 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 // -------------------------------------------------------------- take over browser downloads
+// Is the browser still downloading it? (A small file may be done before DISO has answered.)
+async function stillDownloading(id) {
+  try {
+    const [now] = await api.downloads.search({ id });
+    return !!now && now.state === "in_progress";
+  } catch (e) {
+    return true;
+  }
+}
+
 api.downloads.onCreated.addListener(async (item) => {
   const url = item.finalUrl || item.url;
   if (bypass.has(url)) { bypass.delete(url); return; }
@@ -170,6 +180,7 @@ api.downloads.onCreated.addListener(async (item) => {
     }
   }
   if (!app || !app.add) return;                    // the app is closed (or adding is off): the browser keeps it
+  if (!(await stillDownloading(item.id))) return;  // a small file the browser has already finished: keep it, once
   try {
     await api.downloads.cancel(item.id);
     await api.downloads.erase({ id: item.id });

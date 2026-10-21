@@ -169,3 +169,23 @@ def test_wrong_lyrics_can_be_looked_up_again_with_the_songs_own_video(app, monke
     assert lyrics.clean_title("Never Gonna Give You Up (4K Remaster)") == "Never Gonna Give You Up"
     assert lyrics.clean_title("Love (Live)") == "Love (Live)"                    # a real part of the name stays
     assert lyrics.clean_title("(Official Video)") == "(Official Video)"         # never cleaned to nothing
+
+
+def test_the_fetcher_asks_once_more_after_a_dropped_connection(tmp_path, monkeypatch):
+    monkeypatch.setattr(lyrics, "RETRY_WAIT", 0)
+    song = make_wav(tmp_path / "a.mp3")
+    calls = []
+
+    def find(artist, title, seconds, video_id=""):
+        calls.append(title)
+        if len(calls) == 1:
+            raise ConnectionResetError(10054, "connection reset")
+        return "söz"
+    f = lyrics.Fetcher(find=find)
+    f.find(song, "Cem Adrian", "Sen Benim Şarkılarımsın", 10)
+    end = time.time() + 5
+    got = []
+    while time.time() < end and not got:
+        got = f.drain()
+        time.sleep(0.02)
+    assert len(calls) == 2 and got == [(song, True, "")]

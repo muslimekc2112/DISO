@@ -55,6 +55,7 @@ const chrome = {
     erase: async (q) => { log.erased.push(q.id); },
     pause: async (id) => { log.paused.push(id); },
     resume: async (id) => { log.resumed.push(id); },
+    search: async (q) => [{ id: q.id, state: finished.has(q.id) ? "complete" : "in_progress" }],
     download: async (o) => {               // the browser starts it again: that fires onCreated
       log.downloaded.push(o.url);
       for (const f of listeners.created) await f({ id: 99, url: o.url, filename: "report.zip", fileSize: 10 });
@@ -66,6 +67,8 @@ const chrome = {
     setBadgeText: async (o) => { log.badge.push(o.text); },
   },
 };
+
+const finished = new Set();              // downloads the browser has finished meanwhile
 
 const context = vm.createContext({ chrome, fetch: extensionFetch, navigator: { userAgent: "TestBrowser/1.0" },
                                    setTimeout: (f) => 0 && f, console, URL });
@@ -101,6 +104,12 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
   } else if (scenario === "intercept") {
     store.intercept = true;
     await created({ id: 7, url: SESSION_URL, filename: "C:\\dl\\report.zip", fileSize: 10, referrer: page,
+                    state: "in_progress", startTime: new Date().toISOString() });
+  } else if (scenario === "intercept-finished") {
+    // a small file: done in the browser before DISO has answered
+    store.intercept = true;
+    finished.add(7);
+    await created({ id: 7, url: SESSION_URL, filename: "report.zip", fileSize: 10, referrer: page,
                     state: "in_progress", startTime: new Date().toISOString() });
   } else if (scenario === "intercept-history") {
     // what the browser reports when it starts: the downloads of its history, finished or broken off
