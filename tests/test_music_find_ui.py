@@ -424,7 +424,7 @@ def test_the_right_click_menu_offers_play_folder_copy_and_remove(music_app, song
     assert labels == ["▶ Çal", "⏭ Sıradaki olarak çal", "➕ Sıraya ekle", "📂 Klasörde göster",
                       "🎤 Şarkı sözlerini internette bul", "✎ Sözleri elle yaz / düzenle",
                       "🏷 Bilgileri düzenle (ad, sanatçı, kapak)…", "🖼 Kapağı internetten bul",
-                      "✏ Dosya adlarını düzenle…", "➕ Başka listeye ekle", "✖ Listeden çıkar"]
+                      "✏ Dosya adlarını düzenle…", "➕ Başka listeye ekle", "✖ Listeden çıkar", "🗑 Dosyayı sil"]
     sub = dict(items[9][1])
     assert list(sub) == ["Spor", "＋ Yeni liste…"]
     sub["Spor"]()
@@ -447,7 +447,7 @@ def test_the_right_click_menu_really_opens(music_app, songs, monkeypatch):
         pytest.skip("the table is not drawn")
     event = type("E", (), {"x": bbox[0] + 5, "y": bbox[1] + 5, "x_root": 0, "y_root": 0})()
     music._track_menu(event)
-    assert popped == [11] and music._selected() == [1]               # 12 entries (one a line), row 1 selected
+    assert popped == [12] and music._selected() == [1]               # 13 entries (one a line), row 1 selected
     music.withdraw()
 
 

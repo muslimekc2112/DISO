@@ -117,9 +117,11 @@ class DownloadManager:
             self.items = []
 
     def save(self):
-        with self.lock:
-            data = {"items": [i.to_dict() for i in self.items]}
-        with self._save_lock:  # workers and the window both save; one writer at a time
+        # workers and the window both save; one writer at a time. The list is read inside the same turn:
+        # read before it, an older picture of the list could be written over a newer one.
+        with self._save_lock:
+            with self.lock:
+                data = {"items": [i.to_dict() for i in self.items]}
             try:
                 safefile.write_json(self.store_path, data)
             except OSError:
@@ -205,6 +207,9 @@ class DownloadManager:
     def start(self, item: Item):
         with self.lock:
             if item.state in ACTIVE_STATES:
+                # ⏸ then ▶ quickly: it is still stopping. It starts again as soon as it has stopped.
+                if item.stop_reason == "pause":
+                    item._start_again = True
                 return
             item.state = QUEUED
             item.stop_reason = None
@@ -221,6 +226,7 @@ class DownloadManager:
 
     def pause(self, item: Item):
         with self.lock:
+            item._start_again = False
             if item.state in (QUEUED, WAITING):
                 self._cancel_timer(item)
                 item.state = PAUSED
@@ -278,18 +284,36 @@ class DownloadManager:
             except OSError:
                 pass
 
-    def pause_all(self):
-        for it in list(self.items):
+    def pause_all(self, items=None):
+        """⏸ every download (or only `items`: the download window leaves the music player's alone)."""
+        for it in list(self.items if items is None else items):
             self.pause(it)
 
-    def resume_all(self):
-        for it in list(self.items):
-            if it.state in (PAUSED, ERROR):
+    def resume_all(self, items=None):
+        """▶ every paused or failed download, and the ones still stopping after ⏸ (they start once stopped)."""
+        for it in list(self.items if items is None else items):
+            if it.state in (PAUSED, ERROR) or (it.state in ACTIVE_STATES and it.stop_reason == "pause"):
                 self.start(it)
 
-    def clear_finished(self):
+    def clear_all(self, items=None):
+        """🧹 Empty the list (or remove `items`): running ones are cancelled, downloaded files stay on the disk."""
+        for it in list(self.items if items is None else items):
+            it.removed = True
+            if it.state in (RESOLVING, DOWNLOADING, PROCESSING):
+                it.request_stop("cancel")
+            else:
+                self._cancel_timer(it)
+                self._cleanup(it)
         with self.lock:
-            self.items = [i for i in self.items if i.state not in (DONE, CANCELLED)]
+            self.items = [i for i in self.items if not i.removed]
+        self.save()
+
+    def clear_finished(self, items=None):
+        """🧹 Take the finished and cancelled downloads off the list (or only those among `items`)."""
+        with self.lock:
+            among = None if items is None else {id(i) for i in items}
+            self.items = [i for i in self.items
+                          if i.state not in (DONE, CANCELLED) or (among is not None and id(i) not in among)]
         self.save()
 
     def shutdown(self):
@@ -437,4 +461,7 @@ class DownloadManager:
             item._fd = None
             item._proc = None
             item.speed, item.eta, item.conns = 0.0, None, 0
+            again, item._start_again = item._start_again, False
+            if again and item.state == PAUSED and not item.removed:
+                self.start(item)
             self.save()

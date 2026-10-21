@@ -195,6 +195,54 @@ def test_resume_all_and_pause_all(manager, server, settings):
     assert wait_for(lambda: states(manager) == [DOWNLOADING, DOWNLOADING])
 
 
+def test_start_all_right_after_pause_all_starts_the_ones_still_stopping(manager, server, settings):
+    LIMITER.set_rate(1 * MB)
+    for _ in range(2):
+        name, _ = server.file(8 * MB)
+        manager.add_url(server.url("f", name), settings)
+    wait_for(lambda: states(manager) == [DOWNLOADING, DOWNLOADING])
+    manager.pause_all()
+    manager.resume_all()                                   # at once: they have not stopped yet
+    assert wait_for(lambda: all(i.done > 0 for i in manager.items))
+    time.sleep(1.5)
+    assert states(manager) == [DOWNLOADING, DOWNLOADING]
+    manager.pause_all()                                    # ⏸ again wins over the ▶ before it
+    assert wait_for(lambda: states(manager) == [PAUSED, PAUSED])
+    time.sleep(1)
+    assert states(manager) == [PAUSED, PAUSED]
+
+
+def test_the_bulk_actions_can_leave_some_items_alone(manager, server, settings):
+    LIMITER.set_rate(1 * MB)
+    for _ in range(2):
+        name, _ = server.file(8 * MB)
+        manager.add_url(server.url("f", name), settings)
+    wait_for(lambda: states(manager) == [DOWNLOADING, DOWNLOADING])
+    mine, other = manager.items
+    manager.pause_all([mine])
+    assert wait_for(lambda: mine.state == PAUSED) and other.state == DOWNLOADING
+    manager.resume_all([mine])
+    assert wait_for(lambda: mine.state == DOWNLOADING)
+
+
+def test_clear_all_cancels_running_ones_and_keeps_downloaded_files(manager, server, settings, folder):
+    name, data = server.file(1000)
+    manager.add_url(server.url("f", name), settings)
+    wait_for(lambda: states(manager) == [DONE])
+    done = manager.items[0].final_path
+    LIMITER.set_rate(1 * MB)
+    big, _ = server.file(8 * MB)
+    manager.add_url(server.url("f", big), settings)
+    manager.add_url(server.url("f", "missing.bin"), settings)
+    assert wait_for(lambda: any(i.state == DOWNLOADING for i in manager.items))
+    manager.clear_all()
+    assert manager.items == []
+    assert wait_for(lambda: os.listdir(folder) == [os.path.basename(done)])     # the half file is gone
+    assert open(done, "rb").read() == data
+    saved = json.load(open(manager.store_path, encoding="utf-8"))
+    assert (saved.get("items") if isinstance(saved, dict) else saved) == []
+
+
 def test_clear_finished_keeps_everything_else(manager, server, settings):
     name, _ = server.file(1000)
     manager.add_url(server.url("f", name), settings)
@@ -236,14 +284,16 @@ def test_shutdown_pauses_everything_without_blocking_and_saves(manager, server, 
     for _ in range(2):
         name, _ = server.file(8 * MB)
         manager.add_url(server.url("f", name), settings)
-    wait_for(lambda: states(manager) == [DOWNLOADING, DOWNLOADING])
+    assert wait_for(lambda: states(manager) == [DOWNLOADING, DOWNLOADING], 20)
     t0 = time.time()
     manager.shutdown()
     assert time.time() - t0 < 0.5                        # returns at once
     assert wait_for(lambda: not manager.busy(), 10)
     assert states(manager) == [PAUSED, PAUSED]
-    saved = json.load(open(manager.store_path, encoding="utf-8"))
-    assert [i["state"] for i in saved["items"]] == [PAUSED, PAUSED]
+
+    def saved():                                        # each worker saves the list right after it stopped
+        return [i["state"] for i in json.load(open(manager.store_path, encoding="utf-8"))["items"]]
+    assert wait_for(lambda: saved() == [PAUSED, PAUSED], 5)
 
 
 def test_only_the_last_200_items_are_kept_on_load(tmp_path):

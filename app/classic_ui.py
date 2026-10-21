@@ -507,6 +507,7 @@ class NostalgiaWindow:
             ("Yeni indirme ekle…", self.open_address_dialog, "Ctrl+N"),
             ("Panodaki linkleri ekle", self._n_paste_links, "Ctrl+V"),
             ("Dosyadaki linkleri ekle…", self._import_file, None),
+            ("Torrent dosyası ekle…", self.add_torrent_files, None),
             ("Link bilgisi ve kalite seçimi…", self._show_info, None),
             None,
             ("Çıkış", self._on_close, None)])
@@ -515,9 +516,10 @@ class NostalgiaWindow:
             ("Seçilenleri durdur", self._sel_pause, None),
             ("Seçilenleri sil", self._sel_remove, "Del"),
             None,
-            ("Hepsini başlat", self.manager.resume_all, None),
-            ("Hepsini durdur", self.manager.pause_all, None),
-            ("Bitenleri temizle", self.manager.clear_finished, None),
+            ("Hepsini başlat", self.start_all, None),
+            ("Hepsini durdur", self.pause_all, None),
+            ("Bitenleri temizle", self.clear_finished, None),
+            ("Hepsini temizle", self.clear_all, None),
             None,
             ("Hepsini seç", self._on_ctrl_a, "Ctrl+A"),
             ("İndirme geçmişi", self.open_history, None)])
@@ -616,11 +618,11 @@ class NostalgiaWindow:
         buttons = {}
         layout = (("add", "Yeni indirme", self.open_address_dialog), None,
                   ("resume", "Devam et", self._sel_resume), ("pause", "Durdur", self._sel_pause),
-                  ("pause_all", "Hepsini durdur", self.manager.pause_all), ("delete", "Sil", self._sel_remove),
-                  ("delete_done", "Bitenleri sil", self.manager.clear_finished), None,
+                  ("pause_all", "Hepsini durdur", self.pause_all), ("delete", "Sil", self._sel_remove),
+                  ("delete_done", "Bitenleri sil", self.clear_finished), None,
                   ("options", "Ayarlar", self._open_settings),
                   ("scheduler", "Zamanlayıcı", lambda: self._open_settings("Zamanlayıcı")),
-                  ("start_all", "Hepsini başlat", self.manager.resume_all), None,
+                  ("start_all", "Hepsini başlat", self.start_all), None,
                   ("update", "Güncellemeler", self._open_updates), ("music", "Müzik çalar", self._n_music),
                   ("channels", "Kanallar", self.open_channels), ("history", "Geçmiş", self.open_history))
         for entry in layout:
@@ -670,6 +672,8 @@ class NostalgiaWindow:
                       command=self.add_from_entry).pack(side="right")
         ctk.CTkButton(row, text="Bilgi…", width=64, height=26, command=self._show_info).pack(side="right", padx=(0, 6))
         ctk.CTkButton(row, text="Dosyadan…", width=78, height=26, command=self._import_file).pack(side="right", padx=(0, 6))
+        self.torrent_btn = ctk.CTkButton(row, text="Torrent…", width=72, height=26, command=self.add_torrent_files)
+        self.torrent_btn.pack(side="right", padx=(0, 6))
         ctk.CTkButton(row, text="Yapıştır", width=70, height=26, command=self._paste).pack(side="right", padx=(0, 6))
 
         from . import video_engine as ve

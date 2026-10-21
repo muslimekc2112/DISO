@@ -3,12 +3,16 @@
 Windows has MCI (player.MciBackend). Elsewhere nothing like it is built in, so: ffmpeg (which DISO has
 anyway) decodes any file it knows into 16-bit stereo at 44.1 kHz, a small thread hands that to an SDL
 mixer channel in short pieces, and the channel's own volume and pause do the rest. Every backend has a
-channel of its own, so two can sound at once (cross-fade, preview). The methods are MciBackend's."""
+channel of its own, so two can sound at once (cross-fade, preview). The methods are MciBackend's.
+
+A new equalizer setting does not stop the sound: a second ffmpeg starts a little ahead with the new
+filter, the first one is played up to exactly that moment, and the two are blended over a few ms there."""
 import json
 import os
 import subprocess
 import threading
 import time
+from array import array
 
 from .logs import log
 from .utils import subprocess_flags
@@ -18,6 +22,8 @@ FRAME = CHANNELS * SAMPLE_BYTES
 PIECE_MS = 200                                   # how much sound is handed over at once
 PIECE = RATE * FRAME * PIECE_MS // 1000
 MAX_CHANNELS = 16
+CHANGE_AHEAD = RATE * 200 // 1000                # frames: a new filter starts this far ahead (ffmpeg needs ~40 ms)
+BLEND = RATE * 15 // 1000                        # frames: old and new sound are blended over this, so nothing clicks
 
 _mixer_lock = threading.Lock()
 _channels_used = [0]
@@ -55,6 +61,19 @@ def probe_length_ms(path: str) -> int:
         return 0
 
 
+def _blend(old: bytes, new: bytes) -> bytes:
+    """`new` fades in while `old` (the sound it takes the place of) fades out: no click where they meet."""
+    size = min(len(old), len(new)) // FRAME * FRAME
+    if not size:
+        return new
+    a, b = array("h", old[:size]), array("h", new[:size])
+    frames = size // FRAME
+    for i in range(len(b)):
+        share = (i // CHANNELS + 1) / (frames + 1)
+        b[i] = int(a[i] + (b[i] - a[i]) * share)
+    return b.tobytes() + new[size:]
+
+
 class SdlBackend:
     """Plays one file at a time (anything ffmpeg can read)."""
 
@@ -82,6 +101,10 @@ class SdlBackend:
         self._eof = False
         self._playing = False         # play was started and the user did not stop / pause it
         self._filter = ""             # ffmpeg -af (the equalizer); "" = the sound as it is
+        self._refilter = False        # the filter changed while playing: the feeding thread changes over
+        self._next_proc = None        # the decoder with the new filter, until it takes over
+        self._hold = False            # cue(): the first piece waits for go()
+        self._ready = False           # ... and it is there
         self.last_error = ""
 
     @staticmethod
@@ -93,33 +116,28 @@ class SdlBackend:
             return False
 
     # ------------------------------------------------------------------ the decoder
-    def _start_decoder(self, at_ms):
-        self._stop_decoder()
+    def _spawn(self, at_frame, af):
+        """An ffmpeg that decodes the song from this frame on through this filter (None: it did not start)."""
         ffmpeg = _tool("ffmpeg")
         if not ffmpeg:
             self.last_error = "ffmpeg not found"
-            return False
+            return None
         args = [ffmpeg, "-nostdin", "-v", "error"]
-        if at_ms > 0:
-            args += ["-ss", f"{at_ms / 1000:.3f}"]
+        if at_frame > 0:
+            args += ["-ss", f"{at_frame / RATE:.6f}"]
         args += ["-i", self._path, "-vn"]
-        if self._filter:
-            args += ["-af", self._filter]
+        if af:
+            args += ["-af", af]
         args += ["-f", "s16le", "-acodec", "pcm_s16le", "-ac", str(CHANNELS), "-ar", str(RATE), "pipe:1"]
         try:
-            self._proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                          stderr=subprocess.DEVNULL, **subprocess_flags())
+            return subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=subprocess.DEVNULL, **subprocess_flags())
         except OSError as e:
             self.last_error = str(e)
-            return False
-        self._gen += 1
-        self._base, self._began, self._paused_at, self._paused_for, self._eof = at_ms, None, None, 0.0, False
-        threading.Thread(target=self._feed, args=(self._gen, self._proc), daemon=True, name="sdl-feed").start()
-        return True
+            return None
 
-    def _stop_decoder(self):
-        self._gen += 1
-        proc, self._proc = self._proc, None
+    @staticmethod
+    def _kill(proc):
         if proc is not None:
             try:
                 proc.kill()
@@ -127,50 +145,116 @@ class SdlBackend:
                 proc.wait(2)
             except (OSError, subprocess.SubprocessError, ValueError):
                 pass
+
+    def _start_decoder(self, at_ms, hold=False):
+        self._stop_decoder()
+        at_frame = at_ms * RATE // 1000
+        proc = self._spawn(at_frame, self._filter)
+        if proc is None:
+            return False
+        self._proc = proc
+        self._gen += 1
+        self._base, self._began, self._paused_at, self._paused_for, self._eof = at_ms, None, None, 0.0, False
+        self._hold, self._ready = hold, False
+        threading.Thread(target=self._feed, args=(self._gen, proc, at_frame), daemon=True, name="sdl-feed").start()
+        return True
+
+    def _stop_decoder(self):
+        self._gen += 1
+        procs = (self._proc, self._next_proc)
+        self._proc = self._next_proc = None
+        self._refilter = self._hold = False
+        for proc in procs:
+            self._kill(proc)
         self._channel.stop()
 
-    def _feed(self, gen, proc):
-        """Hands the decoded sound to the channel, one piece while the one before it sounds."""
+    def _feed(self, gen, proc, at):
+        """Hands the decoded sound to the channel, one piece while the one before it sounds. `at` is the frame
+        of the song the next piece starts with. When the filter changes, a decoder with the new one starts at
+        `switch` (a little ahead), this one is read up to exactly there, and the new one goes on from it."""
+        nxt = switch = None
+        tail = b""                    # the old sound just after `switch`: the new one is blended into it
         try:
             while True:
-                data = self._read(proc.stdout)
+                with self._lock:
+                    if gen != self._gen:
+                        return
+                    refilter, self._refilter = self._refilter, False
+                    af = self._filter
+                if refilter:                                   # (again before it took over: the newest wins)
+                    self._kill(nxt)
+                    switch = at + CHANGE_AHEAD if switch is None else switch
+                    nxt = self._spawn(switch, af)
+                    with self._lock:
+                        if gen != self._gen:
+                            self._kill(nxt)
+                            return
+                        self._next_proc = nxt
+                    if nxt is None:
+                        switch = None                          # ffmpeg did not start: the old setting plays on
+                if switch is not None and at >= switch:
+                    tail = self._read(proc.stdout, BLEND * FRAME)
+                    with self._lock:
+                        if gen != self._gen:
+                            return
+                        self._proc, self._next_proc = nxt, None
+                    self._kill(proc)
+                    proc, nxt, switch = nxt, None, None
+                    continue
+                data = self._read(proc.stdout, PIECE if switch is None else min(PIECE, (switch - at) * FRAME))
                 if gen != self._gen:
                     return
                 if not data:
                     with self._lock:
                         if gen == self._gen:
                             self._eof = True
+                            self._next_proc = None
+                    self._kill(nxt)
                     return
-                sound = self._pg.mixer.Sound(buffer=data)
-                while True:
-                    with self._lock:
-                        if gen != self._gen:
-                            return
-                        handed = False
-                        if not self._channel.get_busy():
-                            self._channel.play(sound)
-                            self._channel.set_volume(self._volume / 100)    # play() sets it back to full
-                            handed = True
-                        elif self._channel.get_queue() is None:
-                            self._channel.queue(sound)
-                            handed = True
-                        if handed:
-                            if self._began is None:
-                                self._began = time.monotonic()
-                            break
-                    time.sleep(0.02)
+                if tail:
+                    data, tail = _blend(tail, data), b""
+                at += len(data) // FRAME
+                if not self._hand(gen, data):
+                    return
         except Exception:  # noqa: BLE001 - the song just ends
             log.exception("music decoder stopped")
             with self._lock:
                 if gen == self._gen:
                     self._eof = True
 
+    def _hand(self, gen, data) -> bool:
+        """Gives one piece to the channel as soon as it has room for it (False: this decoder was stopped)."""
+        sound = self._pg.mixer.Sound(buffer=data)
+        with self._lock:
+            if gen == self._gen:
+                self._ready = True
+        while True:
+            with self._lock:
+                if gen != self._gen:
+                    return False
+                handed = False
+                if self._hold:
+                    pass                                       # cue(): waits for go()
+                elif not self._channel.get_busy():
+                    self._channel.play(sound)
+                    self._channel.set_volume(self._volume / 100)    # play() sets it back to full
+                    handed = True
+                elif self._channel.get_queue() is None:
+                    self._channel.queue(sound)
+                    handed = True
+                if handed:
+                    if self._began is None:
+                        self._began = time.monotonic()
+                    return True
+                holding = self._hold
+            time.sleep(0.003 if holding else 0.02)
+
     @staticmethod
-    def _read(stream):
+    def _read(stream, size=PIECE):
         out = b""
-        while len(out) < PIECE:
+        while len(out) < size:
             try:
-                block = stream.read(PIECE - len(out))
+                block = stream.read(size - len(out))
             except (OSError, ValueError):
                 break
             if not block:
@@ -193,6 +277,9 @@ class SdlBackend:
     def play(self):
         with self._lock:
             if self._path is None:
+                return
+            if self._hold:
+                self.go()
                 return
             if self._paused_at is not None and self._proc is not None:
                 self.resume()
@@ -266,14 +353,39 @@ class SdlBackend:
             self._channel.set_volume(self._volume / 100)
 
     def set_filter(self, text: str):
-        """The equalizer's ffmpeg filter; a song that plays goes on from the same moment with it."""
+        """The equalizer's ffmpeg filter; a song that plays goes on with it without a gap (see _feed)."""
         with self._lock:
             text = text or ""
             if text == self._filter:
                 return
             self._filter = text
-            if self._path is not None and (self._proc is not None or self._playing):
-                self.seek(self.position_ms())        # the decoder starts again there, with the new filter
+            if self._path is None or self._eof:
+                return                               # (at the very end: the last pieces just play out)
+            if self._hold:
+                self._start_decoder(self._base, hold=True)
+            elif self._playing and self._proc is not None and self._paused_at is None:
+                self._refilter = True                # the feeding thread changes over to a new decoder
+            elif self._proc is not None or self._playing:
+                self.seek(self.position_ms())        # paused: the decoder starts again there, with the new filter
+
+    def cue(self, ms: int) -> bool:
+        """Get ready to play from ms: the decoder starts, and its first piece waits for go(). So this one can
+        take over from another player at exactly the right moment (see player.SwitchingBackend)."""
+        with self._lock:
+            if self._path is None:
+                return False
+            return self._start_decoder(max(0, min(int(ms), self._length)), hold=True)
+
+    def ready(self) -> bool:
+        """After cue(): the first piece is decoded (or the song is over there), go() sounds at once."""
+        with self._lock:
+            return self._ready or self._eof or self._proc is None
+
+    def go(self):
+        with self._lock:
+            if self._hold:
+                self._hold = False
+                self._playing = True
 
     def is_playing(self) -> bool:
         with self._lock:

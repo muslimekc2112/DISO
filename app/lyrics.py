@@ -33,9 +33,16 @@ def has_lyrics(audio_path: str) -> bool:
         return False
 
 
+def _ms(m) -> int:
+    frac = (m.group(3) or "0").ljust(3, "0")[:3]
+    return (int(m.group(1)) * 60 + int(m.group(2))) * 1000 + int(frac)
+
+
 def parse(text: str) -> dict:
-    """{"synced": [(ms, line), ...] (empty when there are no time marks), "plain": [line, ...]}."""
-    synced, plain = [], []
+    """{"synced": [(ms, line), ...] (empty when there are no time marks), "plain": [line, ...]}.
+    A line without a time mark among timed ones (one added by hand) is not dropped: it gets a time
+    between the lines around it, so it shows and the song still follows."""
+    rows, plain = [], []                                # rows: ([ms, ...] or None, words) in the file's order
     for raw in (text or "").replace("\r", "").split("\n"):
         line = raw.strip()
         if _META.match(line):
@@ -43,16 +50,37 @@ def parse(text: str) -> dict:
         stamps = list(_STAMP.finditer(line))
         words = _STAMP.sub("", line).strip()
         if stamps and stamps[0].start() == 0:
-            for m in stamps:
-                frac = (m.group(3) or "0").ljust(3, "0")[:3]
-                synced.append(((int(m.group(1)) * 60 + int(m.group(2))) * 1000 + int(frac), words))
+            rows.append(([_ms(m) for m in stamps], words))
+        elif words:
+            rows.append((None, words))
         plain.append(words)
     while plain and not plain[0]:
         plain.pop(0)
     while plain and not plain[-1]:
         plain.pop()
+    synced = []
+    if any(times for times, _ in rows):
+        for i, (times, words) in enumerate(rows):
+            synced.extend((ms, words) for ms in times or [_guess_time(rows, i)])
     synced.sort(key=lambda x: x[0])
     return {"synced": synced, "plain": plain}
+
+
+LINE_GAP = 2500                                         # ms for a line after the last timed one
+
+
+def _guess_time(rows, i) -> int:
+    """A time for the untimed line rows[i]: spread evenly between the timed lines before and after it."""
+    before = next((j for j in range(i - 1, -1, -1) if rows[j][0]), None)
+    after = next((j for j in range(i + 1, len(rows)) if rows[j][0]), None)
+    start = rows[before][0][0] if before is not None else 0
+    if after is None:
+        return start + (i - before) * LINE_GAP
+    end = rows[after][0][0]
+    first = -1 if before is None else before
+    if end <= start:                                    # a chorus with many marks: just after the one before
+        return start + (i - first) * 10
+    return start + (end - start) * (i - first) // (after - first)
 
 
 def load(audio_path: str):
@@ -194,10 +222,51 @@ def raw(audio_path: str) -> str:
         return ""
 
 
-def write_by_hand(audio_path: str, text: str) -> bool:
-    """✎ Lyrics written or pasted by the user. Empty text deletes the lyrics (True: there are lyrics now)."""
+def stamp(ms: int) -> str:
+    ms = max(0, int(ms))
+    return f"[{ms // 60000:02d}:{ms // 1000 % 60:02d}.{ms % 1000 // 10:02d}]"
+
+
+def keep_times(text: str, old, length_ms: int = 0) -> str:
+    """Lyrics pasted without time marks over timed ones still follow the song: line by line they take
+    the old times when there are about as many lines (a word fixed, a line more or less), otherwise
+    they are spread over the length of the song. Text with time marks, or with nothing to go by, stays
+    as it is."""
+    if _STAMP.search(text or "") or not any(w.strip() for w in parse(text)["plain"]):
+        return text
+    times = [ms for ms, words in (old or {}).get("synced") or [] if words.strip()]
+    lines = (text or "").replace("\r", "").strip("\n").split("\n")
+    count = sum(1 for line in lines if line.strip() and not _META.match(line.strip()))
+    if not times:
+        return text
+    if count == len(times):
+        at = times
+    elif min(count, len(times)) >= 2 and abs(count - len(times)) <= max(2, len(times) // 10):
+        at = []                                         # the old times, stretched over the new lines
+        for i in range(count):
+            x = i * (len(times) - 1) / (count - 1)
+            low = int(x)
+            high = min(low + 1, len(times) - 1)
+            at.append(int(times[low] + (times[high] - times[low]) * (x - low)))
+    else:                                               # other lyrics: from the first old line to the song's end
+        end = length_ms if length_ms > times[0] else times[-1] + LINE_GAP
+        at = [int(times[0] + (end - times[0]) * i / count) for i in range(count)]
+    out, k = [], 0
+    for line in lines:
+        words = line.strip()
+        if words and not _META.match(words):
+            out.append(stamp(at[k]) + words)
+            k += 1
+        else:
+            out.append(words)
+    return "\n".join(out)
+
+
+def write_by_hand(audio_path: str, text: str, length_ms: int = 0) -> bool:
+    """✎ Lyrics written or pasted by the user. Empty text deletes the lyrics (True: there are lyrics now).
+    Pasted over timed lyrics without time marks, they keep following the song (keep_times)."""
     if (text or "").strip():
-        save(audio_path, text)
+        save(audio_path, keep_times(text, load(audio_path), length_ms))
         return True
     try:
         os.remove(lyrics_path(audio_path))

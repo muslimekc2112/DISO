@@ -22,6 +22,8 @@ FFMPEG_EXTENSIONS = (".flac", ".ogg", ".oga", ".opus", ".aiff", ".aif", ".mka", 
 AUDIO_EXTENSIONS = (".mp3", ".wav", ".wma", ".m4a", ".aac", ".mp4") + FFMPEG_EXTENSIONS
 REPEAT_MODES = ("Kapalı", "Liste", "Tek")      # off / whole list / one track
 _ALIAS = "hizli_music"
+HANDOVER_AHEAD = 150           # ms: turning the equalizer on, ffmpeg takes over from MCI this far ahead ...
+HANDOVER_WAIT = 1.5            # s: ... and is waited for at most this long (MCI plays on meanwhile)
 
 
 # what a finished download must be to go into a playlist by itself (a .mp4 is more likely a video)
@@ -124,10 +126,13 @@ class SwitchingBackend:
         return getattr(self.active, name)
 
     def set_filter(self, text) -> bool:
-        """Use this ffmpeg filter ("" = none). False when the equalizer cannot be used here."""
+        """Use this ffmpeg filter ("" = none). False when the equalizer cannot be used here. Flat again in
+        the middle of a song, the ffmpeg one plays it on without a filter (a switch would be heard); the
+        next song is on MCI again (see load)."""
         text = text or ""
         plain_ok = self.plain is not None and not needs_ffmpeg(self._path)     # a FLAC stays on ffmpeg
-        target = self.plain if not text and plain_ok else self._eq_backend()
+        mid_song = bool(self._path) and self.active is self.eq
+        target = self.plain if not text and plain_ok and not mid_song else self._eq_backend()
         if target is None:
             return False
         self.filter = text
@@ -139,15 +144,20 @@ class SwitchingBackend:
 
     def _switch(self, target):
         old = self.active
-        at = old.position_ms() if self._path else 0
         playing = bool(self._path) and old.is_playing()
+        target.set_volume(self.volume)
+        loaded = False
+        if playing and hasattr(target, "cue"):
+            loaded = target.load(self._path)               # (reads the file while the old one still plays)
+            if loaded and self._hand_over(old, target):
+                return
+        at = old.position_ms() if self._path else 0
         old.stop()
         old.close()
         self.active = target
-        target.set_volume(self.volume)
         if not self._path:
             return
-        if not target.load(self._path):
+        if not (loaded or target.load(self._path)):
             self._path = None
             return
         if at:
@@ -155,6 +165,24 @@ class SwitchingBackend:
         if playing:
             target.play()
         self._resume_plays = not playing
+
+    def _hand_over(self, old, target) -> bool:
+        """`old` plays on until `target` (cued a moment ahead) is ready and that moment has come; then the
+        one stops and the other sounds: no gap, no jump back or forth."""
+        at = old.position_ms() + HANDOVER_AHEAD
+        if not target.cue(at):
+            return False
+        end = time.monotonic() + HANDOVER_WAIT
+        while time.monotonic() < end and not target.ready():
+            time.sleep(0.003)
+        while time.monotonic() < end and old.is_playing() and old.position_ms() < at:
+            time.sleep(0.002)
+        old.stop()
+        old.close()
+        self.active = target
+        target.go()
+        self._resume_plays = False
+        return True
 
     def _use(self, target):
         """Play the next file on `target` (nothing is loaded again: a new file comes)."""

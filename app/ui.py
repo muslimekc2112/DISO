@@ -23,6 +23,7 @@ from .classic_ui import NostalgiaWindow
 from .speed_graph import Sampler, SpeedGraph
 from .torrent import is_torrent_link
 from .extra_ui import HistoryWindow, ShortcutsWindow
+from . import tooltip
 from . import video_engine as ve
 from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
                      THEMES, Config)
@@ -1150,6 +1151,7 @@ class BridgeApi:
 
 class App(NostalgiaWindow, ctk.CTk):
     def __init__(self, minimized=False):
+        tooltip.install()                # every button explains itself when the mouse rests on it
         self.cfg = Config()
         ctk.set_appearance_mode(look.appearance(THEMES.get(self.cfg.get("theme"), "dark")))
         super().__init__()
@@ -1336,14 +1338,16 @@ class App(NostalgiaWindow, ctk.CTk):
         ctk.CTkButton(row, text="📋", width=48, height=44, command=self._paste).grid(row=0, column=1, padx=(0, 8))
         ctk.CTkButton(row, text="📄", width=48, height=44, command=self._import_file).grid(
             row=0, column=2, padx=(0, 8))
-        ctk.CTkButton(row, text="ℹ", width=48, height=44, command=self._show_info).grid(row=0, column=3, padx=(0, 8))
+        self.torrent_btn = ctk.CTkButton(row, text="🧲", width=48, height=44, command=self.add_torrent_files)
+        self.torrent_btn.grid(row=0, column=3, padx=(0, 8))
+        ctk.CTkButton(row, text="ℹ", width=48, height=44, command=self._show_info).grid(row=0, column=4, padx=(0, 8))
         self.history_button = ctk.CTkButton(row, text="📊", width=48, height=44, command=self.open_history)
-        self.history_button.grid(row=0, column=4, padx=(0, 8))
+        self.history_button.grid(row=0, column=5, padx=(0, 8))
         # 📺 followed channels; "📺 3" when 3 new videos came
         self.channels_btn = ctk.CTkButton(row, text="📺", width=48, height=44, command=self.open_channels)
-        self.channels_btn.grid(row=0, column=5, padx=(0, 8))
+        self.channels_btn.grid(row=0, column=6, padx=(0, 8))
         ctk.CTkButton(row, text="⬇  İndir", height=44, width=130, font=ctk.CTkFont(size=16, weight="bold"),
-                      command=self.add_from_entry).grid(row=0, column=6)
+                      command=self.add_from_entry).grid(row=0, column=7)
 
     def _build_options(self):
         opt = ctk.CTkFrame(self)
@@ -1419,11 +1423,13 @@ class App(NostalgiaWindow, ctk.CTk):
         bar.grid(row=3, column=0, sticky="ew", padx=16, pady=(0, 6))
         ctk.CTkLabel(bar, text="İndirmeler", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left", padx=(4, 12))
         ctk.CTkButton(bar, text="▶ Hepsini başlat", width=130, height=30,
-                      command=self.manager.resume_all).pack(side="left", padx=3)
+                      command=self.start_all).pack(side="left", padx=3)
         ctk.CTkButton(bar, text="⏸ Hepsini duraklat", width=140, height=30,
-                      command=self.manager.pause_all).pack(side="left", padx=3)
+                      command=self.pause_all).pack(side="left", padx=3)
         ctk.CTkButton(bar, text="🧹 Bitenleri temizle", width=140, height=30,
-                      command=self.manager.clear_finished).pack(side="left", padx=3)
+                      command=self.clear_finished).pack(side="left", padx=3)
+        ctk.CTkButton(bar, text="🗑 Hepsini temizle", width=130, height=30, fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=self.clear_all).pack(side="left", padx=3)
         ctk.CTkButton(bar, text="⚙ Ayarlar", width=100, height=30,
                       command=self._open_settings).pack(side="right", padx=3)
         self.updates_btn = ctk.CTkButton(bar, text="⟳ Güncellemeler", width=120, height=30,
@@ -1600,6 +1606,16 @@ class App(NostalgiaWindow, ctk.CTk):
                                                      ("Torrent dosyaları", "*.torrent"), ("Tüm dosyalar", "*.*")])
         if path:
             self._add_from_paths([path])
+
+    def add_torrent_files(self, paths=None):
+        """🧲 Add .torrent files from the computer (several at once)."""
+        if paths is None:
+            paths = filedialog.askopenfilenames(title="Torrent dosyası ekle",
+                                                filetypes=[("Torrent dosyaları", "*.torrent"), ("Tüm dosyalar", "*.*")])
+        paths = [p for p in paths or () if p]
+        if paths:
+            self._add_from_paths(paths)
+        return len(paths)
 
     def _settings(self) -> Settings:
         return Settings(
@@ -1849,6 +1865,45 @@ class App(NostalgiaWindow, ctk.CTk):
         self.cfg.set("sort", value)
         self._sync_rows()
 
+    def download_items(self):
+        """The downloads of this window: what the music player downloads (songs it found, a list's songs)
+        is shown there, not here."""
+        return [it for it in list(self.manager.items) if not str(getattr(it, "origin", "")).startswith("music")]
+
+    # ---- ▶ ⏸ 🧹 🗑 for the whole list (the music player's downloads are left alone)
+    def start_all(self):
+        self.manager.resume_all(self.download_items())
+
+    def pause_all(self):
+        self.manager.pause_all(self.download_items())
+
+    def clear_finished(self):
+        self.manager.clear_finished(self.download_items())
+        self._sync_rows()
+
+    def clear_all(self, ask=True) -> bool:
+        """🗑 Empty the list. Downloads that are still going (or paused half way) are cancelled: asked first.
+        Downloaded files stay on the disk."""
+        items = self.download_items()
+        if not items:
+            return False
+        running = sum(i.state in ACTIVE_STATES for i in items)
+        paused = sum(i.state == PAUSED for i in items)
+        if ask and (running or paused):
+            lines = []
+            if running:
+                lines.append(f"{running} indirme devam ediyor.")
+            if paused:
+                lines.append(f"{paused} indirme duraklatılmış; yarım inen kısımları silinir.")
+            text = "\n".join(lines) + "\n\nİptal edip listeyi temizlemek istediğine emin misin?"
+            if not messagebox.askyesno("DISO", text, icon="warning", parent=self):
+                return False
+        self.manager.clear_all(items)
+        self.selected.clear()
+        self._sync_rows()
+        self.notice("🗑 Liste temizlendi (inen dosyalar yerinde duruyor)", 6)
+        return True
+
     def _visible_items(self):
         text = self.search_entry.get().strip().lower()
         if self.nostalgia:                       # the category tree and the table's headings choose
@@ -1859,7 +1914,7 @@ class App(NostalgiaWindow, ctk.CTk):
             states = FILTER_STATES.get(self.filter_menu.get())
             keep = lambda it: states is None or it.state in states    # noqa: E731
             sort = self.sort_menu.get()
-        items = [it for it in list(self.manager.items)
+        items = [it for it in self.download_items()
                  if keep(it) and (not text or text in it.display_name.lower() or text in it.url.lower())]
         items.sort(key=SORT_KEYS.get(sort, SORT_KEYS["Yeni üstte"]))
         return items
@@ -2768,17 +2823,33 @@ class App(NostalgiaWindow, ctk.CTk):
                 self.mode_bar.set(MODE_DOWNLOAD)
                 return
             self.mode = MODE_MUSIC
-            self.withdraw()
             self.music.mode_bar.set(MODE_MUSIC)
-            self.music.deiconify()
-            self.music.lift()
+            self._hand_over_window(self, self.music)
         else:
             self.mode = MODE_DOWNLOAD
-            if self.music is not None:
-                self.music.withdraw()
             self.mode_bar.set(MODE_DOWNLOAD)
-            self.deiconify()
-            self.lift()
+            if self.music is not None and self.music.winfo_viewable():
+                self._hand_over_window(self.music, self)
+            else:
+                self.deiconify()
+                self.lift()
+
+    @staticmethod
+    def _hand_over_window(old, new):
+        """The other window takes the place (and size) of this one and is drawn before this one goes: no
+        moment with no window, nothing that jumps or is drawn bit by bit in front of the user."""
+        try:
+            if old.winfo_viewable():
+                if old.state() == "zoomed":
+                    new.state("zoomed")
+                else:
+                    new.geometry(old.geometry())         # (customtkinter's own units: the screen's scale stays right)
+        except tk.TclError:
+            pass
+        new.deiconify()
+        new.lift()
+        new.update_idletasks()
+        old.withdraw()
 
     def _on_window_x(self):
         """The window's own close button: go to the tray if the user wants that, else quit."""
@@ -3039,7 +3110,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self.tray.set_title(f"DISO • {active} aktif • {human_size(speed)}/s")
 
     def _update_status(self):
-        items = self.manager.items
+        items = self.download_items()
         active = [i for i in items if i.state in (DOWNLOADING, PROCESSING, RESOLVING)]
         queued = sum(1 for i in items if i.state in (QUEUED, WAITING))
         speed = sum(i.speed for i in items if i.state == DOWNLOADING)

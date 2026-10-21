@@ -5,8 +5,13 @@ setting makes the sound go through ffmpeg's "equalizer" filter (see player.Switc
 headroom is taken first and a limiter sits at the end, so boosted bands do not crackle."""
 
 BANDS = [60, 150, 400, 1000, 2400, 6000, 10000, 15000]        # Hz, the middle of each band
-LABELS = ["60", "150", "400", "1K", "2.4K", "6K", "10K", "15K"]
+LABELS = ["60 Hz", "150 Hz", "400 Hz", "1 kHz", "2.4 kHz", "6 kHz", "10 kHz", "15 kHz"]
 LIMIT = 12                                                     # dB, up and down
+# The simple view: three plainly named controls, each one moves a group of the bands above (in "Gelişmiş"
+# the eight bands themselves). Its value is the middle of its bands; moving it moves them all alike.
+SIMPLE = [("Bas", "Davul, bas gitar: kalın sesler", (0, 1)),
+          ("Orta", "Ses ve çalgılar: şarkının gövdesi", (2, 3, 4)),
+          ("Tiz", "Zil, nefes, parlaklık: ince sesler", (5, 6, 7))]
 FLAT = "Düz"
 CUSTOM = "Özel"
 PRESETS = {
@@ -41,6 +46,21 @@ def preset_of(gains) -> str:
     """The name of the ready-made setting these gains are, or CUSTOM."""
     gains = clean(gains)
     return next((name for name, values in PRESETS.items() if values == gains), CUSTOM)
+
+
+def simple_values(gains) -> list:
+    """What the simple controls show for these gains: the middle (average) of each one's bands."""
+    gains = clean(gains)
+    return [int(round(sum(gains[i] for i in bands) / len(bands))) for _, _, bands in SIMPLE]
+
+
+def set_simple(gains, which, value) -> list:
+    """The gains with simple control `which` at `value`: its bands all move by the same amount, so the shape
+    an expert gave them stays (as far as the limits allow)."""
+    gains = clean(gains)
+    bands = SIMPLE[which][2]
+    shift = float(value) - sum(gains[i] for i in bands) / len(bands)
+    return clean([g + shift if i in bands else g for i, g in enumerate(gains)])
 
 
 def ffmpeg_filter(gains) -> str:

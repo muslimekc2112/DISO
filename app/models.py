@@ -88,6 +88,7 @@ class Item:
         self.retries = 0           # automatic retries after connection problems
         self.started = 0.0         # when it last started working (for the speed in the history)
         self._timer = None         # pending automatic retry
+        self._start_again = False  # "start" came while a pause was still stopping it: start once stopped
         self._fd = None
         self._proc = None
         self._probe = None

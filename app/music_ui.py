@@ -16,6 +16,7 @@ import customtkinter as ctk
 
 from . import equalizer, i18n, look, loudness, lyrics, mediakeys, music_search, playlists, smtc, tags
 from . import taskbar as taskbar_module
+from . import tooltip
 from .logs import log
 from .playlists import FADE_CHOICES
 from .player import AUDIO_EXTENSIONS, REPEAT_MODES, artist_and_title, track_label
@@ -31,6 +32,7 @@ PLAY_ICON, PAUSE_ICON = "▶", "⏸"
 COVER_PX = 112
 SAVE_DELAY = 1500          # ms: tags that keep arriving are written to the file once, after a pause
 PRUNE_EVERY = 5.0          # s: how often the lists are checked for deleted files
+DANGER_RED = "#D32F2F"     # a menu entry that cannot be undone (🗑 delete the file)
 REMEMBER_EVERY = 5.0       # s: how often the place in the song is noted (written to the file on exit)
 SLEEP_OFF = "😴 Uyku: kapalı"
 SMART_EMPTY = {
@@ -549,6 +551,7 @@ class MusicWindow(ctk.CTkToplevel):
         self.prev_btn = ctk.CTkButton(ctl, text="⏮", width=44, command=self._previous)
         self.play_btn = ctk.CTkButton(ctl, text=PLAY_ICON, width=60, font=ctk.CTkFont(size=18),
                                       command=self._toggle)
+        tooltip.set(self.play_btn, "Çal / duraklat")
         self.next_btn = ctk.CTkButton(ctl, text="⏭", width=44, command=self._next)
         self.stop_btn = ctk.CTkButton(ctl, text="⏹", width=44, command=self._stop)
         for col, b in enumerate((self.prev_btn, self.play_btn, self.next_btn, self.stop_btn)):
@@ -624,7 +627,7 @@ class MusicWindow(ctk.CTkToplevel):
         MusicWindow._ttk_ready = True
         win = getattr(self, "lyrics_window", None)
         try:
-            if win is not None and win.winfo_exists() and win.data:     # its line colours follow the theme too
+            if win is not None and win.winfo_exists() and win.data and not win.editing:  # its line colours follow the theme too
                 current, win.current = win.current, -1
                 win._fill()
                 if current >= 0:
@@ -926,6 +929,66 @@ class MusicWindow(ctk.CTkToplevel):
             self._sync_queue()
             self._refresh_tracks()
 
+    def delete_files(self, tracks=None) -> int:
+        """🗑 Delete the files of these songs (the selected ones) from the computer for good, not to the
+        Recycle Bin, with their lyrics (.lrc); they leave every list and the queue. The song that plays
+        is let go of first and the next one plays. Returns how many files were deleted."""
+        tracks = [t for t in (self._picked_tracks() if tracks is None else tracks) if os.path.isfile(t["path"])]
+        if not tracks:
+            self.note("Silinecek bir dosya yok")
+            return 0
+        text = (f"“{track_label(tracks[0])}” dosyası bilgisayardan tamamen silinsin mi? Bu geri alınamaz."
+                if len(tracks) == 1 else
+                f"{len(tracks)} dosya bilgisayardan tamamen silinsin mi? Bu geri alınamaz.")
+        if not self._confirm(text):
+            return 0
+        c = self.controller
+        playing = c.current_path()
+        asked = {playlists.file_key(t["path"]) for t in tracks}
+        place = c.let_go(playing) if playing and playlists.file_key(playing) in asked else None
+        deleted, failed = [], []
+        for path in dict.fromkeys(t["path"] for t in tracks):
+            try:
+                os.remove(path)                                   # for good: "tamamen", not the Recycle Bin
+            except OSError as e:
+                log.info("cannot delete %s: %s", path, e)
+                failed.append(os.path.basename(path))
+                continue
+            deleted.append(path)
+            try:
+                os.remove(lyrics.lyrics_path(path))
+            except OSError:
+                pass
+        gone = {playlists.file_key(p) for p in deleted}
+        c.queue = [t for t in c.queue if playlists.file_key(t["path"]) not in gone]
+        if place is not None and playlists.file_key(playing) not in gone:
+            c.take_back(place)                                    # it could not be deleted: it goes on
+        elif place is not None:
+            order = c.tracks[c.index + 1:] + c.tracks[:c.index + 1]
+            after = next((t for t in order if playlists.file_key(t["path"]) not in gone), None)
+            c.stop()
+            if place[1] == "playing" and c.queue:
+                c.next()
+            elif place[1] == "playing" and after is not None:
+                c.play_index(next(i for i, t in enumerate(c.tracks) if t is after))
+        win = self.lyrics_window
+        try:
+            if win is not None and win.winfo_exists() and win.path and playlists.file_key(win.path) in gone:
+                win.destroy()                                     # its song is no more
+                self.lyrics_window = None
+        except tk.TclError:
+            pass
+        self.prune_missing(deleted)
+        self._show_now_playing()
+        self._update_status()
+        self._update_queue_button()
+        self._update_lyrics_button()
+        if failed:
+            self.note(f"🗑 {len(deleted)} dosya silindi, {len(failed)} dosya silinemedi: {failed[0]}", 10)
+        else:
+            self.note(f"🗑 “{track_label(tracks[0])}” silindi" if len(deleted) == 1 else f"🗑 {len(deleted)} dosya silindi", 8)
+        return len(deleted)
+
     # ------------------------------------------------------------------ right-click menus
     def _popup(self, menu, event):
         try:
@@ -955,9 +1018,11 @@ class MusicWindow(ctk.CTkToplevel):
                 ("✏ Dosya adlarını düzenle…", self.rename_files),
                 ("➕ Başka listeye ekle", [(n, lambda n=n: self._copy_selected(n)) for n in others]
                  + [("＋ Yeni liste…", self._copy_to_new_list)]),
-                *([] if playlists.is_smart(self.viewed) else [None, ("✖ Listeden çıkar", self._remove_selected)])]
+                None, *([] if playlists.is_smart(self.viewed) else [("✖ Listeden çıkar", self._remove_selected)]),
+                ("🗑 Dosyayı sil", self.delete_files, {"foreground": DANGER_RED})]   # in red: for good, from the disk
 
     def _fill_menu(self, menu, items):
+        """Items as (label, command or a submenu's items[, {option: value}]): e.g. {"foreground": "red"}."""
         for entry in items:
             if entry is None:
                 menu.add_separator()
@@ -966,7 +1031,7 @@ class MusicWindow(ctk.CTkToplevel):
                 self._fill_menu(sub, entry[1])
                 menu.add_cascade(label=entry[0], menu=sub)
             else:
-                menu.add_command(label=entry[0], command=entry[1])
+                menu.add_command(label=entry[0], command=entry[1], **(entry[2] if len(entry) > 2 else {}))
 
     def _track_menu(self, event):
         row = self.tree.identify_row(event.y)
@@ -1315,7 +1380,7 @@ class MusicWindow(ctk.CTkToplevel):
                           else f"“{name}” için şarkı sözü bulamadım", 8)
             win = self.lyrics_window
             try:
-                if (win is not None and win.winfo_exists() and win.path
+                if (win is not None and win.winfo_exists() and win.path and not win.editing   # not over the typing
                         and os.path.normcase(win.path) == os.path.normcase(path)):
                     win.show(win.track)
             except tk.TclError:
@@ -2487,7 +2552,7 @@ class LyricsWindow(ctk.CTkToplevel):
         self.close_btn = ctk.CTkButton(foot, text="Kapat", width=90, command=self.destroy)
         self.close_btn.grid(row=0, column=5)
         self.foot = foot
-        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Escape>", lambda e: self._cancel_edit() if self.editing else self.destroy())
         try:
             self.transient(parent)
         except tk.TclError:
@@ -2536,7 +2601,9 @@ class LyricsWindow(ctk.CTkToplevel):
     # ------------------------------------------------------------------ ✎ by hand
     def edit(self):
         """The lyrics as an editable text: fix a line, or paste lyrics found elsewhere. Lines like
-        '[01:23.45] words' keep following the song; without time marks they are plain lyrics."""
+        '[01:23.45] words' keep following the song (a line added without a mark gets a time between its
+        neighbours); lyrics pasted without time marks over timed ones take their times (lyrics.keep_times),
+        otherwise they are plain lyrics."""
         if self.path is None:
             return
         self.editing = True
@@ -2559,10 +2626,20 @@ class LyricsWindow(ctk.CTkToplevel):
         self.save_btn.grid(row=0, column=3, padx=(0, 8))
         self.close_btn.configure(text="Vazgeç", command=self._cancel_edit)
 
+    def _length_ms(self) -> int:
+        """The length of the shown song: from the player when it plays, otherwise from its tags."""
+        c = getattr(self.master, "controller", None)
+        try:
+            if c is not None and c.state != "stopped" and playlists.same_file(c.current_path() or "?", self.path):
+                return int(c.length_ms() or 0)
+        except (OSError, tk.TclError, TypeError, ValueError):
+            pass
+        return int((self.track or {}).get("duration") or 0)
+
     def save_edit(self):
         text = self.text.get("1.0", "end")
         try:
-            found = lyrics.write_by_hand(self.path, text)
+            found = lyrics.write_by_hand(self.path, text, self._length_ms())
         except OSError as e:
             messagebox.showerror("DISO", f"Sözler kaydedilemedi: {e}", parent=self)
             return
@@ -2614,7 +2691,7 @@ class LyricsWindow(ctk.CTkToplevel):
 
     def _resize(self, step):
         self.size = max(self.SIZES[0], min(self.SIZES[1], self.size + step))
-        if self.data:
+        if self.data and not self.editing:              # not over the text being edited (its time marks)
             current, self.current = self.current, -1
             self._fill()
             if current >= 0:
@@ -2715,6 +2792,7 @@ class MiniPlayer(ctk.CTkToplevel):
         controls.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(0, 10))
         self.prev_btn = ctk.CTkButton(controls, text="⏮", width=36, height=28, command=music._previous)
         self.play_btn = ctk.CTkButton(controls, text=PLAY_ICON, width=44, height=28, command=music._toggle)
+        tooltip.set(self.play_btn, "Çal / duraklat")
         self.next_btn = ctk.CTkButton(controls, text="⏭", width=36, height=28, command=music._next)
         self.shuffle_btn = ctk.CTkButton(controls, text="🔀", width=32, height=28,
                                          command=lambda: music.set_shuffle(not music.controller.shuffle))

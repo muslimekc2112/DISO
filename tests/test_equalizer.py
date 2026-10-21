@@ -87,8 +87,10 @@ def test_turning_it_on_goes_on_from_the_same_moment_and_back():
     b.set_filter("equalizer=f=60:t=o:w=1:g=8")                            # another setting: same backend
     assert b.active is eq and eq.filter.endswith("g=8") and len(made) == 1
     eq.position = 4000
-    b.set_filter("")
-    assert b.active is b.plain and b.plain.loaded == "a.mp3" and b.plain.position == 4000 and b.plain.playing
+    b.set_filter("")                                    # flat in the middle of the song: no switch to be heard
+    assert b.active is eq and eq.filter == "" and eq.playing and eq.position == 4000
+    b.load("b.mp3")                                     # the next song is on MCI again
+    assert b.active is b.plain and b.plain.loaded == "b.mp3"
 
 
 def test_switching_while_paused_stays_paused_and_resume_starts_the_new_one():

@@ -351,7 +351,7 @@ def test_artist_and_title_from_a_youtube_style_title(track, shown):
 def test_lrc_text_is_read_with_times_and_without_tags():
     from app import lyrics
     d = lyrics.parse("[ti:Şarkı]\r\n[00:01.5]Bir\n[01:02.25][01:30.00]Nakarat\n\nDüz satır\n")
-    assert d["synced"] == [(1500, "Bir"), (62250, "Nakarat"), (90000, "Nakarat")]
+    assert d["synced"] == [(1500, "Bir"), (62250, "Nakarat"), (64750, "Düz satır"), (90000, "Nakarat")]
     assert d["plain"] == ["Bir", "Nakarat", "", "Düz satır"]
     assert lyrics.parse("sadece düz\nmetin")["synced"] == []
 
