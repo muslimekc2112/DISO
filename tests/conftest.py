@@ -53,6 +53,22 @@ def isolated_home(tmp_path, monkeypatch):
     return home
 
 
+from app import deno_setup as _deno_setup  # noqa: E402
+
+REAL_DENO_LATEST_TAG = _deno_setup.latest_tag     # for the test of the lookup itself (it is given a fake `get`)
+
+
+@pytest.fixture(autouse=True)
+def no_deno_download(monkeypatch):
+    """The updater also looks for a new Deno (a 40 MB download): never in the tests, unless a test says so."""
+    from app import deno_setup
+
+    def offline(*a, **k):
+        raise ConnectionError("no network for Deno in the tests")
+    monkeypatch.setattr(deno_setup, "latest_tag", offline)
+    monkeypatch.setattr(deno_setup, "install", offline)
+
+
 @pytest.fixture(autouse=True)
 def clean_globals():
     """Undo what a test did to process-wide state (speed limit, import hook, modules)."""

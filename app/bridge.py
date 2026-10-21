@@ -177,8 +177,24 @@ def _local(url_path, port, method="GET"):
     return requests.post(url, data=b"{}", **kw) if method == "POST" else requests.get(url, **kw)
 
 
+def port_taken(port: int) -> bool:
+    """Does something listen on 127.0.0.1:port? Found out by trying to take the port ourselves: instant. (Asking
+    a port where nothing listens takes Windows 1.5–2 seconds to give up: that was every start of DISO.)"""
+    import socket
+    if not port:
+        return False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("127.0.0.1", int(port)))
+        except OSError:
+            return True
+    return False
+
+
 def ping_existing(port: int = DEFAULT_PORT) -> bool:
     """True if a copy of this app already listens on `port`."""
+    if not port_taken(port):
+        return False                                     # nothing there: no need to wait for an answer
     try:
         r = _local("/ping", port)
         return r.status_code == 200 and r.json().get("app") == APP_ID

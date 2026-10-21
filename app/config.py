@@ -5,10 +5,10 @@ Two kinds live here: what the option bar of the main window shows (folder, quali
 connections ...) and the global switches of the settings window (parallel downloads,
 speed limit, notifications ...).
 """
-import json
 import os
 import threading
 
+from . import safefile
 from .utils import app_data_dir
 
 # value shown in the speed-limit menu -> KB/s (0 = no limit)
@@ -93,8 +93,7 @@ class Config:
 
     def _load(self):
         try:
-            with open(self.path, encoding="utf-8") as f:
-                saved = json.load(f)
+            saved = safefile.read_json(self.path)                 # a broken file comes back from its copy
         except Exception:
             return
         if not isinstance(saved, dict):
@@ -121,10 +120,7 @@ class Config:
             self._write()
 
     def _write(self):
-        tmp = self.path + ".tmp"
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, self.path)
+            safefile.write_json(self.path, self.data, indent=2)
         except OSError:
             pass

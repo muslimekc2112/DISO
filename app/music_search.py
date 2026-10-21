@@ -214,36 +214,119 @@ def suggest(query: str, get=None) -> list:
 PREVIEW_SECONDS = 30
 
 
-def preview_start(duration: float) -> int:
-    """Where the preview starts: about a third in (often the chorus), never too close to the end."""
+def preview_start(duration: float, heatmap=None) -> int:
+    """Where the preview starts. With YouTube's "most replayed" graph: the 30 seconds people play again the most
+    (the chorus, usually), leaving out the very start (everybody plays that). Without it: about a third in."""
     if duration < 70:
         return 0
+    best = most_replayed(duration, heatmap)
+    if best is not None:
+        return best
     return int(max(0, min(duration * 0.3, duration - PREVIEW_SECONDS - 5)))
 
 
-def make_preview(url: str, out: str, duration=0, run=None) -> str:
-    """Cut 30 seconds of the song's sound straight from YouTube into an MP3 (nothing else is downloaded)."""
+def most_replayed(duration, heatmap):
+    """The start (s) of the most replayed part, or None when the graph shows none. The graph always falls from
+    its start (everybody plays the beginning): what counts is the highest bump after that, where people jump
+    back to (the chorus, usually)."""
+    points = sorted((float(h["start_time"]), float(h["value"])) for h in heatmap or []
+                    if isinstance(h, dict) and {"start_time", "value"} <= set(h))
+    if len(points) < 10:
+        return None
+    first = max(10.0, duration * 0.08)                       # not the intro everybody starts with
+    last = duration - PREVIEW_SECONDS - 3
+    values = [v for _, v in points]
+    best, best_value = None, 0.0
+    for i, (t, v) in enumerate(points):
+        if not first <= t <= last:
+            continue
+        around = values[max(0, i - 3):i + 4]
+        before = [w for (u, w) in points[:i + 1] if u >= first * 0.5]
+        if v >= max(around) and before and v > min(before) * 1.05 and v > best_value:   # a real bump, not the fall
+            best, best_value = t, v
+    return None if best is None else int(max(first, best - 2))  # a breath before it: not mid-word
+
+
+PREVIEW_KEEP = 30             # previews kept, so a song listened to again starts at once
+FADE_IN, FADE_OUT = 1.2, 2.5  # seconds: the preview comes in and goes out softly, not cut off
+_preview_locks = {}
+_preview_locks_lock = threading.Lock()
+
+
+def preview_file(url: str) -> str:
+    import hashlib
+    return os.path.join(preview_dir(), "onizleme-" + hashlib.sha1(url.encode("utf-8")).hexdigest()[:16] + ".mp3")
+
+
+def _lock_for(path):
+    with _preview_locks_lock:
+        return _preview_locks.setdefault(path, threading.Lock())
+
+
+def prepare_preview(url: str, duration=0, run=None, resolve=None) -> dict:
+    """{"path", "start", "chorus"}: 30 seconds of the song as an MP3, from the most replayed part when YouTube
+    knows it (chorus True), fading in and out. Made once: asked again (or while it is being made in the
+    background) the same file is given."""
+    import json
     import subprocess
 
     from .utils import find_ffmpeg, subprocess_flags
-    info = ve.resolve(url, "audio", "En iyi")
-    fmt = (info.get("requested_formats") or [info])[0]
-    source = fmt.get("url")
-    ffmpeg = find_ffmpeg()
-    if not source:
-        raise RuntimeError("Bu şarkının sesine ulaşamadım")
-    if not ffmpeg:
-        raise ve.MissingFFmpeg("FFmpeg bulunamadı")
-    headers = fmt.get("_fast_headers") or fmt.get("http_headers") or {}
-    cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-           "-ss", str(preview_start(duration or info.get("duration") or 0)), "-t", str(PREVIEW_SECONDS)]
-    if headers:
-        cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in headers.items())]
-    cmd += ["-i", source, "-vn", "-c:a", "libmp3lame", "-b:a", "128k", out]
-    (run or subprocess.run)(cmd, check=True, capture_output=True, timeout=120, **subprocess_flags())
-    if not os.path.isfile(out) or os.path.getsize(out) < 1000:
-        raise RuntimeError("Önizleme oluşmadı")
-    return out
+    out = preview_file(url)
+    with _lock_for(out):
+        if os.path.isfile(out) and os.path.getsize(out) > 1000:
+            try:
+                with open(out + ".json", encoding="utf-8") as f:
+                    meta = json.load(f)
+            except (OSError, ValueError):
+                meta = {}
+            os.utime(out)                                       # recently used: kept longest
+            return {"path": out, "start": int(meta.get("start", 0)), "chorus": bool(meta.get("chorus"))}
+        info = (resolve or ve.resolve)(url, "audio", "En iyi")
+        fmt = (info.get("requested_formats") or [info])[0]
+        source = fmt.get("url")
+        ffmpeg = find_ffmpeg()
+        if not source:
+            raise RuntimeError("Bu şarkının sesine ulaşamadım")
+        if not ffmpeg:
+            raise ve.MissingFFmpeg("FFmpeg bulunamadı")
+        length = duration or info.get("duration") or 0
+        start = preview_start(length, info.get("heatmap"))
+        chorus = length >= 70 and most_replayed(length, info.get("heatmap")) is not None
+        headers = fmt.get("_fast_headers") or fmt.get("http_headers") or {}
+        part = out + ".part.mp3"
+        cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-ss", str(start), "-t", str(PREVIEW_SECONDS)]
+        if headers:
+            cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in headers.items())]
+        cmd += ["-i", source, "-vn", "-af", f"afade=t=in:st=0:d={FADE_IN},afade=t=out:st={PREVIEW_SECONDS - FADE_OUT}:d={FADE_OUT}",
+                "-c:a", "libmp3lame", "-b:a", "128k", part]
+        (run or subprocess.run)(cmd, check=True, capture_output=True, timeout=120, **subprocess_flags())
+        if not os.path.isfile(part) or os.path.getsize(part) < 1000:
+            raise RuntimeError("Önizleme oluşmadı")
+        os.replace(part, out)
+        with open(out + ".json", "w", encoding="utf-8") as f:
+            json.dump({"start": start, "chorus": chorus}, f)
+    prune_previews()
+    return {"path": out, "start": start, "chorus": chorus}
+
+
+def make_preview(url: str, out: str = "", duration=0, run=None) -> str:
+    """The path of the song's 30 second preview (see prepare_preview)."""
+    return prepare_preview(url, duration, run)["path"]
+
+
+def prune_previews(keep=PREVIEW_KEEP):
+    """Only the last `keep` previews stay."""
+    try:
+        folder = preview_dir()
+        found = [os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(".mp3") and ".part" not in n]
+    except OSError:
+        return
+    for path in sorted(found, key=lambda p: os.path.getmtime(p), reverse=True)[keep:]:
+        for leftover in (path, path + ".json"):
+            try:
+                os.remove(leftover)
+            except OSError:
+                pass
 
 
 def preview_dir() -> str:

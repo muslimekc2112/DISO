@@ -6,13 +6,13 @@ videos) or any other site's channel / playlist yt-dlp can list. Its newest video
 downloading anything (yt-dlp "flat"); the first look only remembers what is already there, so
 following a channel never floods the list with its old videos. Kept in %LOCALAPPDATA%\\DISO\\channels.json.
 `Watcher` does the looking on its own thread; the window takes the news with drain()."""
-import json
 import os
 import queue
 import re
 import threading
 import time
 
+from . import safefile
 from .logs import log
 from .utils import app_data_dir
 
@@ -102,8 +102,7 @@ class Store:
         self.new = []               # [{id, url, title, duration, channel, found}], newest first
         self.every = DEFAULT_EVERY
         try:
-            with open(self.path, encoding="utf-8") as f:
-                data = json.load(f)
+            data = safefile.read_json(self.path)                  # a broken file comes back from its copy
             self.channels = [c for c in data.get("channels", []) if isinstance(c, dict) and c.get("url")]
             self.new = [v for v in data.get("new", []) if isinstance(v, dict) and v.get("url")]
             if data.get("every") in EVERY:
@@ -119,10 +118,7 @@ class Store:
     def save(self):
         with self._lock:
             data = {"channels": self.channels, "new": self.new, "every": self.every}
-            tmp = self.path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=1)
-            os.replace(tmp, self.path)
+            safefile.write_json(self.path, data, indent=1)
 
     def find(self, url):
         return next((c for c in self.channels if c["url"].rstrip("/").lower() == url.rstrip("/").lower()), None)

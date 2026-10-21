@@ -10,14 +10,14 @@ DownloadManager - the "IDM / FDM" part.
 * tries again by itself when the connection drops (WAITING state, growing delays)
 * a "gate" the scheduler can close: nothing new starts while it is closed
 """
-import json
+import collections
 import os
 import queue
 import threading
 import time
 from urllib.parse import urlsplit
 
-from . import jobs, torrent
+from . import jobs, safefile, torrent
 from . import video_engine as ve
 from .logs import log
 from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED, PROCESSING,
@@ -37,6 +37,39 @@ def url_key(url: str) -> tuple:
     return (p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/"), p.query)
 
 
+class LineQueue:
+    """The waiting line: first come first served, but one can be moved to the front ("⏫ En üste al")."""
+
+    def __init__(self):
+        self._items = collections.deque()
+        self._ready = threading.Condition()
+
+    def put(self, item):
+        with self._ready:
+            self._items.append(item)
+            self._ready.notify()
+
+    def get(self):
+        with self._ready:
+            while not self._items:
+                self._ready.wait()
+            return self._items.popleft()
+
+    def to_front(self, item) -> bool:
+        with self._ready:
+            if item not in self._items:
+                return False
+            self._items.remove(item)
+            self._items.appendleft(item)
+            return True
+
+    def position(self, item) -> int:
+        """1 for the next one, 0 when it is not waiting."""
+        with self._ready:
+            waiting = [i for i in self._items if getattr(i, "state", QUEUED) == QUEUED and not getattr(i, "removed", False)]
+            return waiting.index(item) + 1 if item in waiting else 0
+
+
 class DownloadManager:
     def __init__(self, max_parallel=MAX_PARALLEL, store_path=None, max_retries=MAX_RETRIES):
         self.items = []
@@ -44,7 +77,7 @@ class DownloadManager:
         self.events = queue.Queue()       # ("done"|"error", item) for notifications
         self.lock = threading.RLock()
         self._save_lock = threading.Lock()
-        self.q = queue.Queue()
+        self.q = LineQueue()
         self.store_path = store_path or os.path.join(app_data_dir(), "downloads.json")
         self._last_save = 0.0
         self.max_parallel = max(1, int(max_parallel))
@@ -78,8 +111,7 @@ class DownloadManager:
     # ------------------------------------------------------------------ persistence
     def _load(self):
         try:
-            with open(self.store_path, encoding="utf-8") as f:
-                data = json.load(f)
+            data = safefile.read_json(self.store_path)            # a broken file comes back from its copy
             self.items = [Item.from_dict(d) for d in data.get("items", [])][-200:]
         except Exception:
             self.items = []
@@ -87,12 +119,9 @@ class DownloadManager:
     def save(self):
         with self.lock:
             data = {"items": [i.to_dict() for i in self.items]}
-        tmp = self.store_path + ".tmp"
         with self._save_lock:  # workers and the window both save; one writer at a time
             try:
-                with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False)
-                os.replace(tmp, self.store_path)
+                safefile.write_json(self.store_path, data)
             except OSError:
                 pass
 
@@ -294,11 +323,19 @@ class DownloadManager:
             torrent.remove_empty_dirs(item.temp_files, item.folder)
         item.temp_files = []
 
+    def to_front(self, item) -> bool:
+        """⏫ This queued download is the next one to start."""
+        return item.state == QUEUED and self.q.to_front(item)
+
     def _dispatch(self):
-        """One thread hands queued items to worker threads, oldest first, as long as fewer
-        than max_parallel run and the scheduler's gate is open. An item that is paused /
-        removed while it waits is skipped."""
+        """One thread hands queued items to worker threads, in the order of the line (oldest first unless one
+        was moved to the front), as long as fewer than max_parallel run and the scheduler's gate is open. A
+        place is waited for before the next one is taken, so a move to the front still counts. An item that is
+        paused / removed while it waits is skipped."""
         while True:
+            with self._slots:
+                while self._running >= self.max_parallel or not self._gate_open:
+                    self._slots.wait(0.5)
             item = self.q.get()
             with self._slots:
                 while (self._running >= self.max_parallel or not self._gate_open) \

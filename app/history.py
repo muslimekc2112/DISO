@@ -1,11 +1,11 @@
 """Everything that was downloaded, kept even after it leaves the download list (%LOCALAPPDATA%\\DISO\\history.json),
 and the numbers made from it: how many, how much, how fast, from where."""
-import json
 import os
 import threading
 import time
 from urllib.parse import urlsplit
 
+from . import safefile
 from .utils import app_data_dir
 
 MAX_ENTRIES = 3000
@@ -52,19 +52,15 @@ class History:
         self._lock = threading.Lock()
         self.entries = []                                   # newest first
         try:
-            with open(self.path, encoding="utf-8") as f:
-                data = json.load(f)
+            data = safefile.read_json(self.path)                  # a broken file comes back from its copy
             self.entries = [e for e in map(_clean, data.get("entries", [])) if e]
         except Exception:  # noqa: BLE001 - no history yet, or a broken file: start empty
             self.entries = []
 
     def save(self):
         with self._lock:
-            tmp = self.path + ".tmp"
             try:
-                with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump({"entries": self.entries}, f, ensure_ascii=False)
-                os.replace(tmp, self.path)
+                safefile.write_json(self.path, {"entries": self.entries})
             except OSError:
                 pass
 

@@ -1,9 +1,9 @@
 """Saved playlists (%LOCALAPPDATA%\\DISO/playlists.json): several named lists of music files, each
 in the order the user chose, plus the player's own small settings (volume, shuffle, repeat ...)."""
-import json
 import os
 import threading
 
+from . import safefile
 from .player import REPEAT_MODES, artist_and_title, is_audio, is_music
 from .utils import app_data_dir
 
@@ -114,8 +114,7 @@ class PlaylistStore:
     # ------------------------------------------------------------------ files
     def _load(self):
         try:
-            with open(self.path, encoding="utf-8") as f:
-                data = json.load(f)
+            data = safefile.read_json(self.path)                  # a broken file comes back from its copy
             lists = data.get("playlists", {})
         except Exception:
             return
@@ -142,12 +141,9 @@ class PlaylistStore:
 
     def save(self):
         with self._lock:
-            tmp = self.path + ".tmp"
             try:
-                with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump({"playlists": self.lists, "state": self.state, "stats": self.stats}, f,
-                              ensure_ascii=False, indent=2)
-                os.replace(tmp, self.path)
+                safefile.write_json(self.path, {"playlists": self.lists, "state": self.state, "stats": self.stats},
+                                    indent=2)
             except OSError:
                 pass
 

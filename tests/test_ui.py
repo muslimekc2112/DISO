@@ -480,7 +480,7 @@ def test_a_running_update_shows_a_progress_strip(app):
 def test_update_panel_lists_every_component_and_refreshes(app):
     app._open_updates()
     panel = app.update_panel
-    assert set(panel.cards) == {"diso", "yt-dlp", "yt-dlp-ejs", "ffmpeg"}
+    assert set(panel.cards) == {"diso", "yt-dlp", "yt-dlp-ejs", "ffmpeg", "deno"}
     app.updates.components["yt-dlp"].status = "available"
     app.updates.components["yt-dlp"].installed, app.updates.components["yt-dlp"].latest = "1.0", "2.0"
     panel._refresh()

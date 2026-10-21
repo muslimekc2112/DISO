@@ -43,6 +43,8 @@ DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konu�
 - Her satırda ⏸/▶ (duraklat/devam), 📂 (klasörü aç), ✖ (kaldır) var; **sağ tık** menüsü ve çift tıkla açma da. DISO kapansa bile yarım indirmeler kaldığı yerden devam eder. Satırın solundaki renkli şerit durumu gösterir (iniyor, bitti, hata, beklemede).
 - Listede arama, filtre, sıralama ve kutucukla çoklu seçim (toplu başlat/duraklat/sil) var. Kısayollar: `Ctrl+F` ara, `Ctrl+A` hepsini seç, `Delete` seçilenleri sil.
 - **🧲 Torrent:** magnet linki, `.torrent` linki ya da `📄` ile `.torrent` dosyası ekle; aria2 ile iner (ilk torrentte bir kereliğine ~2.5 MB indirilir, SHA-256 ile doğrulanır). Bitince paylaşmaya devam etmez.
+- **🩺 Sağlık kontrolü** ve **🐞 Sorun bildir** (Ayarlar → Yedek ve yardım): her şey yolunda mı, değilse tek tıkla düzelt; ya da raporu GitHub'a gönder.
+- **⏫ En üste al:** bekleyen bir indirmeye sağ tık → sıradaki o olur.
 - **🧲 Torrentte dosya seç:** çok dosyalı torrentte inmeden önce klasör ağacından istediğin dosyaları seçersin (Hepsi / Videolar / Müzik …, seçilen boyut ve boş yer); inerken sağ tık → "Dosyaları seç…" ile değiştirilir.
 - **📈 Hız grafiği:** listenin altında son bir dakikanın hızı (Nostalji'de yeşil-siyah, ilerleme penceresinde de).
 - **🔧 Dosyayı kontrol et / onar** (biten indirmeye sağ tık): sonu eksikse yalnız eksik kısmı indirir, bozuksa baştan indirmeyi önerir.

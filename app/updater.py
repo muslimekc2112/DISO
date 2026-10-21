@@ -298,6 +298,8 @@ class Updater:
                                     "YouTube'un JavaScript tabanlı korumasını çözer."),
             "ffmpeg": Component("ffmpeg", "FFmpeg",
                                 "Video ve ses birleştirme, MP3 dönüştürme."),
+            "deno": Component("deno", "Deno",
+                              "YouTube'un korumasını çözmek için gereken JavaScript motoru."),
         }
         global _instance
         _instance = self
@@ -351,6 +353,7 @@ class Updater:
                 for pkg, info in outdated.items():
                     self._install_package(pkg, info)
             self._check_ffmpeg(install)
+            self._check_deno(install)
         finally:
             ready.set()                         # whatever happened, yt-dlp is never left blocked
             self.running = False
@@ -483,6 +486,45 @@ class Updater:
         comp.status, comp.message = "available", "Yeni FFmpeg derlemesi var"
         if install:
             self._install_ffmpeg(comp)
+
+    # -- Deno
+    def _check_deno(self, install: bool) -> None:
+        from . import deno_setup
+        comp = self.components["deno"]
+        path = deno_setup.find()
+        comp.installed = deno_setup.version_of(path) if path else ""
+        if path and not deno_setup.is_ours(path):
+            comp.status, comp.message = "manual", "Bu bilgisayarda ayrıca kurulu olan Deno; onu sen güncelliyorsun"
+            return
+        comp.status, comp.message = "checking", ""
+        try:
+            tag = deno_setup.latest_tag()
+        except Exception as e:  # noqa: BLE001
+            comp.status, comp.message = "error", f"Sunucuya ulaşamadım: {_short(e)}"
+            return
+        comp.latest, comp.checked_at = tag.lstrip("v"), time.time()
+        if path and not deno_setup.wanted(comp.installed, comp.latest):
+            comp.status, comp.message = "current", ""
+            return
+        comp.status, comp.message = "available", f"Yeni sürüm: {comp.latest}"
+        if install:
+            self._install_deno(comp, tag)
+
+    def _install_deno(self, comp: Component, tag: str) -> None:
+        from . import deno_setup
+        comp.status, comp.progress, comp.message = "working", 0.0, "İndiriliyor…"
+
+        def on_progress(done, total):
+            comp.progress = (done / total) if total else 0.0
+            comp.message = f"İndiriliyor… {human_size(done)} / {human_size(total)}"
+        try:
+            path = deno_setup.install(tag, on_progress)
+        except Exception as e:  # noqa: BLE001
+            comp.status, comp.message = "error", f"Güncelleyemedim: {_short(e)}"
+            return
+        comp.installed = deno_setup.version_of(path) or tag.lstrip("v")
+        comp.status, comp.progress, comp.message = "done", 1.0, "Güncellendi"
+        self.notices.put(f"Deno {comp.installed} sürümüne güncellendi")
 
     def _install_ffmpeg(self, comp: Component) -> None:
         if self.ffmpeg_busy():

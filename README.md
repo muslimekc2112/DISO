@@ -43,6 +43,8 @@ The name, publisher, version and GitHub address are written in one place: `app/b
 - Every row has ⏸/▶ (pause/resume), 📂 (open folder) and ✖ (remove), plus a **right-click** menu and double-click to open. Unfinished downloads go on from where they stopped, even after DISO was closed. The coloured strip on the left of a row shows its state (downloading, done, error, paused).
 - The list has search, filters, sorting and checkboxes for picking several rows (start/pause/delete them together). Shortcuts: `Ctrl+F` search, `Ctrl+A` select all, `Delete` delete the selected ones.
 - **🧲 Torrents:** add a magnet link, a `.torrent` link or a `.torrent` file with `📄`; aria2 downloads it (downloaded once with the first torrent, ~2.5 MB, checked with SHA-256). It is not shared on when finished.
+- **🩺 Health check** and **🐞 Report a problem** (Settings → Backup and help): is everything in order, and if not, fix it with one click; or send a report to GitHub.
+- **⏫ Move to the front:** right-click a waiting download → it is the next one.
 - **🧲 Choose a torrent's files:** before a torrent with several files starts, pick the ones you want from its folder tree (All / Videos / Music …, chosen size and free room); right-click → "Choose the files…" changes it while it downloads.
 - **📈 Speed graph:** the last minute of speed under the list (green on black in Nostalgia, also in the progress window).
 - **🔧 Check / repair the file** (right-click a finished download): only the missing end is downloaded when that is all that is wrong; a broken file can be downloaded again.

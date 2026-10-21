@@ -556,6 +556,8 @@ class NostalgiaWindow:
             ("Günlüğü aç", self.open_log, None)])
         menu("Yardım", [
             ("Klavye kısayolları", self.open_shortcuts, "F1"),
+            ("Sağlık kontrolü…", self.open_health, None),
+            ("Sorun bildir…", self.report_problem, None),
             ("Bize ulaş", lambda: webbrowser.open(brand.CONTACT_URL), None),
             None,
             (f"{brand.NAME} hakkında", self.open_about, None)])

@@ -585,6 +585,35 @@ PLAIN = {
     'Kapak bulundu; “Kaydet” ile dosyaya yazılır.': 'Cover found; “Save” writes it into the file.',
     'Bu adla ve sanatçıyla bir kapak bulamadım.': 'I found no cover with this name and artist.',
     "YouTube Music'e ulaşamadım, bağlantını kontrol et.": 'Could not reach YouTube Music, check your connection.',
+    # ---- the last round: health check, report, Deno, files that survive, the line, the preview
+    'İnternet bağlantısı': 'Internet connection', 'yok gibi görünüyor: modemi ya da Wi-Fi\'ı kontrol et':
+        'seems to be missing: check the modem or the Wi-Fi', 'GitHub (güncellemeler)': 'GitHub (updates)',
+    'ulaşılabiliyor': 'reachable', 'yüklü değil ya da açılmıyor': 'not installed, or does not open',
+    'yok: MP3 ve video birleştirme için lazım': 'missing: needed for MP3 and for joining video and sound',
+    'yok: YouTube videolarının çoğu inmez': 'missing: most YouTube videos will not download',
+    'aria2 (torrent)': 'aria2 (torrent)', 'ilk torrentte kendim indiririm (2.5 MB)': 'I download it with the first torrent (2.5 MB)',
+    'Tarayıcı eklentisi': 'Browser extension',
+    'henüz hiç bağlanmadı: linke sağ tık → “DISO ile indir” için ekle':
+        'has never connected yet: add it for right-click → “Download with DISO”',
+    'İndirme klasörü': 'Download folder', "DISO'nun dosyaları": "DISO's files", 'hepsi sağlam': 'all fine',
+    'Kontrol': 'Check', 'DISO • 🩺 Sağlık kontrolü': 'DISO • 🩺 Health check', 'Sağlık kontrolü': 'Health check',
+    'Yeniden bak': 'Look again', 'Sonuçları kopyala': 'Copy the results', 'Sorun bildir': 'Report a problem',
+    'Bakıyorum…': 'Looking…', "FFmpeg'i kur": 'Install FFmpeg', "Deno'yu kur": 'Install Deno',
+    'Eklentiyi ekle': 'Add the extension', 'Ayarları aç': 'Open the settings', '✓ Her şey yolunda': '✓ All is well',
+    'Sonuçlar kopyalandı': 'Results copied',
+    'İnternet, YouTube, FFmpeg, Deno, eklenti, klasör… her şey yolunda mı? Sorun varsa çoğunu tek tıkla düzeltir':
+        'Internet, YouTube, FFmpeg, Deno, the extension, the folder… is everything in order? Most problems are fixed with one click',
+    "Günlüğü ve sürümleri masaüstüne bir zip olarak koyar (listelerin, geçmişin, çerezlerin olmadan) ve GitHub'da yeni bir sorun sayfası açar":
+        'Puts the log and the versions on the Desktop as a zip (without your lists, history or cookies) and opens a new issue page on GitHub',
+    "Sorun raporu hazırlansın mı?\n\nMasaüstüne bir zip dosyası koyarım: sürümler, sağlık kontrolü, günlük dosyası (linkler yalnız site adıyla) ve ayarlar. Çalma listelerin, geçmişin ve çerezlerin içinde olmaz.\n\nSonra GitHub'da yeni bir sorun sayfası açarım; ne olduğunu yazıp zip'i oraya sürüklersin.":
+        "Make a problem report?\n\nI put a zip file on the Desktop: the versions, the health check, the log (links only with their site) and the settings. Your playlists, history and cookies are not in it.\n\nThen I open a new issue page on GitHub; write what happened and drag the zip there.",
+    'Rapor hazırlanıyor…': 'Making the report…', 'Sağlık kontrolü…': 'Health check…', 'Sorun bildir…': 'Report a problem…',
+    'ayarlar': 'settings', 'çalma listeleri': 'playlists', 'indirme listesi': 'download list',
+    'indirme geçmişi': 'download history', 'takip edilen kanallar': 'followed channels',
+    'En üste al (sıradaki bu olsun)': 'Move to the front (this one next)',
+    "YouTube'un korumasını çözmek için gereken JavaScript motoru.": "The JavaScript engine needed to get past YouTube's protection.",
+    'Bu bilgisayarda ayrıca kurulu olan Deno; onu sen güncelliyorsun': 'A Deno installed separately on this PC; you update it yourself',
+    'en çok dinlenen kısım': 'the most replayed part', 'beğendiysen ⬇ İndir': 'like it? ⬇ Download',
 }
 
 TEMPLATES = [
@@ -772,6 +801,21 @@ TEMPLATES = [
     ("{} şarkının zaten kapağı vardı", "{} songs had one already"),
     ("{} dosya kapak taşımıyor", "{} files cannot carry a cover"),
     ("{} şarkıda bağlantı sorunu", "a connection problem with {} songs"),
+    # ---- the last round
+    ("var ({})", "yes ({})"), ("ulaşılamadı ({})", "not reachable ({})"), ("sunucu {} dedi", "the server said {}"),
+    ("{} çalışıyor", "{} works"), ("{} üzerinden internete çıkılamıyor: Ayarlar → Proxy", "no internet through {}: Settings → Proxy"),
+    ("{} ({} gün önce çıktı): YouTube değişmiş olabilir, güncelle", "{} (out {} days ago): YouTube may have changed, update it"),
+    ("çalışmıyor ({})", "does not run ({})"), ("bağlandı (port {})", "connected (port {})"), ("yok: {}", "missing: {}"),
+    ("yazılamıyor ({}): {}", "cannot be written ({}): {}"), ("diskte yalnız {} boş yer var: {}", "only {} free on the disk: {}"),
+    ("{} boş", "{} free"), ("bozuk: {} (açılışta son sağlam kopyası kullanılır)", "broken: {} (its last good copy is used at the start)"),
+    ("yarıda kaldı: {}", "stopped halfway: {}"),
+    ("✗ {} sorun — düğmeyle düzeltebileceklerin yanında", "✗ {} problems — the ones you can fix have a button"),
+    ("✗ {} sorun, {} uyarı — düğmeyle düzeltebileceklerin yanında", "✗ {} problems, {} warnings — the ones you can fix have a button"),
+    ("⚠ {} uyarı, gerisi yolunda", "⚠ {} warnings, the rest is fine"),
+    ("Rapor hazırlanamadı: {}", "The report could not be made: {}"),
+    ("🐞 Rapor masaüstünde: {}", "🐞 The report is on the Desktop: {}"), ("GitHub sayfasına sürükle", "drag it into the GitHub page"),
+    ("🛟 Bozulmuş dosya son sağlam kopyasından geri yüklendi: {}", "🛟 A broken file came back from its last good copy: {}"),
+    ("⏫ Sıradaki: {}", "⏫ Next: {}"), ("Deno {} sürümüne güncellendi", "Deno updated to {}"), ("{}'den", "from {}"),
 ]
 
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,

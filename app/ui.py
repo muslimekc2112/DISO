@@ -17,7 +17,7 @@ import customtkinter as ctk
 
 from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import backup, channels, classic_ui, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists, repair
+from . import backup, channels, classic_ui, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
 from .speed_graph import Sampler, SpeedGraph
@@ -122,6 +122,10 @@ class ItemActions:
     def _redownload(self):
         self.app.manager.redownload(self.item)
 
+    def _to_front(self):
+        if self.app.manager.to_front(self.item):
+            self.app.notice(f"⏫ Sıradaki: {self.item.display_name}")
+
     def _delete_with_file(self):
         it = self.item
         if messagebox.askyesno("DISO", f"{it.display_name}\n\nListeden kaldırılsın ve dosya "
@@ -146,6 +150,8 @@ class ItemActions:
             cmds.append(("🔧 Dosyayı kontrol et / onar", lambda: self.app.check_file(it)))
         if it.state == DOWNLOADING and len(getattr(it, "torrent_files", []) or []) > 1:
             cmds.append(("🧲 Dosyaları seç…", lambda: self.app.open_torrent_files(it)))
+        if it.state == QUEUED and self.app.manager.q.position(it) > 1:
+            cmds.append(("⏫ En üste al (sıradaki bu olsun)", self._to_front))
         if it.state in (DONE, ERROR, CANCELLED, PAUSED):
             cmds.append(("Baştan indir", self._redownload))
         cmds.append(("Listeden kaldır", self._remove))
@@ -624,6 +630,12 @@ class SettingsPanel(ctk.CTkToplevel):
         self._add(card, "İndirme geçmişi", "Ne zaman ne indi, ne kadar hızlı", self.history_settings_button)
         self.shortcuts_button = ctk.CTkButton(card, text="⌨ Kısayollar", width=150, command=app.open_shortcuts)
         self._add(card, "Klavye kısayolları", "F1 ile her yerden açılır", self.shortcuts_button)
+        self.health_button = ctk.CTkButton(card, text="🩺 Sağlık kontrolü", width=150, command=app.open_health)
+        self._add(card, "Sağlık kontrolü", "İnternet, YouTube, FFmpeg, Deno, eklenti, klasör… her şey yolunda mı? "
+                  "Sorun varsa çoğunu tek tıkla düzeltir", self.health_button)
+        self.report_button = ctk.CTkButton(card, text="🐞 Sorun bildir", width=150, command=app.report_problem)
+        self._add(card, "Sorun bildir", "Günlüğü ve sürümleri masaüstüne bir zip olarak koyar (listelerin, geçmişin, "
+                  "çerezlerin olmadan) ve GitHub'da yeni bir sorun sayfası açar", self.report_button)
 
         # ---- when everything is finished
         card = self._card("Bitince")
@@ -1215,6 +1227,7 @@ class App(NostalgiaWindow, ctk.CTk):
         self.history = history.History()         # every finished download, also after it leaves the list
         self.history_window = None
         self.shortcuts_window = None
+        self.health_window = None
         self.channel_store = channels.Store()             # 📺 followed channels: new videos are announced, never downloaded
         self.channel_watcher = channels.Watcher(self.channel_store)
         self.app_update = app_update.AppUpdate()
@@ -2033,6 +2046,64 @@ class App(NostalgiaWindow, ctk.CTk):
         win = self._single("history_window", lambda: HistoryWindow(self, self.history))
         win.refresh()
         return win
+
+    # ------------------------------------------------------------------ 🩺 health check, 🐞 report a problem
+    def _health_checks(self):
+        bridge = getattr(self, "bridge", None)
+        return health.run(self.cfg.get("folder") or default_download_dir(),
+                          extension_seen=bool(self.cfg.get("extension_seen")),
+                          bridge_port=getattr(bridge, "port", 0))
+
+    def open_health(self):
+        from .health_ui import HealthWindow
+        return self._single("health_window", lambda: HealthWindow(self, self._health_checks, self.health_fix,
+                                                                    self.report_problem))
+
+    def health_fix(self, key):
+        """A button of the health check: do what can be done about it."""
+        if key == "ffmpeg":
+            threading.Thread(target=self.updates.install_ffmpeg, daemon=True).start()
+            self._open_updates()
+        elif key in ("deno", "update"):
+            self.check_updates(install=True)                 # yt-dlp, FFmpeg and Deno: whatever is old or missing
+            self._open_updates()
+        elif key == "extension":
+            self.open_extension_guide()
+        elif key == "folder":
+            self._open_settings("İndirme")
+
+    def report_problem(self, checks=None):
+        """🐞 A zip on the Desktop with what is needed to understand a problem, and a new issue page on GitHub."""
+        if not messagebox.askyesno("DISO", "Sorun raporu hazırlansın mı?\n\nMasaüstüne bir zip dosyası koyarım: "
+                                   "sürümler, sağlık kontrolü, günlük dosyası (linkler yalnız site adıyla) ve ayarlar. "
+                                   "Çalma listelerin, geçmişin ve çerezlerin içinde olmaz.\n\nSonra GitHub'da yeni bir "
+                                   "sorun sayfası açarım; ne olduğunu yazıp zip'i oraya sürüklersin.", parent=self):
+            return
+        self.notice("🐞 Rapor hazırlanıyor…", 30)
+        items = list(self.manager.items)
+        settings = dict(self.cfg.data)
+
+        def work():
+            from . import about, report
+            try:
+                facts = about.as_text()
+                found = list(checks) if checks else list(self._health_checks())
+                path = report.make(facts, health.as_text(found), settings, items)
+                url = report.issue_url(facts, os.path.basename(path))
+                done = (path, url, "")
+            except Exception as e:  # noqa: BLE001 - said to the user
+                log.exception("report failed")
+                done = ("", "", str(e))
+            self._ui_calls.put(lambda: self._report_ready(*done))
+        threading.Thread(target=work, daemon=True, name="report").start()
+
+    def _report_ready(self, path, url, error):
+        if error:
+            self.notice(f"Rapor hazırlanamadı: {error}", 12)
+            return
+        open_in_file_manager(path)
+        webbrowser.open(url)
+        self.notice(f"🐞 Rapor masaüstünde: {os.path.basename(path)} • GitHub sayfasına sürükle", 20)
 
     def open_shortcuts(self):
         return self._single("shortcuts_window", lambda: ShortcutsWindow(self))
@@ -2857,6 +2928,8 @@ class App(NostalgiaWindow, ctk.CTk):
             self._check_schedule()
             self._drain_channels()
             self._announce_app_update()
+            if self._tick_no % 10 == 1:
+                self._tell_recovered()
             if self._tick_no % 10 == 0:
                 self._ffmpeg_ok = bool(find_ffmpeg())
                 self._update_tray_tooltip()
@@ -2868,6 +2941,17 @@ class App(NostalgiaWindow, ctk.CTk):
         finally:
             if not self._closing:
                 self.after(300, self._tick)
+
+    RECOVERED_NAMES = {"settings.json": "ayarlar", "playlists.json": "çalma listeleri", "downloads.json": "indirme listesi",
+                       "history.json": "indirme geçmişi", "channels.json": "takip edilen kanallar"}
+
+    def _tell_recovered(self):
+        """A file of DISO's was broken (a power cut ...) and came back from its last good copy: say so once."""
+        names = safefile.take_recovered()
+        if names:
+            what = ", ".join(i18n.tr(self.RECOVERED_NAMES.get(n, n)) for n in names)
+            self.notice(f"🛟 Bozulmuş dosya son sağlam kopyasından geri yüklendi: {what}", 20)
+            log.warning("recovered from backup: %s", what)
 
     def _update_graphs(self):
         """📈 Once a second: the speed graph under the list, and the one of each open progress window."""

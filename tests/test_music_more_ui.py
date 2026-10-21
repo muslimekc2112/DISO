@@ -206,10 +206,10 @@ def test_a_preview_pauses_the_music_plays_30_seconds_and_gives_the_music_back(mu
     music._tick()
     assert music.preview and music.controller.state == "paused"
     assert music._preview_backend.loaded == clip and music._preview_backend.playing
-    assert music.preview_btn.cget("text") == "⏹ Durdur" and "Önizleniyor" in music.find_label.cget("text")
+    assert music.preview_btn.cget("text") == "⏹ Durdur" and music.find_label.cget("text").startswith("🎧 0:00 / 0:30")
     music.preview["until"] = time.time() - 1                               # 30 seconds later
     music._tick()
-    assert music.preview is None and music.controller.state == "playing" and not os.path.exists(clip)
+    assert music.preview is None and music.controller.state == "playing" and os.path.exists(clip)    # kept for again
 
 
 def test_pressing_preview_again_stops_it(music_app, tmp_path):

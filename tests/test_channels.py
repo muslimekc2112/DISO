@@ -99,7 +99,10 @@ def test_an_error_is_remembered_and_a_broken_file_is_no_problem(tmp_path):
     store.update(read()["url"], error="Bağlantı yok")
     assert channels.Store(str(path)).channels[0]["error"] == "Bağlantı yok"
     path.write_text("{bozuk", encoding="utf-8")
-    assert channels.Store(str(path)).channels == []
+    assert len(channels.Store(str(path)).channels) == 1                           # back from its last good copy
+    path.write_text("{bozuk", encoding="utf-8")
+    (tmp_path / "c.json.bak").write_text("{bozuk", encoding="utf-8")
+    assert channels.Store(str(path)).channels == []                               # nothing good left: empty
 
 
 def test_how_often_is_remembered(tmp_path):
@@ -199,9 +202,10 @@ def test_following_and_unfollowing_from_the_window(app, monkeypatch):
     win.follow()
     assert win.follow_btn.cget("state") == "disabled"
     end = time.time() + 10
-    while time.time() < end and not app.channel_store.channels:
+    while time.time() < end and not win.channel_tree.exists("0"):     # the answer comes from another thread
+        app._drain_channels()
+        app.update()
         time.sleep(0.05)
-    app._drain_channels()
     assert win.channel_tree.item("0", "values")[0] == "Yeni Kanal" and "takip ediliyor" in win.status.cget("text")
     assert win.entry.get() == "" and win.follow_btn.cget("state") == "normal"
     win.channel_tree.selection_set("0")

@@ -151,6 +151,9 @@ def matches(track, words) -> bool:
     return all(w in text for w in words)
 
 
+PREFETCH_AFTER_MS = 700        # a result chosen this long gets its preview made in the background
+
+
 class MusicWindow(ctk.CTkToplevel):
     _ttk_ready = False
 
@@ -180,6 +183,9 @@ class MusicWindow(ctk.CTkToplevel):
         self.preview = None                          # {"result", "path", "until", "resume"} while a preview sounds
         self._preview_backend = None
         self._preview_wanted = None                  # the result whose preview is being made
+        self._prefetch_after = None                  # a preview made early, while a result is chosen
+        self._prefetching = None
+        self._prefetched = set()
         self._suggest_rows = []
         self._suggest_index = -1
         self._suggest_after = None
@@ -464,6 +470,7 @@ class MusicWindow(ctk.CTkToplevel):
         self.results_tree.bind("<Double-Button-1>", self._on_result_double_click)
         self.results_tree.bind("<Return>", lambda e: self._download_selected() or "break")
         self.results_tree.bind("<Button-3>", self._result_menu)
+        self.results_tree.bind("<<TreeviewSelect>>", self._on_result_select, add="+")
         self.find_hint = ctk.CTkLabel(box, text="Dinlemek istediğin şarkıyı yukarıya yaz, Enter'a bas.\n"
                                                 "Beğendiğini çift tıkla: MP3 olarak iner, sonra hangi listeye\n"
                                                 "koyacağımı sorarım.",
@@ -1809,9 +1816,36 @@ class MusicWindow(ctk.CTkToplevel):
 
     # ------------------------------------------------------------------ 30 second preview
     def _make_preview(self, result):
-        """Runs on the previewer's thread: the 30 second MP3 of a search result."""
-        out = os.path.join(music_search.preview_dir(), f"onizleme-{abs(hash(result['url'])) % 10 ** 8}.mp3")
-        return music_search.make_preview(result["url"], out, result.get("duration") or 0)
+        """Runs on the previewer's thread: the 30 second MP3 of a search result ({"path", "start", "chorus"})."""
+        return music_search.prepare_preview(result["url"], result.get("duration") or 0)
+
+    def _on_result_select(self, event=None):
+        """A song chosen in the results: its preview is made in the background meanwhile, so "🎧 Önizle" plays
+        at once (only after a moment on the same song: going down the list with the arrows costs nothing)."""
+        if self._prefetch_after is not None:
+            try:
+                self.after_cancel(self._prefetch_after)
+            except (tk.TclError, ValueError):
+                pass
+        self._prefetch_after = self.after(PREFETCH_AFTER_MS, self._prefetch_selected)
+
+    def _prefetch_selected(self):
+        self._prefetch_after = None
+        picked = self._selected_results()
+        if len(picked) != 1 or self.preview is not None:
+            return
+        r = picked[0]
+        if r["url"] in self._prefetched or (self._prefetching and self._prefetching.is_alive()):
+            return
+        self._prefetched.add(r["url"])
+
+        def work():
+            try:
+                self._make_preview(r)
+            except Exception as e:  # noqa: BLE001 - "Önizle" will try again and say what is wrong
+                log.info("preview made early, failed: %s", e)
+        self._prefetching = threading.Thread(target=work, daemon=True, name="preview-early")
+        self._prefetching.start()
 
     def _preview_selected(self):
         picked = self._selected_results()
@@ -1836,6 +1870,7 @@ class MusicWindow(ctk.CTkToplevel):
                 return
             self._preview_wanted = None
             if error or not path:
+                self._prefetched.discard(result.get("url") if isinstance(result, dict) else None)
                 self.preview_btn.configure(text="🎧 Önizle")
                 self.find_label.configure(text="Önizlemeyi hazırlayamadım: " + (error or "").splitlines()[0][:100]
                                           if error else "Önizlemeyi hazırlayamadım")
@@ -1849,8 +1884,22 @@ class MusicWindow(ctk.CTkToplevel):
             self.stop_preview(resume=False)                      # the user started the music: it wins
         elif time.time() >= p["until"] or backend.finished():
             self.stop_preview()
+        else:
+            self._show_preview_time()
 
-    def _start_preview(self, result, path):
+    def _show_preview_time(self):
+        """🎧 0:12 / 0:30 • the song • (the chorus) • ⬇ İndir"""
+        p = self.preview
+        sofar = min(music_search.PREVIEW_SECONDS, max(0.0, time.time() - p["began"]))
+        where = f"{fmt_time(p['start'] * 1000)}'den" if p.get("start") else ""
+        part = " • en çok dinlenen kısım" if p.get("chorus") else (f" • {where}" if where else "")
+        text = (f"🎧 {fmt_time(sofar * 1000)} / {fmt_time(music_search.PREVIEW_SECONDS * 1000)} • "
+                f"{p['result']['title'][:46]}{part} • beğendiysen ⬇ İndir")
+        set_if_changed(self.find_label, text=text)
+
+    def _start_preview(self, result, prepared):
+        made = prepared if isinstance(prepared, dict) else {"path": prepared}
+        path = made["path"]
         if self._preview_backend is None:
             from . import player
             self._preview_backend = player.new_backend(alias="hizli_preview")
@@ -1865,9 +1914,10 @@ class MusicWindow(ctk.CTkToplevel):
         b.set_volume(self.controller.volume)
         b.play()
         self.preview = {"result": result, "path": path, "until": time.time() + music_search.PREVIEW_SECONDS + 1,
-                        "resume": resume}
+                        "resume": resume, "began": time.time(), "start": made.get("start", 0),
+                        "chorus": made.get("chorus", False)}
         self.preview_btn.configure(text="⏹ Durdur")
-        self.find_label.configure(text=f"🎧 Önizleniyor: {result['title'][:50]} • beğendiysen ⬇ İndir")
+        self._show_preview_time()
 
     def stop_preview(self, resume=True):
         self._preview_wanted = None
@@ -1880,11 +1930,7 @@ class MusicWindow(ctk.CTkToplevel):
             return
         if self._preview_backend is not None:
             self._preview_backend.stop()
-            self._preview_backend.close()
-        try:
-            os.remove(p["path"])
-        except OSError:
-            pass
+            self._preview_backend.close()                       # the file stays: listened again, it plays at once
         if resume and p["resume"] and self.controller.state == "paused":
             self.controller.toggle()
         try:
