@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <title>DISO</title>
   <style>
-    :root { color-scheme: light dark; --bg:#fff; --fg:#1d1f23; --muted:#6b7280; --card:#f1f3f6; --accent:#2f7de1; }
+    :root { color-scheme: light dark; --bg:#fff; --fg:#1d1f23; --muted:#6b7280; --card:#f1f3f6; --accent:#2f7de1; --line:#8883; }
     @media (prefers-color-scheme: dark) { :root { --bg:#25272b; --fg:#eceff4; --muted:#9aa3b2; --card:#2f3238; } }
-    body { margin:0; width:300px; padding:14px; background:var(--bg); color:var(--fg); font:13px system-ui, sans-serif; }
+    body { margin:0; width:320px; padding:14px; background:var(--bg); color:var(--fg); font:13px system-ui, sans-serif; }
     h1 { font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
     h1 img { width:20px; height:20px; }
     .status { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--card); border-radius:8px; margin-bottom:10px; }
@@ -14,18 +14,39 @@
     .dot.on { background:#2e9e5b; }
     button { width:100%; padding:9px; margin:4px 0; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
     button.secondary { background:var(--card); color:var(--fg); }
+    button.torrent { background:#6b3fa0; }
     button:disabled { opacity:.5; cursor:default; }
     label { display:flex; gap:8px; align-items:center; margin:10px 0 4px; }
     #msg { min-height:18px; margin-top:8px; color:var(--muted); }
-    .downloads { color:var(--muted); margin:-4px 0 8px 2px; min-height:16px; }
+    .downloads { color:var(--muted); margin:-4px 0 6px 2px; min-height:16px; }
+    .list { margin:0 0 8px; }
+    .row { padding:5px 0; border-bottom:1px solid var(--line); }
+    .row:last-child { border-bottom:0; }
+    .row .top { display:flex; justify-content:space-between; gap:8px; }
+    .row .name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .row .detail { color:var(--muted); flex:none; }
+    .bar { height:4px; border-radius:2px; background:var(--card); margin-top:4px; overflow:hidden; }
+    .bar span { display:block; height:100%; background:var(--accent); }
+    .row.queued .bar span { background:var(--muted); }
+    .more { color:var(--muted); font-size:12px; padding-top:4px; }
+    .paste { display:flex; gap:6px; margin:6px 0 2px; }
+    .paste input { flex:1; min-width:0; padding:7px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--fg); font:inherit; }
+    .paste button { width:auto; margin:0; padding:7px 10px; }
+    .lang { position:absolute; top:12px; right:14px; display:flex; gap:2px; }
+    .lang button { width:auto; margin:0; padding:2px 7px; font-size:11px; background:var(--card); color:var(--muted); border-radius:6px; }
+    .lang button.on { background:var(--accent); color:#fff; }
   </style>
 </head>
 <body>
   <h1><img src="icons/icon48.png" alt=""> DISO</h1>
+  <div class="lang"><button id="lang-tr">TR</button><button id="lang-en">EN</button></div>
   <div class="status"><span id="dot" class="dot"></span><span id="state" data-i18n="checking">Kontrol ediliyor…</span></div>
   <div id="downloads" class="downloads"></div>
+  <div id="list" class="list"></div>
+  <button id="torrents" class="torrent" hidden></button>
   <button id="video" data-i18n="sendTabVideo">🎬 MP4 olarak indir (video)</button>
   <button id="audio" data-i18n="sendTabAudio">🎵 MP3 olarak indir (ses)</button>
+  <div class="paste"><input id="paste" data-i18n-placeholder="pasteHint" placeholder="Link ya da magnet yapıştır…"><button id="pasteGo" data-i18n="pasteSend">⬇ İndir</button></div>
   <label><input type="checkbox" id="intercept"> <span data-i18n="catchDownloads">Tarayıcı indirmelerini yakala</span></label>
   <button id="open" class="secondary" data-i18n="openApp">▶ DISO'yu aç</button>
   <button id="options" class="secondary" data-i18n="settings">⚙ Ayarlar</button>

@@ -105,10 +105,10 @@ def test_tray_icon_starts_changes_its_tooltip_and_stops():
 def test_tray_menu_entries_call_back_with_their_names():
     events = []
     icon = tray.TrayIcon("t", events.append)
-    items = [i for i in icon._icon.menu.items if i.text and i.text != "- - - -"]  # no separator
-    assert [i.text for i in items] == ["Göster", "Hepsini duraklat", "Hepsini başlat", "Çıkış"]
-    for item in items:
-        item(icon._icon)
+    icon.set_state(active=1, paused=1)                          # so that both download entries can be clicked
+    items = {i.text: i for i in icon._icon.menu.items if i.text and i.text != "- - - -"}  # no separator
+    for text in ("Göster", "⏸ Hepsini duraklat", "▶ Hepsini başlat", "Çıkış"):
+        items[text](icon._icon)
     assert events == ["show", "pause_all", "resume_all", "quit"]
 
 
@@ -182,7 +182,7 @@ def test_the_bridge_notices_that_the_extension_is_in_a_browser(running):
 def test_ping_identifies_the_app(running):
     api, b, base = running
     data = get(base, "/ping").json()
-    assert data == {"app": "DISO", "version": __version__, "add": True}
+    assert data == {"app": "DISO", "version": __version__, "add": True, "language": ""}
     assert get(base, "/status").json() == {"active": 1, "queued": 2, "speed": 1234}
     assert get(base, "/nothing").status_code == 404
 

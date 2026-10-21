@@ -3,6 +3,8 @@ volume, and "🔍 Şarkı bul" (find songs on the internet and download them as 
 the download window; they share the mode bar at the bottom, the playlists (a finished download can
 add to them) and the download queue (a found song is downloaded there, in the background)."""
 import os
+import random
+import re
 import threading
 import time
 import tkinter as tk
@@ -212,6 +214,7 @@ class MusicWindow(ctk.CTkToplevel):
         self._note_until = 0
         self._closed = False
         self._volume_save = None
+        self._unmute_to = None                       # 🔇: the volume to go back to (None: not muted)
         self._tags_save = None
         self._cover_path = None                      # the track whose cover is shown (or asked for)
         self._cover_image = None
@@ -1567,6 +1570,8 @@ class MusicWindow(ctk.CTkToplevel):
         self.controller.seek_fraction(self.seek.get() / 1000)
 
     def _on_volume(self, value):
+        if int(value) > 0:
+            self._unmute_to = None                                      # turned up by hand: not muted any more
         self.controller.set_volume(int(value))
         self.store.set_state(_persist=False, volume=int(value))       # a drag makes dozens of calls:
         if self._volume_save is not None:
@@ -2149,16 +2154,125 @@ class MusicWindow(ctk.CTkToplevel):
         mini, self.mini = self.mini, None
         if mini is not None:
             try:
+                mini.remember_place()
                 mini.destroy()
             except tk.TclError:
                 pass
         if show and not self._closed:
+            if getattr(self.app, "mode", MODE_MUSIC) != MODE_MUSIC:
+                self._on_mode(MODE_MUSIC)                   # '⤢' means the big player: its mode comes along
             self.deiconify()
             self.lift()
 
     def _press(self, name):
         {"toggle": self._toggle, "next": self._next, "previous": self._previous,
          "stop": self._stop}.get(name, lambda: None)()
+
+    # ------------------------------------------------------------------ the same controls from elsewhere
+    # (the mini player, the tray menu): the big window's own widgets show every change too
+    def set_volume(self, value):
+        value = max(0, min(100, int(value)))
+        self._unmute_to = None
+        if int(self.volume.get()) != value:
+            self.volume.set(value)
+        self._on_volume(value)
+
+    def toggle_mute(self):
+        if self._unmute_to is not None:
+            self.set_volume(self._unmute_to or 50)
+        else:
+            was = int(self.volume.get())
+            self.set_volume(0)
+            self._unmute_to = was
+
+    @property
+    def muted(self):
+        return self._unmute_to is not None
+
+    def set_shuffle(self, on):
+        self.shuffle_var.set(bool(on))
+        self._on_shuffle()
+
+    def set_repeat(self, mode):
+        if mode in REPEAT_MODES:
+            self.controller.repeat = mode
+            self.store.set_state(repeat=mode)
+            self._update_repeat_text()
+
+    def play_list(self, name):
+        """Play a list from the start (its first song, or a random one with shuffle)."""
+        if name not in self.store.names():
+            return
+        if self.playing_list == name and self.controller.state != "stopped":
+            return                                           # it is playing already
+        self.show_list(name)
+        self._resume = None
+        self._load_viewed()
+        n = len(self.controller.tracks)
+        if n:
+            self.controller.play_index(random.randrange(n) if self.controller.shuffle else 0)
+        self._after_action()
+
+    def next_track(self):
+        try:
+            return self.controller.peek_next()
+        except Exception:  # noqa: BLE001 - only a hint on the screen
+            return None
+
+    def tray_command(self, name, value=None):
+        """An entry of the tray menu (app/tray.py) was clicked."""
+        if name == "music":
+            if value == "mini":
+                if self.mini is not None:
+                    self.close_mini(show=False)
+                else:
+                    self.open_mini()
+                return
+            if value in ("lyrics", "eq"):
+                if self.mini is None:
+                    self.app._tray_event("show_music")
+                (self.open_lyrics if value == "lyrics" else self.open_eq)()
+                return
+            {"toggle": self._toggle, "next": self._next, "previous": self._previous, "stop": self._stop,
+             "shuffle": lambda: self.set_shuffle(not self.controller.shuffle)}.get(value, lambda: None)()
+        elif name == "repeat":
+            self.set_repeat(value)
+        elif name == "volume":
+            if value == "mute":
+                self.toggle_mute()
+            elif value in ("+", "-"):
+                self.set_volume(int(self.volume.get()) + (10 if value == "+" else -10))
+            else:
+                self.set_volume(value)
+        elif name == "sleep":
+            choice = {"off": SLEEP_OFF, "track": SLEEP_TRACK}.get(value, value)
+            if choice in SLEEP_CHOICES:
+                self._set_sleep(choice)
+        elif name == "play_list":
+            self.play_list(value)
+
+    def tray_state(self):
+        """What the tray menu shows about the music (see tray.EMPTY_STATE)."""
+        c = self.controller
+        track = c.current_track() if c.state != "stopped" else None
+        state = {"player": c.state if c.state in ("playing", "paused", "preparing") else "stopped",
+                 "track": "", "artist": "", "time": "", "next": "",
+                 "shuffle": bool(c.shuffle), "repeat": c.repeat, "volume": int(self.volume.get()),
+                 "muted": self.muted, "mini": self.mini is not None,
+                 "sleep": ("track" if self.sleep_after_track else
+                           f"{max(1, int((self.sleep_at - time.time() + 59) // 60))} dk" if self.sleep_at else ""),
+                 "lists": self.store.names(), "playing_list": self.playing_list or "",
+                 "can_resume": self._resume_track() is not None}
+        if track is not None:
+            artist, title = artist_and_title(track)
+            state.update(track=title, artist=artist or "")
+            length = c.length_ms()
+            if length:
+                state["time"] = f"{fmt_time(c.position_ms())} / {fmt_time(length)}"
+            following = self.next_track()
+            if following is not None:
+                state["next"] = track_label(following)
+        return state
 
     def _sync_outside(self):
         """The mini player, Windows' media panel and the taskbar buttons show what plays; their buttons work."""
@@ -2555,12 +2669,16 @@ class LyricsWindow(ctk.CTkToplevel):
             self.find_btn.configure(state="disabled", text="Arıyorum…")
             self.again_btn.configure(state="disabled", text="Arıyorum…")
 
-
 class MiniPlayer(ctk.CTkToplevel):
-    """A small always-on-top player in the corner: cover, title, ⏮ ⏯ ⏭, how far the song is, and ⤢ back to
-    the big window. It only shows what the big window's player does (it has no player of its own)."""
+    """A small player in the corner: cover, title and artist, ⏮ ⏯ ⏭, 🔀 shuffle, 🔁 repeat, the volume,
+    a seek bar with the times, the song that comes next, 📌 on top or not, and ⤢ back to the big window.
+    The mouse wheel turns the volume; space, ← → and ↑ ↓ work as in the big window; a right click opens
+    the rest (sleep timer, lyrics, equalizer). It only shows what the big window's player does (it has no
+    player of its own) and comes back where it was left."""
 
-    COVER = 60
+    COVER = 72
+    SIZE = (460, 168)
+    SEEK_STEP_MS = 5000
 
     def __init__(self, music):
         super().__init__(music.app)
@@ -2568,63 +2686,201 @@ class MiniPlayer(ctk.CTkToplevel):
         self.music = music
         self.title("DISO")
         self.resizable(False, False)
-        try:
-            self.attributes("-topmost", True)
-        except tk.TclError:
-            pass
-        w, h = 400, 118
+        self._on_top = bool(music.store.state.get("mini_top", True))
+        self._set_on_top(self._on_top)
+        self.geometry(self._place())
+        self.protocol("WM_DELETE_WINDOW", lambda: music.close_mini())
+        self.columnconfigure(1, weight=1)
+        self._dragging = False
+        self._placeholder = placeholder_image(shown=self.COVER)
+        self._cover_for = None
+        self._cover_image = None
+        small = ctk.CTkFont(size=12)
+
+        self.cover = ctk.CTkLabel(self, text="♪", image=self._placeholder, compound="center", width=self.COVER,
+                                  height=self.COVER, font=ctk.CTkFont(size=26), text_color=("#B7A3C2", "#5A4668"))
+        self.cover.grid(row=0, column=0, rowspan=3, padx=(12, 10), pady=(12, 4), sticky="n")
+        self.title_label = ctk.CTkLabel(self, text="", anchor="w", font=ctk.CTkFont(size=14, weight="bold"))
+        self.title_label.grid(row=0, column=1, sticky="ew", pady=(10, 0))
+        corner = ctk.CTkFrame(self, fg_color="transparent")
+        corner.grid(row=0, column=2, sticky="ne", padx=(4, 10), pady=(8, 0))
+        self.pin_btn = ctk.CTkButton(corner, text="📌", width=30, height=26, command=self.toggle_on_top)
+        self.pin_btn.pack(side="left", padx=(0, 4))
+        self.big_btn = ctk.CTkButton(corner, text="⤢", width=30, height=26, command=music.close_mini)
+        self.big_btn.pack(side="left")
+        self.sub_label = ctk.CTkLabel(self, text="", anchor="w", text_color="gray")
+        self.sub_label.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(0, 12))
+
+        controls = ctk.CTkFrame(self, fg_color="transparent")
+        controls.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(0, 10))
+        self.prev_btn = ctk.CTkButton(controls, text="⏮", width=36, height=28, command=music._previous)
+        self.play_btn = ctk.CTkButton(controls, text=PLAY_ICON, width=44, height=28, command=music._toggle)
+        self.next_btn = ctk.CTkButton(controls, text="⏭", width=36, height=28, command=music._next)
+        self.shuffle_btn = ctk.CTkButton(controls, text="🔀", width=32, height=28,
+                                         command=lambda: music.set_shuffle(not music.controller.shuffle))
+        self.repeat_btn = ctk.CTkButton(controls, text="🔁", width=32, height=28, command=self._cycle_repeat)
+        for b in (self.prev_btn, self.play_btn, self.next_btn):
+            b.pack(side="left", padx=(0, 5))
+        for b in (self.shuffle_btn, self.repeat_btn):
+            b.pack(side="left", padx=(5 if b is self.shuffle_btn else 0, 5))
+        self.volume = ctk.CTkSlider(controls, from_=0, to=100, width=78, command=self._on_volume)
+        self.volume.set(music.volume.get())
+        self.volume.pack(side="right")
+        self.mute_btn = ctk.CTkButton(controls, text="🔊", width=30, height=28, fg_color="transparent",
+                                      text_color=("gray20", "gray80"), command=music.toggle_mute)
+        self.mute_btn.pack(side="right", padx=(0, 2))
+
+        seek = ctk.CTkFrame(self, fg_color="transparent")
+        seek.grid(row=3, column=0, columnspan=3, sticky="ew", padx=12, pady=(2, 0))
+        seek.columnconfigure(1, weight=1)
+        self.pos_label = ctk.CTkLabel(seek, text="0:00", width=38, text_color="gray", font=small)
+        self.pos_label.grid(row=0, column=0)
+        self.bar = ctk.CTkSlider(seek, from_=0, to=1, height=14, command=self._on_seek_drag)
+        self.bar.set(0)
+        self.bar.grid(row=0, column=1, sticky="ew", padx=4)
+        self.bar.bind("<ButtonPress-1>", lambda e: setattr(self, "_dragging", True), add="+")
+        self.bar.bind("<ButtonRelease-1>", self._on_seek_release, add="+")
+        self.len_label = ctk.CTkLabel(seek, text="0:00", width=38, text_color="gray", font=small)
+        self.len_label.grid(row=0, column=2)
+        self.next_label = ctk.CTkLabel(self, text=" ", anchor="w", text_color="gray", font=small)
+        self.next_label.grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 6))
+
+        self.bind("<MouseWheel>", self._on_wheel)
+        self.bind("<space>", lambda e: music._toggle() or "break")
+        self.bind("<Left>", lambda e: self._seek_by(-self.SEEK_STEP_MS) or "break")
+        self.bind("<Right>", lambda e: self._seek_by(self.SEEK_STEP_MS) or "break")
+        self.bind("<Up>", lambda e: music.set_volume(music.volume.get() + 5) or "break")
+        self.bind("<Down>", lambda e: music.set_volume(music.volume.get() - 5) or "break")
+        self.bind("<Escape>", lambda e: music.close_mini() or "break")
+        for w in (self, self.cover, self.title_label, self.sub_label, self.next_label):
+            w.bind("<Button-3>", self._open_menu, add="+")
+        for w in (self.cover, self.title_label):
+            w.bind("<Double-Button-1>", lambda e: music.close_mini(), add="+")
+        self.refresh()
+
+    # ------------------------------------------------------------------ where it stands
+    def _place(self):
+        """Where it was last time, if that is still on the screen; else the bottom right corner."""
+        w, h = self.SIZE
         try:
             scale = float(self._get_window_scaling())
         except Exception:  # noqa: BLE001
             scale = 1.0
-        x = int(self.winfo_screenwidth() / scale) - w - 24
-        y = int(self.winfo_screenheight() / scale) - h - 90
-        self.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
-        self.protocol("WM_DELETE_WINDOW", lambda: music.close_mini())
-        self.columnconfigure(1, weight=1)
-        self._placeholder = placeholder_image(shown=self.COVER)
-        self._cover_for = None
-        self._cover_image = None
-        self.cover = ctk.CTkLabel(self, text="♪", image=self._placeholder, compound="center", width=self.COVER,
-                                  height=self.COVER, font=ctk.CTkFont(size=24), text_color=("#B7A3C2", "#5A4668"))
-        self.cover.grid(row=0, column=0, rowspan=3, padx=(12, 10), pady=12)
-        self.title_label = ctk.CTkLabel(self, text="", anchor="w", font=ctk.CTkFont(size=14, weight="bold"))
-        self.title_label.grid(row=0, column=1, columnspan=2, sticky="ew", pady=(10, 0))
-        self.sub_label = ctk.CTkLabel(self, text="", anchor="w", text_color="gray")
-        self.sub_label.grid(row=1, column=1, columnspan=2, sticky="ew")
-        controls = ctk.CTkFrame(self, fg_color="transparent")
-        controls.grid(row=2, column=1, sticky="w")
-        self.prev_btn = ctk.CTkButton(controls, text="⏮", width=38, height=28, command=music._previous)
-        self.play_btn = ctk.CTkButton(controls, text=PLAY_ICON, width=46, height=28, command=music._toggle)
-        self.next_btn = ctk.CTkButton(controls, text="⏭", width=38, height=28, command=music._next)
-        for b in (self.prev_btn, self.play_btn, self.next_btn):
-            b.pack(side="left", padx=(0, 6))
-        self.big_btn = ctk.CTkButton(self, text="⤢", width=34, height=28, command=music.close_mini)
-        self.big_btn.grid(row=2, column=2, padx=(0, 12), sticky="e")
-        self.bar = ctk.CTkProgressBar(self, height=4)
-        self.bar.set(0)
-        self.bar.grid(row=3, column=0, columnspan=3, sticky="ew", padx=12, pady=(0, 8))
+        sw, sh = int(self.winfo_screenwidth() / scale), int(self.winfo_screenheight() / scale)
+        # the place is kept in screen pixels, as Tk gives and takes it (customtkinter scales only the size)
+        saved = re.fullmatch(r"\+(-?\d+)\+(-?\d+)", self.music.store.state.get("mini_place") or "")
+        if saved:
+            x, y = int(saved.group(1)), int(saved.group(2))
+            if 0 <= x <= self.winfo_screenwidth() - 80 and 0 <= y <= self.winfo_screenheight() - 60:
+                return f"{w}x{h}+{x}+{y}"
+        return f"{w}x{h}+{max(0, sw - w - 24)}+{max(0, sh - h - 90)}"
+
+    def remember_place(self):
+        try:
+            x, y = self.winfo_x(), self.winfo_y()
+        except tk.TclError:
+            return
+        self.music.store.set_state(mini_place=f"+{x}+{y}")
+
+    def _set_on_top(self, on):
+        try:
+            self.attributes("-topmost", bool(on))
+        except tk.TclError:
+            pass
+
+    def toggle_on_top(self):
+        self._on_top = not self._on_top
+        self._set_on_top(self._on_top)
+        self.music.store.set_state(mini_top=self._on_top)
         self.refresh()
 
-    def refresh(self):
+    # ------------------------------------------------------------------ controls
+    def _cycle_repeat(self):
         c = self.music.controller
+        self.music.set_repeat(REPEAT_MODES[(REPEAT_MODES.index(c.repeat) + 1) % len(REPEAT_MODES)])
+        self.refresh()
+
+    def _on_volume(self, value):
+        self.music.set_volume(value)
+
+    def _on_wheel(self, event):
+        self.music.set_volume(self.music.volume.get() + (5 if event.delta > 0 else -5))
+
+    def _seek_by(self, ms):
+        c = self.music.controller
+        if c.state != "stopped":
+            self.music._seek_ms(max(0, min(c.length_ms() or 0, c.position_ms() + ms)))
+
+    def _on_seek_drag(self, value):
+        if self._dragging:
+            set_if_changed(self.pos_label, text=fmt_time(self.music.controller.length_ms() * value))
+
+    def _on_seek_release(self, event=None):
+        self._dragging = False
+        if self.music.controller.state != "stopped":
+            self.music.controller.seek_fraction(self.bar.get())
+
+    def menu_items(self):
+        music = self.music
+        sleeps = [(("● " if c == music.sleep_menu.get() else "   ") + c, lambda c=c: music._set_sleep(c))
+                  for c in SLEEP_CHOICES]
+        return [("😴 Uyku zamanlayıcısı", sleeps), ("🎤 Şarkı sözleri", music.open_lyrics),
+                ("🎛 Ekolayzır…", music.open_eq), None,
+                (("✓ " if self._on_top else "   ") + "📌 Hep üstte", self.toggle_on_top),
+                ("⤢ Büyük pencere", music.close_mini)]
+
+    def _open_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        self.music._fill_menu(menu, self.menu_items())
+        self.music._popup(menu, event)
+
+    # ------------------------------------------------------------------ what it shows
+    def _paint(self, button, on):
+        """A switch button: in the accent colour when it is on, quiet when it is off."""
+        fg = look.ACCENT if on else "transparent"
+        text = look.ACCENT_TEXT if on else ("gray35", "gray70")
+        if button.cget("fg_color") != fg:
+            button.configure(fg_color=fg, text_color=text)
+
+    def refresh(self):
+        music, c = self.music, self.music.controller
         track = c.current_track() if c.state != "stopped" else None
         if track is None:
+            resume = music._resume_track()
             set_if_changed(self.title_label, text="Şu an bir şey çalmıyor")
-            set_if_changed(self.sub_label, text=" ")
+            set_if_changed(self.sub_label, text=f"▶ {track_label(resume)[:44]}" if resume else " ")
         else:
             artist, title = artist_and_title(track)
-            set_if_changed(self.title_label, text=title[:40] + ("…" if len(title) > 40 else ""))
-            set_if_changed(self.sub_label, text=artist or " ")
+            set_if_changed(self.title_label, text=title[:34] + ("…" if len(title) > 34 else ""))
+            sub = " • ".join(x for x in (artist, track.get("album")) if x)
+            if c.state == "preparing":
+                sub = "⏳ Çalmaya hazırlanıyor…"
+            set_if_changed(self.sub_label, text=(sub[:52] + ("…" if len(sub) > 52 else "")) or " ")
         set_if_changed(self.play_btn, text=PAUSE_ICON if c.state == "playing" else PLAY_ICON)
-        length = c.length_ms()
-        value = c.position_ms() / length if length else 0
-        if abs(self.bar.get() - value) >= 0.002:
-            self.bar.set(value)
+        self._paint(self.shuffle_btn, c.shuffle)
+        self._paint(self.repeat_btn, c.repeat != REPEAT_MODES[0])
+        set_if_changed(self.repeat_btn, text="🔂" if c.repeat == "Tek" else "🔁")
+        self._paint(self.pin_btn, self._on_top)
+        volume = int(music.volume.get())
+        if int(self.volume.get()) != volume:
+            self.volume.set(volume)
+        set_if_changed(self.mute_btn, text="🔇" if volume == 0 else "🔉" if volume < 50 else "🔊")
+
+        length = c.length_ms() if track is not None else 0
+        if not self._dragging:
+            value = c.position_ms() / length if length else 0
+            if abs(self.bar.get() - value) >= 0.002:
+                self.bar.set(value)
+            set_if_changed(self.pos_label, text=fmt_time(c.position_ms() if length else 0))
+        set_if_changed(self.len_label, text=fmt_time(length))
+        following = music.next_track() if track is not None else None
+        name = track_label(following) if following else ""
+        set_if_changed(self.next_label, text=f"Sıradaki: {name[:58] + ('…' if len(name) > 58 else '')}" if name else " ")
+
         path = track["path"] if track else None
-        if path != self._cover_for:
-            self._cover_for = path
-            jpg = self.music._covers.get(path) if path else None
+        jpg = music._covers.get(path) if path else None
+        if (path, jpg) != self._cover_for:                  # a new song, or its cover came in meanwhile
+            self._cover_for = (path, jpg)
             img = square_cover(jpg, self.COVER * 2) if jpg else None
             if img is None:
                 self.cover.configure(image=self._placeholder, text="♪")

@@ -614,6 +614,9 @@ PLAIN = {
     "YouTube'un korumasını çözmek için gereken JavaScript motoru.": "The JavaScript engine needed to get past YouTube's protection.",
     'Bu bilgisayarda ayrıca kurulu olan Deno; onu sen güncelliyorsun': 'A Deno installed separately on this PC; you update it yourself',
     'en çok dinlenen kısım': 'the most replayed part', 'beğendiysen ⬇ İndir': 'like it? ⬇ Download',
+    # ---- the mini player
+    'Hep üstte': 'Always on top', 'Büyük pencere': 'Big window', 'Çalmaya hazırlanıyor…': 'Getting ready to play…',
+    'Uyku zamanlayıcısı': 'Sleep timer', 'Şarkı sözleri': 'Lyrics',
 }
 
 TEMPLATES = [
@@ -816,6 +819,7 @@ TEMPLATES = [
     ("🐞 Rapor masaüstünde: {}", "🐞 The report is on the Desktop: {}"), ("GitHub sayfasına sürükle", "drag it into the GitHub page"),
     ("🛟 Bozulmuş dosya son sağlam kopyasından geri yüklendi: {}", "🛟 A broken file came back from its last good copy: {}"),
     ("⏫ Sıradaki: {}", "⏫ Next: {}"), ("Deno {} sürümüne güncellendi", "Deno updated to {}"), ("{}'den", "from {}"),
+    ("Sıradaki: {}", "Up next: {}"),
 ]
 
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,

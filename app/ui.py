@@ -21,6 +21,7 @@ from . import backup, channels, classic_ui, extension_setup, health, history, i1
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
 from .speed_graph import Sampler, SpeedGraph
+from .torrent import is_torrent_link
 from .extra_ui import HistoryWindow, ShortcutsWindow
 from . import video_engine as ve
 from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
@@ -1135,6 +1136,10 @@ class BridgeApi:
     def status(self):
         return self.app.bridge_status()
 
+    def language(self):
+        """'tr' / 'en': the extension speaks the language DISO speaks (unless chosen otherwise there)."""
+        return i18n.LANGUAGES.get(self.app.cfg.get("language"), "tr")
+
     def show(self):
         self.app._ui_calls.put(self.app._show_window)
 
@@ -2015,6 +2020,8 @@ class App(NostalgiaWindow, ctk.CTk):
             self.after(150, self._offer_restart)
         elif key == "language":
             self._show_language()
+            if self.tray is not None:
+                self.tray.set_language(value)            # the tray menu speaks the new language at once
             self.after(150, lambda: self._offer_restart(
                 "Dil programı yeniden açınca değişir.\n\nŞimdi yeniden açılsın mı?",
                 "Tamam, dil bir sonraki açılışta değişecek"))
@@ -2455,14 +2462,16 @@ class App(NostalgiaWindow, ctk.CTk):
     def _ensure_tray(self):
         if self.tray is None and tray.AVAILABLE:
             try:
-                self.tray = tray.TrayIcon("DISO",
-                                          lambda name: self._ui_calls.put(lambda: self._tray_event(name)))
+                self.tray = tray.TrayIcon(
+                    "DISO", lambda name, value=None: self._ui_calls.put(lambda: self._tray_event(name, value)),
+                    language=i18n.LANGUAGES.get(self.cfg.get("language"), "tr"))
+                self._update_tray_state()
                 self.tray.start()
             except Exception:
                 log.exception("tray icon could not start")
                 self.tray = None
 
-    def _tray_event(self, name):
+    def _tray_event(self, name, value=None):
         if name == "show":
             self._show_window()
         elif name == "pause_all":
@@ -2471,6 +2480,51 @@ class App(NostalgiaWindow, ctk.CTk):
             self.manager.resume_all()
         elif name == "quit":
             self._on_close()
+            return
+        elif name == "show_download":
+            self._switch_mode(MODE_DOWNLOAD)
+            self._show_window()
+        elif name == "show_music":
+            if self._ensure_music():
+                if self.music.mini is not None:
+                    self.music.close_mini(show=False)
+                self._switch_mode(MODE_MUSIC)
+                self._show_window()
+        elif name == "settings":
+            self._show_window()
+            self._open_settings()
+        elif name == "paste":
+            urls = extract_urls(self._clipboard_text())
+            if urls:
+                self.add_urls(urls)
+            else:
+                notify.toast("DISO", self.tray.t("Panoda indirilecek bir link yok") if self.tray else "")
+        elif name == "open_folder":
+            entry = getattr(self, "folder_entry", None)
+            folder = (entry.get().strip() if entry is not None else "") or self.cfg.get("folder") or default_download_dir()
+            os.makedirs(folder, exist_ok=True)
+            open_file(folder)
+        elif self._ensure_music():
+            self.music.tray_command(name, value)
+        self._update_tray_state()
+
+    def _update_tray_state(self):
+        """What the tray menu shows the next time it opens: the music, the downloads, the language."""
+        if self.tray is None:
+            return
+        items = self.manager.items
+        speed = sum(i.speed for i in items if i.state == DOWNLOADING)
+        state = {"lang": i18n.LANGUAGES.get(self.cfg.get("language"), "tr"),
+                 "active": sum(i.state in (DOWNLOADING, PROCESSING, RESOLVING) for i in items),
+                 "queued": sum(i.state in (QUEUED, WAITING) for i in items),
+                 "paused": sum(i.state == PAUSED for i in items),
+                 "speed": human_size(speed) if speed else "",
+                 "mode": "music" if self.mode == MODE_MUSIC else "download"}
+        if self.music is not None:
+            state.update(self.music.tray_state())
+        else:
+            state["lists"] = self._store().names()
+        self.tray.set_state(**state)
 
     def _hide_to_tray(self):
         self._ensure_tray()
@@ -2768,12 +2822,20 @@ class App(NostalgiaWindow, ctk.CTk):
             self.notice(f"Tarayıcıdan {added} bağlantı eklendi")
         return {"added": added, "duplicates": duplicates}
 
+    BRIDGE_ROWS = 5                  # downloads the extension's popup lists
+
     def bridge_status(self):
         items = list(self.manager.items)
+        busy = [i for i in items if i.state in (RESOLVING, DOWNLOADING, PROCESSING)]
+        busy += [i for i in items if i.state in (QUEUED, WAITING)]
+        rows = [{"name": i.display_name[:80], "fraction": round(max(0.0, min(1.0, i.fraction or 0)), 3),
+                 "speed": int(i.speed) if i.state == DOWNLOADING else 0,
+                 "state": "active" if i.state in (RESOLVING, DOWNLOADING, PROCESSING) else "queued",
+                 "torrent": is_torrent_link(i.url)} for i in busy[:self.BRIDGE_ROWS]]
         return {"active": sum(i.state in (RESOLVING, DOWNLOADING, PROCESSING) for i in items),
                 "queued": sum(i.state in (QUEUED, WAITING) for i in items),
                 "speed": int(sum(i.speed for i in items if i.state == DOWNLOADING)),
-                "total": len(items)}
+                "total": len(items), "items": rows}
 
     # ---------------------------------------------------------------------- updates
     def _open_updates(self):
@@ -2933,6 +2995,8 @@ class App(NostalgiaWindow, ctk.CTk):
             if self._tick_no % 10 == 0:
                 self._ffmpeg_ok = bool(find_ffmpeg())
                 self._update_tray_tooltip()
+            if self._tick_no % 3 == 0:
+                self._update_tray_state()
             if self._tick_no % 20 == 0:
                 gc.collect()  # here, on the window's thread: see __init__
             self._update_update_widgets()

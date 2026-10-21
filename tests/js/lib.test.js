@@ -163,3 +163,61 @@ test("magnet links go to DISO too (it downloads torrents), .torrent files are ca
   assert.equal(HI.linkKind(magnet), "auto");
   assert.ok(HI.parseExtensions(HI.DEFAULTS.extensions).includes("torrent"));
 });
+
+test("the language: chosen in the settings, else DISO's, else the browser's", () => {
+  assert.equal(HI.pickLanguage("en", "tr"), "en");
+  assert.equal(HI.pickLanguage("tr", "en"), "tr");
+  assert.equal(HI.pickLanguage("app", "en"), "en");
+  assert.equal(HI.pickLanguage("app", "", { language: "de-DE" }), "en");
+  assert.equal(HI.pickLanguage("app", "", { language: "tr-TR" }), "tr");
+  try {
+    HI.setLanguage("en");
+    assert.equal(HI.t("settings"), "⚙ Settings");
+    assert.equal(HI.currentLanguage(), "en");
+    assert.equal(HI.t("settings", [], "tr"), "⚙ Ayarlar");          // asked for by name: that one
+    HI.setLanguage("xx");                                            // nonsense: back to the browser's
+    assert.equal(HI.t("settings"), "⚙ Ayarlar");
+  } finally {
+    HI.setLanguage(null);
+  }
+});
+
+test("every text exists in both languages", () => {
+  assert.deepEqual(Object.keys(HI.TEXTS.tr).sort(), Object.keys(HI.TEXTS.en).sort());
+});
+
+test("torrents of a page: magnets once per torrent, .torrent files once, nothing else", () => {
+  const hrefs = ["magnet:?xt=urn:btih:ABCDEF&dn=a", "magnet:?xt=urn:btih:abcdef&dn=b&tr=x", "http://x.org/a.torrent#top",
+                 "http://x.org/a.torrent", "http://x.org/a.zip", "https://x.org/%C3%A7ok%20iyi.torrent", "magnet:",
+                 "http://x.org/torrent", "javascript:void(0)", "magnet:?xt=urn:btih:99"];
+  assert.deepEqual(HI.pageTorrentLinks(hrefs), ["magnet:?xt=urn:btih:ABCDEF&dn=a", "http://x.org/a.torrent",
+                                                "https://x.org/%C3%A7ok%20iyi.torrent", "magnet:?xt=urn:btih:99"]);
+  assert.equal(HI.magnetHash("magnet:?dn=x&xt=urn:btih:AbC"), "abc");
+  assert.equal(HI.isTorrentLink("http://x.org/a.TORRENT?dl=1"), true);
+  assert.equal(HI.isTorrentLink("http://x.org/a.torrent.zip"), false);
+});
+
+test("a .torrent file is always taken (unless switched off), even without intercept", () => {
+  const now = Date.now();
+  const item = { url: "http://x.org/get?id=1", filename: "C:\\dl\\ubuntu.torrent", fileSize: 20000, state: "in_progress",
+                 startTime: new Date(now).toISOString() };
+  assert.equal(HI.shouldIntercept(item, { intercept: false, torrents: true }, now), true);
+  assert.equal(HI.shouldIntercept(item, { intercept: false, torrents: false }, now), false);
+  assert.equal(HI.shouldIntercept(Object.assign({}, item, { state: "complete" }), { torrents: true }, now), false);
+  assert.equal(HI.shouldIntercept({ url: "http://x.org/a.zip", filename: "a.zip", fileSize: 10 },
+                                  { intercept: false, torrents: true }, now), false);
+  assert.equal(HI.DEFAULTS.torrents, true);
+});
+
+test("the popup's download lines", () => {
+  const s = { active: 2, queued: 5, items: [
+    { name: "Ubuntu", fraction: 0.456, speed: 2 * 1048576, state: "active", torrent: true },
+    { name: "film.mp4", fraction: 2, speed: 0, state: "active", torrent: false },
+    { name: "next.zip", fraction: 0, speed: 0, state: "queued", torrent: false }] };
+  const { rows, more } = HI.downloadRows(s, "en");
+  assert.deepEqual(rows.map((r) => [r.name, r.detail, r.queued]),
+                   [["🧲 Ubuntu", "46% • 2.0 MB/s", false], ["film.mp4", "100%", false], ["next.zip", "queued", true]]);
+  assert.equal(rows[1].fraction, 1);
+  assert.equal(more, 4);
+  assert.deepEqual(HI.downloadRows(null), { rows: [], more: 0 });
+});

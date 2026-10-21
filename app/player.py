@@ -471,6 +471,24 @@ class Controller:
         i = self._pick_next(automatic)
         return None if i is None else ("list", i)
 
+    def peek_next(self):
+        """The song that comes after this one, when it is already known (None when shuffle will pick it,
+        or nothing comes). Changes nothing."""
+        if self.repeat == "Tek" and self.current_track() is not None:
+            return self.current_track()
+        for track in self.queue:
+            if os.path.isfile(track["path"]):
+                return track
+        n = len(self.tracks)
+        if self.shuffle or n == 0:
+            return None
+        nxt = self.index + 1
+        if nxt >= n:
+            if self.repeat != "Liste":
+                return None
+            nxt = 0
+        return self.tracks[nxt]
+
     # ------------------------------------------------------------------ transport
     def _load(self, backend, path):
         """Open path (or the playable copy made of it): True, False, or "wait" while a copy is made."""

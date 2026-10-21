@@ -11,12 +11,28 @@ async function getOptions() {
   return Object.assign({}, HI.DEFAULTS, stored);
 }
 
-// The app answers /ping with {"app": "DISO", ...}. null = not running / something else.
+// ------------------------------------------------------------------------ language
+// The extension speaks the language chosen in its settings; "app" (the default) follows DISO: the
+// language DISO told last (appLang, kept for when it is closed), else the browser's.
+let menusLanguage = null;
+async function applyLanguage(opts) {
+  const code = HI.setLanguage(HI.pickLanguage(opts.lang, opts.appLang));
+  if (code !== menusLanguage) createMenus();
+  return code;
+}
+
+// The app answers /ping with {"app": "DISO", "language": "tr" | "en", ...}. null = not running / something else.
 async function ping(port) {
   try {
     const r = await fetch(HI.appBase(port) + "/ping", { cache: "no-store" });
     const data = await r.json();
-    return data && data.app === HI.APP_ID ? data : null;
+    if (!(data && data.app === HI.APP_ID)) return null;
+    if ((data.language === "tr" || data.language === "en")) {
+      const opts = await getOptions();
+      if (opts.appLang !== data.language) await api.storage.local.set({ appLang: data.language });
+      await applyLanguage(Object.assign(opts, { appLang: data.language }));
+    }
+    return data;
   } catch (e) {
     return null;
   }
@@ -108,33 +124,50 @@ async function sendAndShow(urls, extra) {
   }
 }
 
-// Every file link of the page in the tab (needs the page itself: a script runs there once).
-async function fileLinksOf(tab) {
-  const opts = await getOptions();
+// Every link of the page in the tab (needs the page itself: a script runs there once).
+async function linksOf(tab) {
   try {
     const results = await api.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => Array.from(document.links, (a) => a.href),
     });
-    const hrefs = [].concat(...(results || []).map((r) => r.result || []));
-    return HI.pageFileLinks(hrefs, opts.extensions);
+    return [].concat(...(results || []).map((r) => r.result || []));
   } catch (e) {
     return [];                 // a page the browser does not let extensions read (its own pages, the store)
   }
 }
 
+async function fileLinksOf(tab) {
+  const opts = await getOptions();
+  return HI.pageFileLinks(await linksOf(tab), opts.extensions);
+}
+
+// 🧲 the magnet links and .torrent files of the page
+async function torrentLinksOf(tab) {
+  return HI.pageTorrentLinks(await linksOf(tab));
+}
+
 // ------------------------------------------------------------------------ context menu
 function createMenus() {
+  menusLanguage = HI.currentLanguage();
   api.contextMenus.removeAll(() => {
     api.contextMenus.create({ id: "hi-link", title: HI.t("menuLink"), contexts: ["link"] });
     api.contextMenus.create({ id: "hi-media", title: HI.t("menuLink"), contexts: ["video", "audio", "image"] });
     api.contextMenus.create({ id: "hi-page-video", title: HI.t("menuPageVideo"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-page-audio", title: HI.t("menuPageAudio"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-all-links", title: HI.t("menuAllLinks"), contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-torrents", title: HI.t("menuTorrents"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-selection", title: HI.t("menuSelection"), contexts: ["selection"] });
   });
 }
 api.runtime.onInstalled.addListener(createMenus);
+// the menus (and every text) in the right language from the start, and again when the setting changes
+getOptions().then(applyLanguage);
+if (api.storage.onChanged) {
+  api.storage.onChanged.addListener((changes) => {
+    if (changes.lang || changes.appLang) getOptions().then(applyLanguage);
+  });
+}
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {
   const referer = (tab && tab.url) || info.pageUrl || "";
@@ -145,6 +178,11 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "hi-all-links") {
     const urls = tab ? await fileLinksOf(tab) : [];
     if (!urls.length) { await flash("0", false); return { ok: false, text: HI.t("noFileLinks") }; }
+    return sendAndShow(urls, { referer });
+  }
+  if (info.menuItemId === "hi-torrents") {
+    const urls = tab ? await torrentLinksOf(tab) : [];
+    if (!urls.length) { await flash("0", false); return { ok: false, text: HI.t("noTorrents") }; }
     return sendAndShow(urls, { referer });
   }
   if (info.menuItemId === "hi-selection") {
@@ -220,9 +258,16 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === "status") {
       const opts = await getOptions();
       const app = await ping(opts.port);
-      return { app, port: opts.port, intercept: opts.intercept, launchApp: opts.launchApp,
+      return { app, port: opts.port, intercept: opts.intercept, launchApp: opts.launchApp, lang: HI.currentLanguage(),
                downloads: app ? await appStatus(opts.port) : null };
     }
+    // a click on a magnet link of a page (catch.js): DISO takes it, or the browser opens it as usual
+    if (msg && msg.type === "magnet") {
+      const opts = await getOptions();
+      if (!opts.torrents || !HI.isTorrentLink(msg.url)) return { ok: false };
+      return sendAndShow([msg.url], { referer: msg.referer || "" });
+    }
+    if (msg && msg.type === "page-torrents") return msg.tabId ? torrentLinksOf({ id: msg.tabId }) : [];
     if (msg && msg.type === "open") return openApp();
     return null;
   })().then(sendResponse, (e) => sendResponse({ ok: false, text: String(e && e.message || e) }));

@@ -17,6 +17,7 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "eq": [0] * 8,                                            # 🎛 the equalizer, dB per band (equalizer.py)
                   "level": False,                                           # 🔊 even volume (loudness.py)
                   "rename_pattern": "{sanatçı} - {şarkı}",                   # ✏ the file name pattern used last
+                  "mini_top": True, "mini_place": "",                       # 🗗 the mini player: on top? where?
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
 # ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)

@@ -15,6 +15,9 @@
     extensions: "zip,rar,7z,tar,gz,iso,exe,msi,apk,dmg,mp4,mkv,avi,mov,webm,mp3,flac,wav,pdf,torrent",
     badge: true,           // show a short tick on the toolbar button after sending
     launchApp: true,       // start DISO through the native host when it is closed
+    torrents: true,        // magnet links and .torrent files always go to DISO (even without "intercept")
+    lang: "app",           // "app": the language DISO speaks, or "tr" / "en"
+    appLang: "",           // the language DISO told last (kept for when it is closed)
   };
 
   // Every text the extension shows, in Turkish and English; "{0}", "{1}" are the changing parts.
@@ -43,6 +46,13 @@
       menuLink: "DISO ile indir", menuPageVideo: "🎬 Bu videoyu DISO ile MP4 indir",
       menuPageAudio: "🎵 Bu videoyu DISO ile MP3 indir",
       menuSelection: "Seçilen bağlantıları DISO ile indir",
+      menuTorrents: "🧲 Bu sayfadaki torrentleri DISO ile indir", noTorrents: "Bu sayfada torrent yok",
+      torrentsOnPage: "🧲 Bu sayfadaki {0} torrenti indir", torrentOnPage: "🧲 Bu sayfadaki torrenti indir",
+      torrentsOption: "Torrentleri her zaman DISO ile indir",
+      torrentsHint: "Magnet linkine tıklayınca ya da bir .torrent dosyası inerken DISO devralır; \"Tarayıcı indirmelerini yakala\" kapalı olsa bile.",
+      language: "Dil", languageApp: "DISO ile aynı", languageHint: "Eklentinin dili. \"DISO ile aynı\": uygulamada hangi dil seçiliyse.",
+      pasteHint: "Link ya da magnet yapıştır…", pasteSend: "⬇ İndir", nothingToSend: "Bunda indirilecek bir link yok",
+      moreDownloads: "+{0} indirme daha", waiting: "sırada", magnetSent: "🧲 Torrent DISO'ya gönderildi",
     },
     en: {
       checking: "Checking…", sendTabVideo: "🎬 Download as MP4 (video)", sendTabAudio: "🎵 Download as MP3 (sound)",
@@ -68,6 +78,13 @@
       menuLink: "Download with DISO", menuPageVideo: "🎬 Download this video as MP4 with DISO",
       menuPageAudio: "🎵 Download this video as MP3 with DISO",
       menuSelection: "Download the selected links with DISO",
+      menuTorrents: "🧲 Download the torrents on this page with DISO", noTorrents: "No torrents on this page",
+      torrentsOnPage: "🧲 Download the {0} torrents on this page", torrentOnPage: "🧲 Download the torrent on this page",
+      torrentsOption: "Always download torrents with DISO",
+      torrentsHint: "When you click a magnet link or a .torrent file starts downloading, DISO takes it over; even when \"Catch browser downloads\" is off.",
+      language: "Language", languageApp: "Same as DISO", languageHint: "The extension's language. \"Same as DISO\": whichever is chosen in the app.",
+      pasteHint: "Paste a link or a magnet…", pasteSend: "⬇ Download", nothingToSend: "There is no link to download in that",
+      moreDownloads: "+{0} more downloads", waiting: "queued", magnetSent: "🧲 Torrent sent to DISO",
     },
   };
 
@@ -78,16 +95,36 @@
     return !lang || lang.startsWith("tr") ? "tr" : "en";
   }
 
+  // The language chosen for this page / the background script (setLanguage); null: the browser's.
+  let chosen = null;
+
+  // "tr" / "en" from the extension's setting: "app" follows DISO (its last known language), else fixed.
+  function pickLanguage(choice, appLanguage, nav) {
+    if (choice === "tr" || choice === "en") return choice;
+    if (appLanguage === "tr" || appLanguage === "en") return appLanguage;
+    return language(nav);
+  }
+
+  function setLanguage(code) {
+    chosen = code === "tr" || code === "en" ? code : null;
+    return chosen;
+  }
+
+  function currentLanguage() {
+    return chosen || language();
+  }
+
   function t(key, args, lang) {
-    const texts = TEXTS[lang || language()] || TEXTS.tr;
+    const texts = TEXTS[lang || currentLanguage()] || TEXTS.tr;
     const text = key in texts ? texts[key] : TEXTS.tr[key];
     return String(text).replace(/\{(\d)\}/g, (m, i) => String((args || [])[Number(i)]));
   }
 
   // Puts the texts into a page: <x data-i18n="key"> gets t(key) as its text.
   function translatePage(doc, lang) {
-    doc.documentElement.lang = lang || language();
+    doc.documentElement.lang = lang || currentLanguage();
     doc.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n, [], lang); });
+    doc.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder, [], lang); });
     const title = doc.querySelector("title[data-i18n]");
     if (title) doc.title = title.textContent;
   }
@@ -101,6 +138,52 @@
       if (isHttpUrl(u) && wanted.includes(fileExtension(u)) && !out.includes(u)) out.push(u);
     });
     return out;
+  }
+
+  // A magnet link or a link to a .torrent file.
+  function isTorrentLink(u) {
+    const s = String(u || "");
+    if (/^magnet:\?[^\s]+$/i.test(s)) return true;
+    if (!isHttpUrl(s)) return false;
+    let path = s;
+    try { path = decodeURIComponent(new URL(s).pathname); } catch (e) { /* read it as it is */ }
+    return fileExtension(path) === "torrent";
+  }
+
+  // "magnet:?xt=urn:btih:ABC&dn=x" -> "abc" (the same torrent, whatever else its link says); "" if none
+  function magnetHash(u) {
+    const m = /[?&]xt=urn:btih:([^&]+)/i.exec(String(u || ""));
+    return m ? m[1].toLowerCase() : "";
+  }
+
+  // The torrents of a page (magnet links and .torrent files), once each - a magnet once per torrent.
+  function pageTorrentLinks(hrefs) {
+    const out = [], hashes = new Set();
+    (hrefs || []).forEach((h) => {
+      const u = String(h || "").trim();
+      const link = /^magnet:/i.test(u) ? u : u.split("#")[0];
+      if (!isTorrentLink(link) || out.includes(link)) return;
+      const hash = magnetHash(link);
+      if (hash) {
+        if (hashes.has(hash)) return;
+        hashes.add(hash);
+      }
+      out.push(link);
+    });
+    return out;
+  }
+
+  // the app's /status "items" as lines for the popup: name, % done, speed, a torrent mark
+  function downloadRows(s, lang) {
+    const items = (s && Array.isArray(s.items)) ? s.items : [];
+    const rows = items.map((i) => {
+      const fraction = Math.max(0, Math.min(1, Number(i.fraction) || 0));
+      const detail = i.state === "queued" ? t("waiting", [], lang)
+        : Math.round(fraction * 100) + "%" + (i.speed > 0 ? " • " + sizeText(i.speed) + "/s" : "");
+      return { name: (i.torrent ? "🧲 " : "") + String(i.name || ""), fraction, detail, queued: i.state === "queued" };
+    });
+    const busy = (s && (Number(s.active) || 0) + (Number(s.queued) || 0)) || 0;
+    return { rows, more: Math.max(0, busy - rows.length) };
   }
 
   // 1536000 -> "1.5 MB"
@@ -177,7 +260,9 @@
   // The browser also reports the downloads of its history as "created" (when it starts, when the
   // extension wakes up): those are finished, broken off or old - never taken, only a new one is.
   function shouldIntercept(item, opts, now) {
-    if (!opts || !opts.intercept || !item) return false;
+    if (!opts || !item) return false;
+    const torrent = !!opts.torrents && fileExtension(item.filename || item.finalUrl || item.url) === "torrent";
+    if (!opts.intercept && !torrent) return false;      // a .torrent file is taken even without "intercept"
     if (item.byExtensionId) return false;              // started by an extension: not ours to take
     if (item.state && item.state !== "in_progress") return false;
     if (item.startTime) {
@@ -188,6 +273,7 @@
     const url = item.finalUrl || item.url;
     if (!isHttpUrl(url)) return false;                 // blob:, data:, file: ... cannot be fetched again
     const ext = fileExtension(item.filename || url);
+    if (torrent) return true;
     if (ext && parseExtensions(opts.extensions).includes(ext)) return true;
     const size = item.fileSize > 0 ? item.fileSize : item.totalBytes > 0 ? item.totalBytes : 0;
     return Number(opts.minSizeMB) > 0 && size >= Number(opts.minSizeMB) * 1024 * 1024;
@@ -234,5 +320,6 @@
 
   return { APP_ID, HOST, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
            extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult, pageFileLinks, sizeText, statusText,
-           linkKind, isSendable };
+           linkKind, isSendable, pickLanguage, setLanguage, currentLanguage, isTorrentLink, magnetHash,
+           pageTorrentLinks, downloadRows };
 });

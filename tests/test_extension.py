@@ -42,7 +42,7 @@ def test_the_manifest_is_a_valid_manifest_v3_for_chrome_and_firefox():
 # Chrome warns about every key of a manifest it does not know ("background.scripts requires manifest
 # version 2 or lower" ...): the Chrome manifest holds only what Chrome understands, Firefox has its own.
 CHROME_KEYS = {"manifest_version", "name", "version", "version_name", "description", "default_locale", "key",
-               "permissions", "host_permissions", "background", "action", "options_ui", "icons"}
+               "permissions", "host_permissions", "background", "action", "options_ui", "icons", "content_scripts"}
 
 
 def test_chrome_gets_no_key_it_would_warn_about_and_firefox_gets_no_chrome_key():
@@ -60,7 +60,8 @@ def test_the_two_manifests_say_the_same_about_everything_else():
 def test_every_file_the_manifest_and_pages_mention_exists():
     m = manifest()
     files = [m["background"]["service_worker"], *firefox_manifest()["background"]["scripts"], m["action"]["default_popup"],
-             m["options_ui"]["page"], *m["icons"].values(), *m["action"]["default_icon"].values()]
+             m["options_ui"]["page"], *m["icons"].values(), *m["action"]["default_icon"].values(),
+             *[js for c in m["content_scripts"] for js in c["js"]]]
     for name in files:
         assert os.path.isfile(os.path.join(EXT, name)), name
     for page in ("popup.html", "options.html"):
@@ -127,6 +128,10 @@ def test_the_pure_logic_passes_its_node_tests():
 class Api:
     def __init__(self):
         self.add_enabled, self.added, self.shown, self.fail = True, [], 0, False
+        self.lang = "tr"
+
+    def language(self):
+        return self.lang
 
     def add(self, urls, extra, kind):
         if self.fail:
@@ -167,7 +172,7 @@ PAGE = "http://shop.example/page"
 def test_the_context_menu_entries_are_created(app):
     api, b = app
     assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page-video", "hi-page-audio",
-                                                    "hi-all-links", "hi-selection"]
+                                                    "hi-all-links", "hi-torrents", "hi-selection"]
 
 
 @needs_node
@@ -392,3 +397,73 @@ def test_the_popup_says_when_diso_cannot_be_opened(app):
     api, b = app
     out = run(free_port(), "open")
     assert out["answer"]["ok"] is False and "bir kez" in out["answer"]["text"]
+
+# ------------------------------------------------------------------------ 🧲 torrents and the language
+def test_magnet_clicks_are_caught_by_a_content_script_in_every_page():
+    for m in (manifest(), firefox_manifest()):
+        assert m["content_scripts"] == [{"matches": ["<all_urls>"], "js": ["catch.js"], "run_at": "document_start",
+                                         "all_frames": True}]
+    code = open(os.path.join(EXT, "catch.js"), encoding="utf-8").read()
+    assert '"magnet"' in code and "preventDefault" in code and "a.click()" in code     # given back if DISO cannot
+
+
+@needs_node
+def test_the_torrents_of_a_page_go_to_diso_once_each(app):
+    api, b = app
+    out = run(b.port, "torrents")
+    assert out["log"]["scripted"] == [5] and out["answer"]["ok"] is True
+    assert sorted(u for a in api.added for u in a["urls"]) == ["http://shop.example/two.torrent",
+                                                               "magnet:?xt=urn:btih:AAA&dn=one"]
+
+
+@needs_node
+def test_the_popup_finds_the_torrents_of_the_page(app):
+    api, b = app
+    assert run(b.port, "page-torrents")["answer"] == ["magnet:?xt=urn:btih:AAA&dn=one", "http://shop.example/two.torrent"]
+    assert api.added == []
+
+
+@needs_node
+def test_a_clicked_magnet_goes_to_diso_unless_torrents_are_switched_off(app):
+    api, b = app
+    out = run(b.port, "magnet")
+    assert out["answer"]["ok"] is True
+    assert api.added == [{"urls": ["magnet:?xt=urn:btih:AAA&dn=one"], "kind": "auto",
+                          "extra": {"referer": PAGE, "user_agent": "TestBrowser/1.0", "cookie": ""}}]
+    out = run(b.port, "magnet-off")
+    assert out["answer"] == {"ok": False} and len(api.added) == 1        # the browser opens it as usual
+
+
+@needs_node
+def test_a_clicked_magnet_is_given_back_when_diso_is_closed(app):
+    out = run(free_port(), "magnet")
+    assert out["answer"]["ok"] is False
+
+
+@needs_node
+def test_a_torrent_file_download_moves_to_diso_even_without_intercept(app):
+    api, b = app
+    out = run(b.port, "intercept-torrent")
+    assert out["log"]["cancelled"] == [8] and api.added[0]["urls"] == ["http://shop.example/get?id=2"]
+    assert api.added[0]["kind"] == "file"
+
+
+@needs_node
+def test_the_extension_speaks_the_language_diso_speaks(app):
+    api, b = app
+    out = run(b.port, "language")
+    assert out["answer"]["lang"] == "tr" and out["log"]["titles"][0] == "DISO ile indir"
+    api.lang = "en"
+    out = run(b.port, "language")
+    assert out["answer"]["lang"] == "en" and out["store"]["appLang"] == "en"
+    assert out["log"]["titles"][0] == "Download with DISO" and "🧲 Download the torrents on this page with DISO" in out["log"]["titles"]
+    out = run(b.port, "language-fixed")                  # chosen by hand in the extension: stays
+    assert out["answer"]["lang"] == "tr"
+
+
+def test_the_popup_shows_downloads_torrents_and_a_paste_box():
+    html = open(os.path.join(EXT, "popup.html"), encoding="utf-8").read()
+    for element in ('id="list"', 'id="torrents"', 'id="paste"', 'id="pasteGo"', 'id="lang-tr"', 'id="lang-en"'):
+        assert element in html, element
+    options = open(os.path.join(EXT, "options.html"), encoding="utf-8").read()
+    assert 'id="lang"' in options and 'id="torrents"' in options

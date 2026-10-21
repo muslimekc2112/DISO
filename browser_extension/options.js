@@ -10,6 +10,15 @@ async function load() {
   $("extensions").value = o.extensions;
   $("badge").checked = o.badge;
   $("launchApp").checked = o.launchApp;
+  $("torrents").checked = o.torrents;
+  $("lang").value = o.lang;
+  return o;
+}
+
+// the page in the language chosen (or DISO's)
+function translate(o) {
+  HI.setLanguage(HI.pickLanguage(o.lang, o.appLang));
+  HI.translatePage(document);
 }
 
 async function save() {
@@ -22,7 +31,10 @@ async function save() {
     extensions: HI.parseExtensions($("extensions").value).join(","),
     badge: $("badge").checked,
     launchApp: $("launchApp").checked,
+    torrents: $("torrents").checked,
+    lang: $("lang").value,
   });
+  translate(Object.assign({}, HI.DEFAULTS, await api.storage.local.get(HI.DEFAULTS)));
   $("msg").textContent = HI.t("saved");
   return true;
 }
@@ -38,7 +50,7 @@ async function test() {
   }
 }
 
-HI.translatePage(document);
 $("save").addEventListener("click", save);
 $("test").addEventListener("click", test);
-load();
+$("lang").addEventListener("change", save);          // the page changes language at once
+load().then(translate);

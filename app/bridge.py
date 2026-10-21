@@ -121,8 +121,10 @@ class Bridge:
                     return
                 path = urlsplit(self.path).path
                 if path == "/ping":
+                    language = getattr(bridge.api, "language", None)
                     return self._send(200, {"app": APP_ID, "version": __version__,
-                                            "add": bool(bridge.api.add_enabled)})
+                                            "add": bool(bridge.api.add_enabled),
+                                            "language": language() if callable(language) else ""})
                 if path == "/status":
                     return self._send(200, bridge.api.status())
                 self._send(404, {"error": "not found"})

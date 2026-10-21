@@ -13,11 +13,12 @@ const scenario = process.argv[3];
 const livePort = Number(process.argv[4] || 0);
 const SESSION_URL = "http://shop.example/files/report.zip";
 
-const listeners = { installed: [], menu: [], created: [], message: [] };
-const log = { badge: [], menus: [], cancelled: [], erased: [], downloaded: [], cookiesAsked: [], native: [], paused: [],
+const listeners = { installed: [], menu: [], created: [], message: [], storage: [] };
+const log = { badge: [], menus: [], titles: [], cancelled: [], erased: [], downloaded: [], cookiesAsked: [], native: [], paused: [],
               resumed: [], scripted: [] };
 const PAGE_LINKS = ["http://shop.example/a.zip", "http://shop.example/page.html", "http://shop.example/b.mp4#t=1",
-                    "http://shop.example/a.zip", "http://shop.example/p.jpg", "javascript:void(0)"];
+                    "http://shop.example/a.zip", "http://shop.example/p.jpg", "javascript:void(0)",
+                    "magnet:?xt=urn:btih:AAA&dn=one", "http://shop.example/two.torrent", "magnet:?xt=urn:btih:aaa&dn=again"];
 const store = { port };
 const cookieJar = { [SESSION_URL]: [{ name: "sid", value: "1" }, { name: "theme", value: "dark" }] };
 
@@ -29,11 +30,11 @@ const chrome = {
   storage: { local: {
     get: async (defaults) => ({ ...defaults, ...store }),
     set: async (o) => { Object.assign(store, o); },
-  } },
+  }, onChanged: { addListener: (f) => listeners.storage.push(f) } },
   cookies: { getAll: async ({ url }) => { log.cookiesAsked.push(url); return cookieJar[url] || []; } },
   contextMenus: {
-    removeAll: (cb) => cb(),
-    create: (o) => log.menus.push(o.id),
+    removeAll: (cb) => { log.menus = []; log.titles = []; cb(); },
+    create: (o) => { log.menus.push(o.id); log.titles.push(o.title); },
     onClicked: { addListener: (f) => listeners.menu.push(f) },
   },
   runtime: {
@@ -85,6 +86,26 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
   const page = "http://shop.example/page";
   if (scenario === "menus") {
     for (const f of listeners.installed) f();
+  } else if (scenario === "language") {
+    // DISO answers in English: the menus follow, and the language is kept for when DISO is closed
+    answer = await ask({ type: "status" });
+    await new Promise((r) => setImmediate(r));
+  } else if (scenario === "language-fixed") {
+    store.lang = "tr";                     // chosen in the settings: DISO's English does not change it
+    answer = await ask({ type: "status" });
+  } else if (scenario === "torrents") {
+    answer = await click({ menuItemId: "hi-torrents", pageUrl: page }, { id: 5, url: page });
+  } else if (scenario === "magnet") {
+    answer = await ask({ type: "magnet", url: "magnet:?xt=urn:btih:AAA&dn=one", referer: page });
+  } else if (scenario === "magnet-off") {
+    store.torrents = false;
+    answer = await ask({ type: "magnet", url: "magnet:?xt=urn:btih:AAA&dn=one", referer: page });
+  } else if (scenario === "page-torrents") {
+    answer = await ask({ type: "page-torrents", tabId: 5 });
+  } else if (scenario === "intercept-torrent") {
+    // "intercept" is off, but a .torrent file always goes to DISO
+    await created({ id: 8, url: "http://shop.example/get?id=2", filename: "C:\\dl\\ubuntu.torrent", fileSize: 900,
+                    referrer: page, state: "in_progress", startTime: new Date().toISOString() });
   } else if (scenario === "link") {
     answer = await click({ menuItemId: "hi-link", linkUrl: SESSION_URL }, { url: page });
   } else if (scenario === "media") {
@@ -142,5 +163,5 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
   } else {
     throw new Error("unknown scenario " + scenario);
   }
-  console.log(JSON.stringify({ answer, log }));
+  console.log(JSON.stringify({ answer, log, store }));
 })().catch((e) => { console.log(JSON.stringify({ error: String(e && e.stack || e) })); process.exit(1); });

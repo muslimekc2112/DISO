@@ -21,9 +21,19 @@ class FakeTray:
     """Stands in for the tray icon (no icon appears on the real taskbar during tests)."""
     instances = []
 
-    def __init__(self, title, on_event, image=None):
+    def __init__(self, title, on_event, image=None, language="tr"):
         self.on_event, self.title, self.started, self.stopped = on_event, title, False, False
+        self.state = {"lang": language}
         FakeTray.instances.append(self)
+
+    def set_state(self, **values):
+        self.state.update(values)
+
+    def set_language(self, code):
+        self.state["lang"] = "en" if code in ("en", "English") else "tr"
+
+    def t(self, text):
+        return text
 
     def start(self):
         self.started = True

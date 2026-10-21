@@ -690,8 +690,10 @@ def test_the_bridge_reports_the_state_of_the_list(app):
     add_item(app, "W", WAITING)
     add_item(app, "R", RESOLVING)
     add_item(app, "D", DONE)
-    assert requests.get(base(app) + "/status", proxies=NO_PROXY).json() == {
-        "active": 2, "queued": 2, "speed": 1000, "total": 5}
+    data = requests.get(base(app) + "/status", proxies=NO_PROXY).json()
+    items = data.pop("items")
+    assert data == {"active": 2, "queued": 2, "speed": 1000, "total": 5}
+    assert [i["name"] for i in items][:1] == ["Run"] and items[0]["state"] == "active"
 
 
 def test_a_second_launch_can_wake_the_window(app):
