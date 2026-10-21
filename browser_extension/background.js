@@ -193,6 +193,30 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 // -------------------------------------------------------------- take over browser downloads
+// When the extension got ready in this browser session. Downloads that started before it belong to
+// the history the browser reports again and again (it starts, the extension is added or updated):
+// never taken. Kept in storage.session (emptied when the browser starts and when the extension is
+// added, reloaded or updated), so the service worker going to sleep and waking up changes nothing.
+let readyPromise = null;
+function readySince() {
+  if (!readyPromise) {
+    readyPromise = (async () => {
+      const session = api.storage.session;
+      try {
+        const { readyAt } = session ? await session.get("readyAt") : {};
+        if (readyAt > 0) return readyAt;
+      } catch (e) { /* no session storage: the moment this script started */ }
+      const now = Date.now();
+      try { if (session) await session.set({ readyAt: now }); } catch (e) { /* kept in memory then */ }
+      return now;
+    })();
+  }
+  return readyPromise;
+}
+readySince();
+if (api.runtime.onStartup) api.runtime.onStartup.addListener(readySince);   // wakes the extension with the browser
+api.runtime.onInstalled.addListener(readySince);
+
 // Is the browser still downloading it? (A small file may be done before DISO has answered.)
 async function stillDownloading(id) {
   try {
@@ -207,7 +231,7 @@ api.downloads.onCreated.addListener(async (item) => {
   const url = item.finalUrl || item.url;
   if (bypass.has(url)) { bypass.delete(url); return; }
   const opts = await getOptions();
-  if (!HI.shouldIntercept(item, opts)) return;
+  if (!HI.shouldIntercept(item, opts, Date.now(), await readySince())) return;
   let app = await ping(opts.port);
   if (!app && opts.launchApp) {                   // DISO is closed: hold the download while it starts
     try { await api.downloads.pause(item.id); } catch (e) { /* already finished, or cannot pause */ }

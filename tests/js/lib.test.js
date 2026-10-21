@@ -85,6 +85,16 @@ test("shouldIntercept never takes the downloads of the browser's history", () =>
   assert.equal(HI.shouldIntercept(item({ state: "in_progress", startTime: "not a date" }), on, now), false);
 });
 
+test("shouldIntercept never takes a download that started before the extension was ready", () => {
+  const now = Date.parse("2026-10-22T12:00:00.000Z");
+  const item = (startTime) => ({ url: "https://a.com/a.zip", filename: "a.zip", state: "in_progress", startTime });
+  const ready = Date.parse("2026-10-22T11:59:50.000Z");          // the extension was added 10 s ago
+  assert.equal(HI.shouldIntercept(item("2026-10-22T11:59:55.000Z"), on, now, ready), true);
+  assert.equal(HI.shouldIntercept(item("2026-10-22T11:59:48.000Z"), on, now, ready), true);   // it woke the extension
+  assert.equal(HI.shouldIntercept(item("2026-10-22T11:59:30.000Z"), on, now, ready), false);  // fresh, but before
+  assert.equal(HI.shouldIntercept({ url: "https://a.com/a.zip", filename: "a.zip", state: "in_progress" }, on, now, ready), false);
+});
+
 test("shouldIntercept looks at the final address after redirects", () => {
   assert.equal(HI.shouldIntercept({ url: "blob:x", finalUrl: "https://cdn.a.com/f.zip", filename: "" }, on), true);
   assert.equal(HI.shouldIntercept({ url: "https://a.com/go", finalUrl: "ftp://a.com/f.zip" }, on), false);

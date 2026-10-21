@@ -13,7 +13,8 @@ const scenario = process.argv[3];
 const livePort = Number(process.argv[4] || 0);
 const SESSION_URL = "http://shop.example/files/report.zip";
 
-const listeners = { installed: [], menu: [], created: [], message: [], storage: [] };
+const listeners = { installed: [], startup: [], menu: [], created: [], message: [], storage: [] };
+const session = {};
 const log = { badge: [], menus: [], titles: [], cancelled: [], erased: [], downloaded: [], cookiesAsked: [], native: [], paused: [],
               resumed: [], scripted: [] };
 const PAGE_LINKS = ["http://shop.example/a.zip", "http://shop.example/page.html", "http://shop.example/b.mp4#t=1",
@@ -30,6 +31,9 @@ const chrome = {
   storage: { local: {
     get: async (defaults) => ({ ...defaults, ...store }),
     set: async (o) => { Object.assign(store, o); },
+  }, session: {
+    get: async (key) => (key in session ? { [key]: session[key] } : {}),
+    set: async (o) => { Object.assign(session, o); },
   }, onChanged: { addListener: (f) => listeners.storage.push(f) } },
   cookies: { getAll: async ({ url }) => { log.cookiesAsked.push(url); return cookieJar[url] || []; } },
   contextMenus: {
@@ -39,6 +43,7 @@ const chrome = {
   },
   runtime: {
     onInstalled: { addListener: (f) => listeners.installed.push(f) },
+    onStartup: { addListener: (f) => listeners.startup.push(f) },
     onMessage: { addListener: (f) => listeners.message.push(f) },
     sendNativeMessage: async (host, message) => {
       log.native.push({ host, message });
@@ -139,6 +144,11 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
     await created({ id: 1, url: SESSION_URL, filename: "C:\\dl\\report.zip", fileSize: 10, state: "complete", startTime: day });
     await created({ id: 2, url: "http://shop.example/b.rar", filename: "b.rar", fileSize: 10, state: "interrupted", startTime: day });
     await created({ id: 3, url: "http://shop.example/c.iso", filename: "c.iso", fileSize: 10, state: "in_progress", startTime: day });
+  } else if (scenario === "intercept-before-ready") {
+    // just added to a browser that was downloading 20 s ago: the browser reports it, still "in progress"
+    store.intercept = true;
+    await created({ id: 4, url: SESSION_URL, filename: "report.zip", fileSize: 10, referrer: page,
+                    state: "in_progress", startTime: new Date(Date.now() - 20000).toISOString() });
   } else if (scenario === "intercept-off") {
     await created({ id: 7, url: SESSION_URL, filename: "report.zip", fileSize: 10 });
   } else if (scenario === "intercept-small") {

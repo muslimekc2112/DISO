@@ -255,11 +255,16 @@
 
   // How old a download may be and still count as "just started" (ms).
   const FRESH_MS = 60 * 1000;
+  // A download that started this long before the extension was ready can still be new: the browser
+  // wakes the extension *because* of it (ms). Anything older happened before - the history.
+  const READY_SLACK_MS = 3 * 1000;
 
   // Should the extension take this browser download over? `item` is a chrome DownloadItem.
   // The browser also reports the downloads of its history as "created" (when it starts, when the
-  // extension wakes up): those are finished, broken off or old - never taken, only a new one is.
-  function shouldIntercept(item, opts, now) {
+  // extension is added, updated or wakes up): those are finished, broken off or old - never taken,
+  // only a new one is. `readyAt` (ms) is when the extension got ready in this browser session: a
+  // download that started before it is never taken, whatever its state says.
+  function shouldIntercept(item, opts, now, readyAt) {
     if (!opts || !item) return false;
     const torrent = !!opts.torrents && fileExtension(item.filename || item.finalUrl || item.url) === "torrent";
     if (!opts.intercept && !torrent) return false;      // a .torrent file is taken even without "intercept"
@@ -270,6 +275,7 @@
       const t = now !== undefined ? now : Date.now();
       if (!(started > t - FRESH_MS)) return false;     // from the history (or a date we cannot read)
     }
+    if (readyAt !== undefined && !(Date.parse(item.startTime) >= readyAt - READY_SLACK_MS)) return false;
     const url = item.finalUrl || item.url;
     if (!isHttpUrl(url)) return false;                 // blob:, data:, file: ... cannot be fetched again
     const ext = fileExtension(item.filename || url);
