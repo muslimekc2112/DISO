@@ -101,7 +101,9 @@ def button(window, caption):
 # ------------------------------------------------------------------------------ Setup
 def test_the_first_page_offers_the_usual_folder_and_the_choices(windows, package, env):
     w = windows(ui.SetupWindow, str(package), env, closer=Closer())
-    assert w.dir_var.get() == env.default_install_dir
+    assert w.dir_var.get() == os.path.dirname(os.path.dirname(env.default_install_dir))     # ISO\DISO is not shown
+    assert w.target_dir() == env.default_install_dir
+    assert has_text(w, "Seçtiğin yerde ISO\\DISO klasörüne kurulur: " + env.default_install_dir)
     assert w.desktop_var.get() and w.menu_var.get() and w.launch_var.get() and not w.autostart_var.get()
     assert has_text(w, "kurulacak") and has_text(w, "Python ya da başka bir şey kurmana gerek yok")
     assert has_text(w, "herkes için kurulur") and button(w, "Kur") and button(w, "İptal")
@@ -115,10 +117,10 @@ def test_pressing_install_installs_and_shows_the_result(windows, package, env, t
     w.start_install()
     assert has_text(w, "Kuruluyor")
     assert pump(w, lambda: w.result is not None or w.exit_code == 2)
-    assert w.exit_code == 0 and w.result.install_dir == str(target)
-    assert (target / "DISO.exe").is_file() and os.path.isfile(os.path.join(env.start_menu_dir, core.SHORTCUT_NAME))
+    assert w.exit_code == 0 and w.result.install_dir == str(target / "ISO" / "DISO")
+    assert (target / "ISO" / "DISO" / "DISO.exe").is_file() and os.path.isfile(os.path.join(env.start_menu_dir, core.SHORTCUT_NAME))
     assert pump(w, lambda: has_text(w, "Kurulum bitti, hazırız")) and button(w, "Bitir")
-    assert core.find_existing(env) == (str(target), "1.2.0")
+    assert core.find_existing(env) == (str(target / "ISO" / "DISO"), "1.2.0")
 
 
 def test_the_switches_decide_what_is_made(windows, package, env, tmp_path):
@@ -140,19 +142,19 @@ def test_finishing_starts_the_program_only_when_asked(windows, package, env, tmp
     w.start_install()
     assert pump(w, lambda: w.result is not None)
     w.finish()
-    assert started == [str(tmp_path / "a" / "DISO.exe")]
+    assert started == [str(tmp_path / "a" / "ISO" / "DISO" / "DISO.exe")]
     other = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=started.append)
     other.dir_var.set(str(tmp_path / "b"))
     other.launch_var.set(False)
     other.start_install()
     assert pump(other, lambda: other.result is not None)
     other.finish()
-    assert started == [str(tmp_path / "a" / "DISO.exe")]
+    assert started == [str(tmp_path / "a" / "ISO" / "DISO" / "DISO.exe")]
 
 
 def test_a_bad_folder_is_explained_and_nothing_starts(windows, package, env):
     w = windows(ui.SetupWindow, str(package), env, closer=Closer())
-    for bad in ("", "göreli\\yol", "C:\\", "C:\\a\\b?"):
+    for bad in ("", "göreli\\yol", "C:\\a\\b?"):
         w.dir_var.set(bad)
         w.start_install()
         assert w.error.cget("text") and w.result is None and not hasattr(w, "bar")
@@ -193,11 +195,44 @@ def test_an_installed_copy_is_offered_an_update_in_its_own_folder(windows, tmp_p
     core.install(old, core.Options(install_dir=str(tmp_path / "Kurulu Yer")), env, closer=Closer())
     new = make_payload(tmp_path / "v2", version="2.0.0", seed=b"2")
     w = windows(ui.SetupWindow, str(new), env, closer=Closer())
-    assert w.dir_var.get() == str(tmp_path / "Kurulu Yer")
+    assert w.dir_var.get() == str(tmp_path / "Kurulu Yer") and w.target_dir() == str(tmp_path / "Kurulu Yer")
+    assert has_text(w, "DISO zaten burada kurulu, buraya güncellenir")
     assert has_text(w, "1.0.0 bu bilgisayarda kurulu") and has_text(w, "2.0.0 sürümüne güncelleyeceğim")
     w.start_install()
     assert pump(w, lambda: w.result is not None)
     assert core.find_existing(env) == (str(tmp_path / "Kurulu Yer"), "2.0.0")
+
+
+def test_any_folder_can_be_picked_and_iso_diso_is_added_behind_it(windows, package, env, tmp_path):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    for picked, target in ((tmp_path / "Oyunlar", tmp_path / "Oyunlar" / "ISO" / "DISO"),
+                           (tmp_path / "Yer" / "ISO", tmp_path / "Yer" / "ISO" / "DISO"),           # not twice
+                           (tmp_path / "Yer" / "iso" / "diso", tmp_path / "Yer" / "iso" / "diso")):
+        w.dir_var.set(str(picked))
+        assert w.target_dir() == str(target)
+        assert has_text(w, "Seçtiğin yerde ISO\\DISO klasörüne kurulur: " + str(target))
+    w.dir_var.set("C:\\")
+    assert w.target_dir() == "C:\\ISO\\DISO"                     # a drive itself is fine: DISO gets its own folder
+    (tmp_path / "Dolu").mkdir()
+    (tmp_path / "Dolu" / "benim.txt").write_text("x")
+    w.dir_var.set(str(tmp_path / "Dolu"))
+    w.launch_var.set(False)
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    assert w.result.install_dir == str(tmp_path / "Dolu" / "ISO" / "DISO")
+    assert sorted(os.listdir(tmp_path / "Dolu")) == ["ISO", "benim.txt"]
+
+
+def test_an_install_in_iso_diso_is_shown_by_its_place_and_updated_there(windows, tmp_path, env):
+    place = tmp_path / "Programlar"
+    old = make_payload(tmp_path / "v1", version="1.0.0", seed=b"1")
+    core.install(old, core.Options(install_dir=str(place / "ISO" / "DISO")), env, closer=Closer())
+    new = make_payload(tmp_path / "v2", version="2.0.0", seed=b"2")
+    w = windows(ui.SetupWindow, str(new), env, closer=Closer())
+    assert w.dir_var.get() == str(place) and w.target_dir() == str(place / "ISO" / "DISO")
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    assert core.find_existing(env) == (str(place / "ISO" / "DISO"), "2.0.0")
 
 
 def test_cancelling_leaves_everything_alone(windows, package, env):

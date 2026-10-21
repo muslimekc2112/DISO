@@ -574,3 +574,14 @@ def test_a_failed_first_install_takes_its_door_away_again(payload, env, monkeypa
         do_install(payload, env)
     monkeypatch.undo()
     assert native_host.registered_command(env.hive, env.reg_prefix + CHROME_KEY) is None
+
+
+def test_iso_diso_is_added_to_the_picked_place_once():
+    assert core.with_own_folder("C:\\Program Files") == "C:\\Program Files\\ISO\\DISO"
+    assert core.with_own_folder(' "D:\\" ') == "D:\\ISO\\DISO"
+    assert core.with_own_folder("D:\\Oyunlar\\ISO") == "D:\\Oyunlar\\ISO\\DISO"
+    assert core.with_own_folder("D:\\x\\iso\\DISO\\") == "D:\\x\\iso\\DISO"
+    assert core.with_own_folder("") == ""
+    assert core.without_own_folder("C:\\Program Files\\ISO\\DISO") == "C:\\Program Files"
+    assert core.without_own_folder("D:\\ISO\\DISO") == "D:\\"
+    assert core.without_own_folder("D:\\Kurulu Yer") == "D:\\Kurulu Yer"

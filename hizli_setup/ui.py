@@ -220,7 +220,12 @@ class SetupWindow(_Window):
         self.result = None
         existing_dir, existing_version = core.find_existing(env)
         self.existing = (existing_dir, existing_version)
-        self.dir_var = tk.StringVar(value=preset_dir or existing_dir or env.default_install_dir)
+        # The field shows the place the user picks; DISO goes into ISO\DISO there (core.with_own_folder).
+        # An installed copy (or --dir) that is not in such a folder is updated where it is.
+        self.exact_dir = preset_dir or existing_dir
+        start = self.exact_dir or env.default_install_dir
+        self.dir_var = tk.StringVar(value=core.without_own_folder(start))
+        self.dir_var.trace_add("write", lambda *a: self._show_target())
         self.desktop_var = tk.BooleanVar(value=True)
         self.menu_var = tk.BooleanVar(value=True)
         self.autostart_var = tk.BooleanVar(value=False)
@@ -254,29 +259,54 @@ class SetupWindow(_Window):
         self.dir_entry = ctk.CTkEntry(row, textvariable=self.dir_var, height=36)
         self.dir_entry.grid(row=0, column=0, sticky="ew")
         ctk.CTkButton(row, text="Gözat…", width=96, height=36, command=self.browse).grid(row=0, column=1, padx=(8, 0))
+        self.target_label = ctk.CTkLabel(self.body, text="", anchor="w", justify="left", wraplength=570)
+        self.target_label.grid(row=3, column=0, sticky="ew")
+        self._show_target()
         self.hint = ctk.CTkLabel(self.body, text=f"Yaklaşık {need} MB yer kaplar. Bu bilgisayardaki herkes için kurulur.", anchor="w", text_color="gray")
-        self.hint.grid(row=3, column=0, sticky="ew")
+        self.hint.grid(row=4, column=0, sticky="ew")
         for i, (text, var) in enumerate((("Masaüstüne kısayol koy", self.desktop_var),
                                          ("Başlat menüsüne kısayol koy", self.menu_var),
                                          ("Windows açılınca kendiliğinden başlasın (tepside)", self.autostart_var),
-                                         ("Kurulum bitince uygulamayı aç", self.launch_var)), start=4):
-            ctk.CTkSwitch(self.body, text=text, variable=var).grid(row=i, column=0, sticky="w", pady=(10 if i == 4 else 4, 0))
+                                         ("Kurulum bitince uygulamayı aç", self.launch_var)), start=5):
+            ctk.CTkSwitch(self.body, text=text, variable=var).grid(row=i, column=0, sticky="w", pady=(10 if i == 5 else 4, 0))
         if self.browsers:
             ctk.CTkLabel(self.body, text="🧩 Tarayıcı eklentisi (linke sağ tık → “DISO ile indir”). Hangi tarayıcılara eklensin?",
-                         anchor="w", justify="left", wraplength=570).grid(row=8, column=0, sticky="ew", pady=(12, 2))
+                         anchor="w", justify="left", wraplength=570).grid(row=9, column=0, sticky="ew", pady=(12, 2))
             box = ctk.CTkFrame(self.body, fg_color="transparent")
-            box.grid(row=9, column=0, sticky="w")
+            box.grid(row=10, column=0, sticky="w")
             for n, (bid, var) in enumerate(self.browser_vars.items()):
                 ctk.CTkCheckBox(box, text=extension_setup.NAMES[bid], variable=var, width=150).grid(
                     row=n // 3, column=n % 3, sticky="w", padx=(0, 8), pady=2)
         self.error = ctk.CTkLabel(self.body, text="", anchor="w", justify="left", wraplength=570, text_color=look.STATE_ERROR)
-        self.error.grid(row=10, column=0, sticky="ew", pady=(12, 0))
+        self.error.grid(row=11, column=0, sticky="ew", pady=(12, 0))
         self.install_btn = list(self.add_buttons(("Kur", self.start_install, True), ("İptal", self.cancel, False)))[0]
 
     def browse(self):
         chosen = filedialog.askdirectory(parent=self, title="Kurulum klasörünü seç", initialdir=self._guess_dir())
         if chosen:
             self.dir_var.set(os.path.normpath(chosen))
+
+    def target_dir(self):
+        """Where DISO really goes: the picked place + ISO\\DISO (an installed copy's own folder stays as it is)."""
+        chosen = self.dir_var.get().strip().strip('"')
+        if self.exact_dir and chosen and os.path.normcase(os.path.normpath(chosen)) == os.path.normcase(os.path.normpath(self.exact_dir)):
+            return os.path.normpath(chosen)
+        return core.with_own_folder(chosen)
+
+    def _show_target(self):
+        label = getattr(self, "target_label", None)
+        if label is None or not label.winfo_exists():
+            return
+        target = self.target_dir()
+        if not target:
+            text = ""
+        elif target != core.with_own_folder(self.dir_var.get()) and self.existing[0]:
+            text = f"DISO zaten burada kurulu, buraya güncellenir: {target}"
+        elif target != core.with_own_folder(self.dir_var.get()):
+            text = f"DISO bu klasöre kurulur: {target}"
+        else:
+            text = f"Seçtiğin yerde ISO\\DISO klasörüne kurulur: {target}"
+        label.configure(text=text)
 
     def _guess_dir(self):
         d = self.dir_var.get().strip().strip('"')
@@ -289,7 +319,7 @@ class SetupWindow(_Window):
 
     def start_install(self):
         try:
-            target = core.resolve_install_dir(self.dir_var.get())
+            target = core.resolve_install_dir(self.target_dir())
         except core.SetupError as e:
             self.error.configure(text=str(e))
             return

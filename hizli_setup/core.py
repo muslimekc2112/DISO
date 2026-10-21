@@ -353,6 +353,29 @@ def resolve_install_dir(chosen: str) -> str:
     return path
 
 
+def with_own_folder(chosen: str) -> str:
+    """The folder the user picked + ISO\\DISO: wherever DISO goes, it has a folder of its own.
+    A pick that already ends with ISO\\DISO (or ISO) is not given a second one."""
+    text = (chosen or "").strip().strip('"')
+    if not text:
+        return text
+    path = os.path.normpath(text)
+    parts = [p.lower() for p in path.rstrip("\\/").split("\\")]
+    if parts[-2:] == [PUBLISHER.lower(), APP_ID.lower()]:
+        return path
+    if parts[-1] == PUBLISHER.lower():
+        return os.path.join(path, APP_ID)
+    return os.path.join(path, PUBLISHER, APP_ID)
+
+
+def without_own_folder(path: str) -> str:
+    """What the folder field shows for a full install folder: the place it is in (ISO\\DISO left out)."""
+    path = os.path.normpath(path) if path else path
+    if path and with_own_folder(os.path.dirname(os.path.dirname(path))).lower() == path.lower():
+        return os.path.dirname(os.path.dirname(path))
+    return path
+
+
 def _shown(dest) -> str:
     """What the progress line says about a file: the program's own inner files are just 'DISO'."""
     return "DISO" if dest.replace("\\", "/").startswith("_internal/") else dest
