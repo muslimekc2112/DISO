@@ -541,7 +541,7 @@ PLAIN = {
     'Tür': 'Genre', 'Kapak yok': 'No cover', 'Resim seç…': 'Choose a picture…', 'Kapağı kaldır': 'Remove the cover',
     'Bu dosya türü\nkapak taşımaz': 'This file type\ncannot carry a cover',
     'Bilgiler dosyanın içine yazılır; şarkı değişmez.': 'The details are written into the file; the song stays the same.',
-    'Yazıyorum…': 'Writing…', 'Kapak resmi seç': 'Choose a cover picture', 'Resim': 'Picture',
+    'Yazıyorum…': 'Writing…', 'Kapak resmi seç': 'Choose a cover picture',
     'Dosyayı kontrol et / onar': 'Check / repair the file',
     'Kopyalanan linki indirmeden önce sor': 'Ask before downloading a copied link',
     '“Panoyu izle” açıkken kopyaladığın link için köşede küçük bir pencere çıkar: MP4, MP3 ya da İndir. Kapalıysa sormadan listeye eklerim.':
@@ -557,6 +557,34 @@ PLAIN = {
     'Torrent bilgisi alınıyor (eşler aranıyor)…': "Getting the torrent's details (looking for peers)…",
     'Eş aranıyor…': 'Looking for peers…', 'aria2 başlamadı': 'aria2 did not start',
     'aria2c arşivin içinde yok': 'aria2c is not in the archive',
+    'en çok': 'max',
+    # ---- last round of 1.1: torrent files, file names, covers, the speed graph
+    'DISO • 🧲 Torrent dosyaları': 'DISO • 🧲 Torrent files', 'Seç:': 'Choose:', 'Dosya türü': 'Type', 'Hiçbiri': 'None',
+    'Videolar': 'Videos', 'Resimler': 'Pictures', 'Arşivler': 'Archives', 'Klasör': 'Folder',
+    '🔎 Dosya ara (yalnız gösterilenleri süzer)': '🔎 Search the files (only filters what is shown)',
+    'Hepsini aç': 'Open all', 'Hepsini kapat': 'Close all',
+    'Bir daha sorma, hep hepsini indir': 'Do not ask again, always download all of them',
+    'Uygula': 'Apply', 'Torrenti iptal et': 'Cancel the torrent',
+    'Hangi dosyalar insin? Seçimini bekliyorum…': 'Which files should come? Waiting for your choice…',
+    'Dosyaları seç…': 'Choose the files…',
+    'Torrentte hangi dosyaların ineceğini sor': 'Ask which files of a torrent to download',
+    'Birden çok dosyalı bir torrent eklenince dosyalarını gösteririm, istediklerini seçersin. Kapalıysa hepsi iner.':
+        'When a torrent with several files is added I show its files and you choose. When this is off, all of them come.',
+    'Bu torrentin dosyaları henüz belli değil': 'The files of this torrent are not known yet',
+    'DISO • ✏ Dosya adları': 'DISO • ✏ File names', 'Dosya adlarını düzenle': 'Edit the file names',
+    'Dosya adlarını düzenle…': 'Edit the file names…', 'Ad kalıbı:': 'Name pattern:',
+    'Kullanılabilir: {sanatçı}  {şarkı}  {albüm}  {no}': 'Can be used: {artist}  {title}  {album}  {no}',
+    'Baş Harfleri Büyük Yap': 'Capitalise Each Word', 'Türkçe harfleri sadeleştir (ş→s, ı→i…)':
+        'Plain letters only (ş→s, ı→i…)', 'Şimdiki ad': 'Current name', 'Yeni ad': 'New name',
+    '= aynı': '= the same', '⚠ bu ad dolu': '⚠ name taken', '⚠ ad çıkmadı': '⚠ no name',
+    'Değişecek ad yok': 'Nothing to rename', 'Yeniden adlandır': 'Rename', 'Geri al': 'Undo',
+    'Adı değişecek bir dosya yok': 'There is no file to rename',
+    'Kapağı internetten bul': 'Find the cover online',
+    'Kapağı olmayanlara kapak bul': 'Find covers for the songs that have none',
+    'Kapak aranacak şarkı yok': 'No song to look for a cover for', 'İnternetten bul': 'Find online',
+    'Kapak bulundu; “Kaydet” ile dosyaya yazılır.': 'Cover found; “Save” writes it into the file.',
+    'Bu adla ve sanatçıyla bir kapak bulamadım.': 'I found no cover with this name and artist.',
+    "YouTube Music'e ulaşamadım, bağlantını kontrol et.": 'Could not reach YouTube Music, check your connection.',
 }
 
 TEMPLATES = [
@@ -726,6 +754,24 @@ TEMPLATES = [
     ("Torrent için aria2 indiriliyor (tek seferlik, {})…", "Downloading aria2 for torrents (only once, {})…"),
     ("aria2 indiriliyor… {}", "Downloading aria2… {}"), ("🧲 {} eş", "🧲 {} peers"), ("🧲 {} eş, {} tam", "🧲 {} peers, {} complete"),
     ("Torrent indirilemedi: {}", "Could not download the torrent: {}"), ("aria2 indirilemedi: {}", "Could not download aria2: {}"),
+    # ---- last round of 1.1
+    ("{} dosya • toplam {}", "{} files • {} in all"), ("Seçilen: {} / {} dosya • {}", "Chosen: {} / {} files • {}"),
+    ("⚠ Diskte yer yetmiyor: {} boş", "⚠ Not enough room on the disk: {} free"),
+    ("Diskte boş yer: {} • {}", "Free on the disk: {} • {}"),
+    ("🧲 Seçim değişti: {} dosya inecek", "🧲 Choice changed: {} files will come"),
+    ("{} şarkı", "{} songs"), ("{} dosyanın adı değişecek", "{} files will be renamed"),
+    ("{} dosyanın adı değişecek • {} dosya atlanacak", "{} files will be renamed • {} left out"),
+    ("Değişecek ad yok • {} dosya atlanacak", "Nothing to rename • {} left out"),
+    ("✓ {} dosyanın adı değişti", "✓ {} files renamed"),
+    ("✓ {} dosyanın adı değişti • {} değişemedi ({}: {})", "✓ {} files renamed • {} could not be ({}: {})"),
+    ("↶ {} dosya eski adına döndü", "↶ {} files got their old names back"),
+    ("✏ {} dosyanın adı değişti", "✏ {} files renamed"),
+    ("✏ {} dosyanın adı değişti, {} değişemedi", "✏ {} files renamed, {} could not be"),
+    ("🖼 {} şarkı için kapak arıyorum…", "🖼 Looking for the covers of {} songs…"),
+    ("{} şarkıya kapak kondu", "{} songs got a cover"), ("{} şarkının kapağı bulunamadı", "no cover found for {} songs"),
+    ("{} şarkının zaten kapağı vardı", "{} songs had one already"),
+    ("{} dosya kapak taşımıyor", "{} files cannot carry a cover"),
+    ("{} şarkıda bağlantı sorunu", "a connection problem with {} songs"),
 ]
 
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,

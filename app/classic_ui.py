@@ -370,8 +370,14 @@ class ProgressWindow(ctk.CTkToplevel):
             self.values[key] = value
         self.bar = BlockBar(self)
         self.bar.grid(row=1, column=0, sticky="ew", padx=10, pady=(6, 4))
+        from .speed_graph import SpeedGraph
+        frame = tk.Frame(self, bd=1, relief="sunken", bg=look.N_FACE)     # 📈 this download's speed
+        frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(2, 4))
+        self.graph = SpeedGraph(frame, width=420, height=int(60 * scale_of(self)))
+        self.graph.pack(fill="x")
+        self.graph.show(app.speeds.of(item.id) if hasattr(app, "speeds") else [])
         buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=2, column=0, sticky="ew", padx=10, pady=(4, 10))
+        buttons.grid(row=3, column=0, sticky="ew", padx=10, pady=(4, 10))
         self.open_btn = ctk.CTkButton(buttons, text="Dosyayı aç", width=100, command=self._open_file)
         self.folder_btn = ctk.CTkButton(buttons, text="Klasörü aç", width=100, command=self._open_folder)
         self.folder_btn.pack(side="left")
@@ -803,12 +809,17 @@ class NostalgiaWindow:
         panel.grid(row=0, column=1, sticky="ns", padx=(0, 2))
         self.sel_label = ctk.CTkLabel(panel, text="", width=74, height=20, font=ctk.CTkFont(size=11))
         self.sel_label.pack(padx=4)
+        from .speed_graph import SpeedGraph
+        panel = sunken_panel(bar)                                    # 📈 green on black, like back then
+        panel.grid(row=0, column=2, sticky="ns", padx=(0, 2))
+        self.speed_graph = SpeedGraph(panel, width=int(110 * self._n_scale), height=int(18 * self._n_scale), label=False)
+        self.speed_graph.pack(padx=1, pady=1)
         self.language_switch = ctk.CTkSegmentedButton(bar, values=list(LANGUAGE_SHORT), width=70, height=22,
                                                       font=ctk.CTkFont(size=11), command=self._on_language_switch)
         self.language_switch.set(LANGUAGE_NAMES[self.cfg.get("language")])
-        self.language_switch.grid(row=0, column=2, padx=(2, 4))
+        self.language_switch.grid(row=0, column=3, padx=(2, 4))
         self.mode_bar = mode_bar(bar, MODE_DOWNLOAD, self._switch_mode, height=22)
-        self.mode_bar.grid(row=0, column=3)
+        self.mode_bar.grid(row=0, column=4)
 
     # ---- the table follows the download list
     def _n_sync(self):

@@ -42,7 +42,8 @@ class Item:
 
     PERSISTED = ("id", "url", "kind", "quality", "bitrate", "connections", "folder",
                  "cookies", "title", "state", "dest", "final_path", "error", "added",
-                 "subs", "cover", "sort_folders", "referer", "user_agent", "group", "origin", "clip")
+                 "subs", "cover", "sort_folders", "referer", "user_agent", "group", "origin", "clip",
+                 "torrent_select")
 
     def __init__(self, url, kind="auto", quality="En iyi", bitrate="320", connections=16,
                  folder="", cookies="Yok", title="", *, subs="Yok", cover=True,
@@ -65,6 +66,7 @@ class Item:
         self.group = group              # name of the playlist it was taken from ("" = a single link)
         self.origin = origin            # "music": found in the music player (asks for a list when done)
         self.clip = list(clip) if clip else None   # [start, end] seconds: only this part of the video (✂)
+        self.torrent_select = None      # 🧲 the files of a torrent to download (aria2's 1-based indexes; None: ask)
         self.state = QUEUED
         self.dest = ""             # final path of a plain file download (kept for resume)
         self.final_path = ""
@@ -89,6 +91,8 @@ class Item:
         self._fd = None
         self._proc = None
         self._probe = None
+        self.torrent_files = []    # 🧲 the files of the torrent, once known (torrent.files_of)
+        self.reselect = None       # 🧲 a new choice of files made while it downloads
 
     # ---------------------------------------------------------------- persistence
     def to_dict(self):

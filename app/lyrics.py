@@ -88,7 +88,7 @@ def _norm(text: str) -> str:
 
 
 def _same_name(a: str, b: str) -> bool:
-    a, b = _norm(a), _norm(b)
+    a, b = _norm(a).replace(" ", ""), _norm(b).replace(" ", "")      # "Gülpembe" == "Gül Pembe"
     return bool(a and b) and (a in b or b in a)
 
 
@@ -128,7 +128,7 @@ def _same_song(title: str, artist: str, r: dict) -> bool:
     names = " ".join(a.get("name", "") for a in r.get("artists") or [] if isinstance(a, dict))
     if artist:
         return _same_name(_core(title), _core(r.get("title"))) and _same_name(artist, names)
-    return bool(_core(title)) and _core(title) == _core(r.get("title"))
+    return bool(_core(title)) and _core(title).replace(" ", "") == _core(r.get("title")).replace(" ", "")
 
 
 def _songs(api, artist: str, title: str, seconds: float = 0) -> list:

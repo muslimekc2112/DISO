@@ -20,6 +20,7 @@ from . import bridge as bridge_module
 from . import backup, channels, classic_ui, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists, repair
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
+from .speed_graph import Sampler, SpeedGraph
 from .extra_ui import HistoryWindow, ShortcutsWindow
 from . import video_engine as ve
 from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
@@ -143,6 +144,8 @@ class ItemActions:
                          + [("＋ Yeni liste…", self._add_to_new_music_list)]))
         if finished:
             cmds.append(("🔧 Dosyayı kontrol et / onar", lambda: self.app.check_file(it)))
+        if it.state == DOWNLOADING and len(getattr(it, "torrent_files", []) or []) > 1:
+            cmds.append(("🧲 Dosyaları seç…", lambda: self.app.open_torrent_files(it)))
         if it.state in (DONE, ERROR, CANCELLED, PAUSED):
             cmds.append(("Baştan indir", self._redownload))
         cmds.append(("Listeden kaldır", self._remove))
@@ -492,6 +495,13 @@ class SettingsPanel(ctk.CTkToplevel):
         self.proxy_test_btn = ctk.CTkButton(proxy_box, text="Dene", width=50, command=self._test_proxy)
         self.proxy_test_btn.pack(side="left", padx=(6, 0))
         _, self.proxy_hint = self._add(card, "Proxy", "http://adres:port veya socks5://adres:port", proxy_box)
+
+        self.torrent_ask_switch = self._switch(card, command=lambda: app.apply_setting(
+            "torrent_ask", bool(self.torrent_ask_switch.get())))
+        self._set_switch(self.torrent_ask_switch, cfg.get("torrent_ask"))
+        self._add(card, "Torrentte hangi dosyaların ineceğini sor",
+                  "Birden çok dosyalı bir torrent eklenince dosyalarını gösteririm, istediklerini seçersin. "
+                  "Kapalıysa hepsi iner.", self.torrent_ask_switch)
 
         self.clip_ask_switch = self._switch(card, command=lambda: app.apply_setting(
             "clip_ask", bool(self.clip_ask_switch.get())))
@@ -1161,6 +1171,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self.cfg.data["max_parallel"] = 3
         self.manager = DownloadManager(max_parallel=self.cfg.get("max_parallel"),
                                        max_retries=self.cfg.get("auto_retry"))
+        self.manager.torrent_ask = self._ask_torrent_files
         LIMITER.set_rate(SPEED_LIMITS[self.cfg.get("speed_limit")] * 1024)
         try:
             set_proxy(self.cfg.get("proxy"))
@@ -1189,6 +1200,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self._notice = ""
         self._notice_until = 0
         self._tick_no = 0
+        self.speeds = Sampler()                  # 📈 the speed of the last minute, for the graphs
+        self.speed_graph = None
         self._ffmpeg_ok = bool(find_ffmpeg())
         self._closing = False
         self.restart_requested = False   # main() starts the program again after it has closed
@@ -1249,8 +1262,13 @@ class App(NostalgiaWindow, ctk.CTk):
         self.list_frame.grid(row=5, column=0, sticky="nsew", padx=16, pady=(0, 6))
         self.empty_label = ctk.CTkLabel(self.list_frame, text="", text_color="gray")
         self._build_update_bar()
-        self.status = ctk.CTkLabel(self, text="", anchor="w", text_color="gray")
-        self.status.grid(row=7, column=0, sticky="ew", padx=20, pady=(0, 4))
+        line = ctk.CTkFrame(self, fg_color="transparent")
+        line.grid(row=7, column=0, sticky="ew", padx=(20, 16), pady=(0, 4))
+        line.columnconfigure(0, weight=1)
+        self.status = ctk.CTkLabel(line, text="", anchor="w", text_color="gray")
+        self.status.grid(row=0, column=0, sticky="ew")
+        self.speed_graph = SpeedGraph(line, width=170, height=26)      # 📈 the last minute
+        self.speed_graph.grid(row=0, column=1, padx=(10, 0))
         self.mode_bar = mode_bar(self, MODE_DOWNLOAD, self._switch_mode)
         self.mode_bar.grid(row=8, column=0, sticky="ew", padx=16, pady=(0, 12))
 
@@ -1591,6 +1609,46 @@ class App(NostalgiaWindow, ctk.CTk):
 
     def notice(self, text, seconds=6):
         self._notice, self._notice_until = text, time.time() + seconds
+
+    # ------------------------------------------------------------------ 🧲 which files of a torrent
+    def _ask_torrent_files(self, item, files, reply):
+        """torrent.run asks (on its worker thread): the window shows the files, the answer goes to reply."""
+        if not self.cfg.get("torrent_ask"):
+            reply([f["index"] for f in files])
+            return
+        self._ui_calls.put(lambda: self.open_torrent_files(item, files, reply))
+
+    def open_torrent_files(self, item, files=None, reply=None):
+        """🧲 The files of a torrent: before it starts (reply given) or to change the choice while it downloads."""
+        from .torrent import magnet_name
+        from .torrent_ui import TorrentFilesDialog
+        files = files or getattr(item, "torrent_files", None)
+        if not files:
+            self.notice("Bu torrentin dosyaları henüz belli değil")
+            return None
+        first = reply is not None
+
+        def done(indexes, remember):
+            if remember:
+                self.cfg.set("torrent_ask", False)
+            if first:
+                reply(indexes)
+            elif indexes:
+                item.reselect = list(indexes)
+                self.notice(f"🧲 Seçim değişti: {len(indexes)} dosya inecek")
+        old = getattr(self, "torrent_dialogs", {}).get(item.id)
+        try:
+            if old is not None and old.winfo_exists():
+                old.lift()
+                return old
+        except TclError:
+            pass
+        if self.state() in ("withdrawn", "iconic"):                 # in the tray: the question must be seen
+            self._show_window()
+        win = TorrentFilesDialog(self, item.title or magnet_name(item.url), files, item.folder, done,
+                                 chosen=item.torrent_select, first=first)
+        self.torrent_dialogs = {**getattr(self, "torrent_dialogs", {}), item.id: win}
+        return win
 
     # ------------------------------------------------------------------ 🔧 is the file whole?
     def check_file(self, item):
@@ -2806,9 +2864,24 @@ class App(NostalgiaWindow, ctk.CTk):
                 gc.collect()  # here, on the window's thread: see __init__
             self._update_update_widgets()
             self._update_status()
+            self._update_graphs()
         finally:
             if not self._closing:
                 self.after(300, self._tick)
+
+    def _update_graphs(self):
+        """📈 Once a second: the speed graph under the list, and the one of each open progress window."""
+        if not self.speeds.take(self.manager.items, DOWNLOADING):
+            return
+        graph = self.speed_graph
+        try:
+            if graph is not None and graph.winfo_ismapped():
+                graph.show(self.speeds.total)
+            for item_id, win in list(getattr(self, "_progress", {}).items()):
+                if getattr(win, "graph", None) is not None and win.winfo_exists():
+                    win.graph.show(self.speeds.of(item_id))
+        except TclError:
+            pass
 
     def _update_tray_tooltip(self):
         if self.tray is not None:

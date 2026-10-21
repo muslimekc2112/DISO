@@ -277,7 +277,7 @@ def test_the_settings_are_tabs_with_tick_boxes(napp):
     panel.schedule_switch.select()
     panel.schedule_switch.toggle()
     assert napp.cfg.get("schedule_on") is False                                   # a tick box like the switch
-    assert panel.theme_menu.cget("state") == "disabled"
+    assert panel.theme_menu.cget("state") == "normal"                              # light or dark grey
     napp._open_settings("Sistem")                                                 # the open window changes tab
     assert panel.current_tab() == "Sistem"
 

@@ -16,6 +16,7 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "fade": 0,                                                # s of cross-fade between songs (0: none)
                   "eq": [0] * 8,                                            # 🎛 the equalizer, dB per band (equalizer.py)
                   "level": False,                                           # 🔊 even volume (loudness.py)
+                  "rename_pattern": "{sanatçı} - {şarkı}",                   # ✏ the file name pattern used last
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
 # ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)
@@ -306,6 +307,30 @@ class PlaylistStore:
         if removed:
             self.save()
         return removed
+
+    def rename_paths(self, moves) -> int:
+        """✏ Files were renamed ([(old, new)]): every list (and what is counted about them) follows. Returns how
+        many tracks changed."""
+        new_of = {file_key(old): new for old, new in moves}
+        changed = 0
+        with self._lock:
+            for tracks in self.lists.values():
+                for t in tracks:
+                    new = new_of.get(file_key(t["path"]))
+                    if new:
+                        t["path"] = os.path.abspath(new)
+                        t["title"] = os.path.splitext(os.path.basename(new))[0]
+                        changed += 1
+            for old, new in moves:
+                stat = self.stats.pop(file_key(old), None)
+                if stat is not None:
+                    self.stats[file_key(new)] = stat
+            resume = self.state.get("resume_path")
+            if resume and file_key(resume) in new_of:                 # "Kaldığın yer" follows its song
+                self.state["resume_path"] = os.path.abspath(new_of[file_key(resume)])
+        if changed:
+            self.save()
+        return changed
 
     def copy_to(self, name: str, tracks) -> int:
         """Put these tracks (with what is known about them) into another list; ones already there are skipped."""

@@ -43,6 +43,8 @@ DISO, kurulum programı ve tarayıcı eklentisi **Türkçe ve İngilizce** konu�
 - Her satırda ⏸/▶ (duraklat/devam), 📂 (klasörü aç), ✖ (kaldır) var; **sağ tık** menüsü ve çift tıkla açma da. DISO kapansa bile yarım indirmeler kaldığı yerden devam eder. Satırın solundaki renkli şerit durumu gösterir (iniyor, bitti, hata, beklemede).
 - Listede arama, filtre, sıralama ve kutucukla çoklu seçim (toplu başlat/duraklat/sil) var. Kısayollar: `Ctrl+F` ara, `Ctrl+A` hepsini seç, `Delete` seçilenleri sil.
 - **🧲 Torrent:** magnet linki, `.torrent` linki ya da `📄` ile `.torrent` dosyası ekle; aria2 ile iner (ilk torrentte bir kereliğine ~2.5 MB indirilir, SHA-256 ile doğrulanır). Bitince paylaşmaya devam etmez.
+- **🧲 Torrentte dosya seç:** çok dosyalı torrentte inmeden önce klasör ağacından istediğin dosyaları seçersin (Hepsi / Videolar / Müzik …, seçilen boyut ve boş yer); inerken sağ tık → "Dosyaları seç…" ile değiştirilir.
+- **📈 Hız grafiği:** listenin altında son bir dakikanın hızı (Nostalji'de yeşil-siyah, ilerleme penceresinde de).
 - **🔧 Dosyayı kontrol et / onar** (biten indirmeye sağ tık): sonu eksikse yalnız eksik kısmı indirir, bozuksa baştan indirmeyi önerir.
 - **📋 Panoyu izle** açıkken kopyaladığın link için köşede küçük bir pencere sorar: İndir / MP4 / MP3 / Hayır.
 - Bağlantı koparsa indirme **kendi kendine tekrar dener** (10, 30, 60 sn… artan beklemeyle) ve kaldığı yerden sürer.
@@ -70,7 +72,7 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarıyla ayr
 - **✨ Akıllı listeler:** listelerin sonunda **⭐ En çok dinlenenler**, **🆕 Son eklenenler** ve **💤 Hiç dinlenmeyenler**. Bütün listelerinden kendiliğinden dolarlar (bir şarkı 30 saniye çalınca dinlenmiş sayılır, atladıkların sayılmaz); elle değiştirilmezler.
 - **Klavyedeki medya tuşları** (çal/duraklat, ileri, geri, durdur) DISO öndeyken de arkadayken de çalışır. Tuşları yalnızca müzik çalarken (ya da duraklatılmışken) alır; durdurunca tarayıcıya ve diğer programlara geri bırakır.
 - Desteklenen biçimler: mp3, wav, wma, m4a, aac, **flac, ogg, opus, aiff, wv, ape, mka** (bunlar FFmpeg ile doğrudan çalar).
-- **🔊 Ses seviyesini eşitle** (⚙ menüsü), **🏷 şarkı bilgilerini ve kapağı düzenle** (sağ tık), **✎ sözleri elle yaz / yapıştır**, **📤 / 📥 .m3u** listeleri dışa / içe aktar.
+- **🔊 Ses seviyesini eşitle** (⚙ menüsü), **🏷 şarkı bilgilerini ve kapağı düzenle** (sağ tık), **✎ sözleri elle yaz / yapıştır**, **✏ dosya adlarını kalıpla düzenle** (önizleme, geri al), **🖼 kapağı internetten bul**, **📤 / 📥 .m3u** listeleri dışa / içe aktar.
 - Windows'un doğrudan açamadığı dosyaların (kapak resmi büyük MP3'ler, Opus sesli videolar) çalınabilir bir kopyası ilk çalışta arka planda hazırlanır.
 
 #### 🔍 Şarkı bul

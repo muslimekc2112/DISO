@@ -52,6 +52,7 @@ class DownloadManager:
         self._slots = threading.Condition()   # guards _running / max_parallel / _gate_open
         self._running = 0
         self._gate_open = True
+        self.torrent_ask = None               # 🧲 (item, files, reply): the window asks which files (torrent.run)
         self._load()
         threading.Thread(target=self._dispatch, daemon=True).start()
 
@@ -354,7 +355,7 @@ class DownloadManager:
     def _run(self, item: Item):
         try:
             if torrent.is_torrent_link(item.url):          # 🧲 whatever was chosen: aria2 downloads it
-                torrent.run(item)
+                torrent.run(item, ask=self.torrent_ask)
                 item.state = DONE
                 item.fraction = 1.0
                 item.retries = 0

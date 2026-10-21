@@ -43,6 +43,8 @@ The name, publisher, version and GitHub address are written in one place: `app/b
 - Every row has ⏸/▶ (pause/resume), 📂 (open folder) and ✖ (remove), plus a **right-click** menu and double-click to open. Unfinished downloads go on from where they stopped, even after DISO was closed. The coloured strip on the left of a row shows its state (downloading, done, error, paused).
 - The list has search, filters, sorting and checkboxes for picking several rows (start/pause/delete them together). Shortcuts: `Ctrl+F` search, `Ctrl+A` select all, `Delete` delete the selected ones.
 - **🧲 Torrents:** add a magnet link, a `.torrent` link or a `.torrent` file with `📄`; aria2 downloads it (downloaded once with the first torrent, ~2.5 MB, checked with SHA-256). It is not shared on when finished.
+- **🧲 Choose a torrent's files:** before a torrent with several files starts, pick the ones you want from its folder tree (All / Videos / Music …, chosen size and free room); right-click → "Choose the files…" changes it while it downloads.
+- **📈 Speed graph:** the last minute of speed under the list (green on black in Nostalgia, also in the progress window).
 - **🔧 Check / repair the file** (right-click a finished download): only the missing end is downloaded when that is all that is wrong; a broken file can be downloaded again.
 - With **📋 Watch clipboard** on, a small window in the corner asks about a link you copy: Download / MP4 / MP3 / No.
 - If the connection drops, the download **retries by itself** (after 10, 30, 60 s… growing waits) and goes on from where it stopped.
@@ -70,7 +72,7 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 - **✨ Smart lists:** at the end of your lists, **⭐ Most played**, **🆕 Recently added** and **💤 Never played**. They fill themselves from all your lists (a song counts as listened to after 30 seconds; skipped ones do not count) and cannot be changed by hand.
 - **The media keys on your keyboard** (play/pause, next, previous, stop) work whether DISO is in front or not. DISO only takes them while music is playing (or paused); once stopped, it gives them back to the browser and other programs.
 - Supported formats: mp3, wav, wma, m4a, aac, **flac, ogg, opus, aiff, wv, ape, mka** (these play directly with FFmpeg).
-- **🔊 Even out the volume** (⚙ menu), **🏷 edit a song's details and cover** (right-click), **✎ write / paste lyrics**, **📤 / 📥 export / import .m3u** lists.
+- **🔊 Even out the volume** (⚙ menu), **🏷 edit a song's details and cover** (right-click), **✎ write / paste lyrics**, **✏ rename files from a pattern** (preview, undo), **🖼 find covers online**, **📤 / 📥 export / import .m3u** lists.
 - For files Windows cannot open directly (MP3s with large cover art, videos with Opus sound) a playable copy is made in the background the first time they play.
 
 #### 🔍 Find songs

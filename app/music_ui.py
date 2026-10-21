@@ -174,6 +174,8 @@ class MusicWindow(ctk.CTkToplevel):
         self.thumbbar = thumbbar if thumbbar is not None else taskbar_module.ThumbBar()
         self.mini = None                             # the small always-on-top player, while it is open
         self.leveler = leveler if leveler is not None else loudness.Leveler()      # 🔊 even volume
+        self.cover_finder = None                     # 🖼 covers from the internet (made when first asked)
+        self._cover_batch = None                     # how the last "find covers" goes: {"done": n, ...}
         self._level_for = None                       # the song whose coming ones were last sent to be measured
         self.preview = None                          # {"result", "path", "until", "resume"} while a preview sounds
         self._preview_backend = None
@@ -271,7 +273,8 @@ class MusicWindow(ctk.CTkToplevel):
         level = ("✓ " if self.store.state["level"] else "   ") + "🔊 Ses seviyesini eşitle"
         items = [("🎚 Şarkılar arası geçiş", fades), ("🎛 Ekolayzır…", self.open_eq), ("🗗 Mini oynatıcı", self.open_mini),
                  (level, lambda: self.set_level(not self.store.state["level"])),
-                 None, ("📤 Bu listeyi dışa aktar (.m3u)…", self.export_list), ("📥 Liste içe aktar (.m3u)…", self.import_list)]
+                 None, ("📤 Bu listeyi dışa aktar (.m3u)…", self.export_list), ("📥 Liste içe aktar (.m3u)…", self.import_list),
+                 ("🖼 Kapağı olmayanlara kapak bul", lambda: self.find_covers(self.store.tracks(self.viewed)))]
         shortcuts = getattr(self.app, "open_shortcuts", None)
         if shortcuts:
             items += [None, ("⌨ Klavye kısayolları  (F1)", shortcuts)]
@@ -287,7 +290,8 @@ class MusicWindow(ctk.CTkToplevel):
             ("Liste", [("Yeni liste…", self._new_list), ("Yeniden adlandır…", self._rename_list),
                        ("Listeyi sil", self._delete_list), None, ("Karıştır", self._shuffle_list),
                        ("Karıştırmayı geri al", self._undo_shuffle), ("Listeyi temizle", self._clear_list), None,
-                       ("Dışa aktar (.m3u)…", self.export_list), ("İçe aktar (.m3u)…", self.import_list)]),
+                       ("Dışa aktar (.m3u)…", self.export_list), ("İçe aktar (.m3u)…", self.import_list), None,
+                       ("Dosya adlarını düzenle…", self.rename_files)]),
             ("Çalma", [("Çal / duraklat", self._toggle), ("Önceki", self._previous), ("Sonraki", self._next),
                        ("Durdur", self._stop), None, ("Tekrar", self._cycle_repeat)]),
             ("Araçlar", [("Şarkı bul", lambda: self._show_view(VIEW_FIND)),
@@ -937,6 +941,8 @@ class MusicWindow(ctk.CTkToplevel):
                 (words, self._lyrics_for_selected), *again,
                 ("✎ Sözleri elle yaz / düzenle", lambda: self.edit_lyrics(first)),
                 ("🏷 Bilgileri düzenle (ad, sanatçı, kapak)…", lambda: self.edit_tags(first)),
+                ("🖼 Kapağı internetten bul", lambda: self.find_covers(self._picked_tracks(), force=True)),
+                ("✏ Dosya adlarını düzenle…", self.rename_files),
                 ("➕ Başka listeye ekle", [(n, lambda n=n: self._copy_selected(n)) for n in others]
                  + [("＋ Yeni liste…", self._copy_to_new_list)]),
                 *([] if playlists.is_smart(self.viewed) else [None, ("✖ Listeden çıkar", self._remove_selected)])]
@@ -1095,6 +1101,120 @@ class MusicWindow(ctk.CTkToplevel):
         self.lyrics_window = LyricsWindow(self, on_seek=self._seek_ms, on_find=self.find_lyrics)
         self.lyrics_window.show(track)
 
+    # ------------------------------------------------------------------ 🖼 covers from the internet
+    def _finder(self):
+        if self.cover_finder is None:
+            from . import covers
+            self.cover_finder = covers.Finder(busy=lambda p: playlists.same_file(self.controller.current_path() or "?", p))
+        return self.cover_finder
+
+    def find_covers(self, tracks, force=False):
+        """🖼 Look for the covers of these songs (force: also for ones that have a cover: a wrong one)."""
+        tracks = [t for t in tracks or [] if os.path.isfile(t["path"])]
+        if not tracks:
+            self.note("Kapak aranacak şarkı yok")
+            return 0
+        finder = self._finder()
+        video_of = getattr(self.app, "video_id_for", lambda path: "")
+        asked = 0
+        for t in tracks:
+            artist, title = artist_and_title(t)
+            if finder.find(t["path"], artist, title, (t.get("duration") or 0) / 1000, video_of(t["path"]), force):
+                asked += 1
+        if asked:
+            batch = self._cover_batch if self._cover_batch and finder.pending() > asked else None
+            self._cover_batch = batch or {"done": 0, "none": 0, "has": 0, "cant": 0, "error": 0}
+            self.note(f"🖼 {asked} şarkı için kapak arıyorum…", 30)
+        return asked
+
+    def _take_covers(self):
+        finder = self.cover_finder
+        if finder is None:
+            return
+        for path, result, detail in finder.drain():
+            if result == "later":                                 # the song that plays: let go of it first
+                picture, place = detail, self.controller.let_go(path)
+                try:
+                    tags.write_tags(path, {}, cover=picture)
+                    result = "done"
+                except OSError as e:
+                    result, detail = "error", str(e)
+                finally:
+                    self.controller.take_back(place)
+                    try:
+                        os.remove(picture)
+                    except OSError:
+                        pass
+            if result == "done":
+                self._covers.pop(path, None)
+                self.reader.request(path)
+                if self._cover_path is not None and playlists.same_file(self._cover_path, path):
+                    self._cover_path = None                       # show the new one
+            if self._cover_batch is not None:
+                self._cover_batch[result if result in self._cover_batch else "error"] += 1
+        batch = self._cover_batch
+        if batch is not None and finder.pending() == 0 and sum(batch.values()):
+            self._cover_batch = None
+            parts = [f"{batch['done']} şarkıya kapak kondu"]
+            if batch["none"]:
+                parts.append(f"{batch['none']} şarkının kapağı bulunamadı")
+            if batch["has"]:
+                parts.append(f"{batch['has']} şarkının zaten kapağı vardı")
+            if batch["cant"]:
+                parts.append(f"{batch['cant']} dosya kapak taşımıyor")
+            if batch["error"]:
+                parts.append(f"{batch['error']} şarkıda bağlantı sorunu")
+            self.note("🖼 " + " • ".join(parts), 10)
+            self._show_now_playing()
+
+    # ------------------------------------------------------------------ ✏ file names
+    def rename_files(self, tracks=None):
+        """✏ Rename the files of the chosen songs (or of the whole list) from a pattern."""
+        from .rename_ui import RenameDialog
+        tracks = tracks or self._picked_tracks() or list(self.store.tracks(self.viewed))
+        tracks = [t for t in tracks if os.path.isfile(t["path"])]
+        if not tracks:
+            self.note("Adı değişecek bir dosya yok")
+            return None
+        return RenameDialog(self, tracks, rename=self._rename_steps, undo=self._undo_rename,
+                            pattern=self.store.state["rename_pattern"],
+                            on_pattern=lambda p: self.store.set_state(rename_pattern=p))
+
+    def _follow_moves(self, moves, work):
+        """Rename files while the lists, the queue and the song that plays follow them."""
+        playing = self.controller.current_path()
+        place = None
+        if playing and any(playlists.same_file(a, playing) for a, _ in moves):
+            place = self.controller.let_go(playing)              # Windows does not rename an open file
+        result = []
+        try:
+            result = work()
+        finally:
+            done = result[0] if isinstance(result, tuple) else result
+            pairs = [(a, b) for a, b in done]
+            self.store.rename_paths(pairs)
+            new_of = {playlists.file_key(a): b for a, b in pairs}
+            for t in list(self.controller.queue) + [self.controller.extra] + list(self.controller.tracks):
+                if t is not None and playlists.file_key(t["path"]) in new_of:
+                    t["path"] = os.path.abspath(new_of[playlists.file_key(t["path"])])
+            self.controller.take_back(place)
+            self._refresh_tracks()
+            self._show_now_playing()
+        return result
+
+    def _rename_steps(self, steps):
+        from . import renamer
+        moves = [(t["path"], new) for t, new, state in steps if state == renamer.OK]
+        done, failed = self._follow_moves(moves, lambda: renamer.apply(steps))
+        self.note(f"✏ {len(done)} dosyanın adı değişti" + (f", {len(failed)} değişemedi" if failed else ""), 8)
+        return done, failed
+
+    def _undo_rename(self, done):
+        from . import renamer
+        back = self._follow_moves([(b, a) for a, b in done], lambda: renamer.undo(done))
+        self.note(f"↶ {len(back)} dosya eski adına döndü", 8)
+        return back
+
     # ------------------------------------------------------------------ 🏷 tags by hand
     def edit_tags(self, track):
         """🏷 The tag editor for this song (its name, artist, album, year, genre and cover, in the file)."""
@@ -1110,8 +1230,12 @@ class MusicWindow(ctk.CTkToplevel):
                 win.destroy()
         except tk.TclError:
             pass
+        from . import covers
+        video = getattr(self.app, "video_id_for", lambda path: "")(track["path"])
+        seconds = (track.get("duration") or 0) / 1000
         self.tag_editor = TagEditor(self, track["path"], write=tags.write_tags, done=self._tags_written,
-                                    before=self.controller.let_go)
+                                    before=self.controller.let_go,
+                                    find_cover=lambda artist, title: covers.fetch_picture(artist, title, seconds, video))
         return self.tag_editor
 
     def _tags_written(self, path, fields, error, place):
@@ -1933,6 +2057,7 @@ class MusicWindow(ctk.CTkToplevel):
             self._take_lyrics()
             self._follow_lyrics()
             self._take_levels()
+            self._take_covers()
             self._update_result_states()
             self._update_downloads()
             self._update_queue_button()

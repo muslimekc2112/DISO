@@ -45,7 +45,8 @@ DEFAULTS = {
     "cookies": "Yok",
     "playlist": False,
     "clip_watch": False,
-    "clip_ask": True,             # a link copied while the clipboard is watched: ask (MP4 / MP3 / download) first
+    "clip_ask": True,
+    "torrent_ask": True,          # 🧲 a torrent with several files: ask which ones to download             # a link copied while the clipboard is watched: ask (MP4 / MP3 / download) first
     "subs": "Yok",
     "cover": True,
     "sort_folders": False,

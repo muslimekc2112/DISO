@@ -18,10 +18,12 @@ class TagEditor(ctk.CTkToplevel):
     """before(path) is called on the window's thread just before writing (its answer goes to done), then
     write(path, fields, cover) on a worker thread, then done(path, fields, error, before's answer)."""
 
-    def __init__(self, parent, path, write, done, before=None):
+    def __init__(self, parent, path, write, done, before=None, find_cover=None):
         super().__init__(parent)
         set_window_icon(self)
         self.path, self._write, self._done, self._before = path, write, done, before
+        self._find_cover = find_cover          # (artist, title) -> a picture file or None: 🌐 from the internet
+        self._found = None
         self._place = None
         self.cover = tags.KEEP
         self._image = None
@@ -54,6 +56,11 @@ class TagEditor(ctk.CTkToplevel):
         self.drop_btn = ctk.CTkButton(side, text="Kapağı kaldır", width=PREVIEW, fg_color="transparent", border_width=1,
                                       text_color=("gray20", "gray85"), command=self.drop_cover, state=state)
         self.drop_btn.pack()
+        if find_cover is not None:
+            self.web_btn = ctk.CTkButton(side, text="🌐 İnternetten bul", width=PREVIEW, fg_color="transparent",
+                                         border_width=1, text_color=("gray20", "gray85"), command=self.find_cover,
+                                         state=state)
+            self.web_btn.pack(pady=(4, 0))
         if not can_cover:
             ctk.CTkLabel(side, text="Bu dosya türü\nkapak taşımaz", text_color="gray").pack(pady=(6, 0))
         self._show_picture(tags.extract_cover(path))
@@ -103,6 +110,34 @@ class TagEditor(ctk.CTkToplevel):
         if picture:
             self.cover = picture
             self._show_picture(picture)
+
+    def find_cover(self):
+        """🌐 YouTube Music's picture of this song (by the name and artist written above)."""
+        fields = self.fields()
+        self.web_btn.configure(state="disabled", text="Arıyorum…")
+        self._found = None
+
+        def work():
+            try:
+                self._found = ("ok", self._find_cover(fields.get("artist", ""), fields.get("title", "")))
+            except Exception as e:  # noqa: BLE001 - said in the window
+                self._found = ("error", str(e))
+        threading.Thread(target=work, daemon=True, name="cover-search").start()
+        self.after(100, self._wait_cover)
+
+    def _wait_cover(self):
+        if self._found is None:
+            self.after(100, self._wait_cover)
+            return
+        kind, value = self._found
+        self.web_btn.configure(state="normal", text="🌐 İnternetten bul")
+        if kind == "ok" and value:
+            self.cover = value
+            self._show_picture(value)
+            self.hint.configure(text="Kapak bulundu; “Kaydet” ile dosyaya yazılır.")
+        else:
+            self.hint.configure(text="Bu adla ve sanatçıyla bir kapak bulamadım." if kind == "ok"
+                                else "YouTube Music'e ulaşamadım, bağlantını kontrol et.")
 
     def drop_cover(self):
         self.cover = tags.REMOVE

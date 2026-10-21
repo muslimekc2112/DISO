@@ -134,7 +134,7 @@ def test_pause_and_cancel_stop_aria2_and_cancel_names_its_files(tmp_path, monkey
 def test_the_manager_sends_any_torrent_link_to_aria2(tmp_path, monkeypatch):
     ran = []
 
-    def fake_run(item):
+    def fake_run(item, ask=None):
         ran.append((item.url, item.kind))
         item.title, item.final_path = "Ubuntu", str(tmp_path / "Ubuntu")
         return item.final_path
@@ -217,3 +217,109 @@ def test_a_real_torrent_paused_goes_on_and_cancelled_leaves_nothing(world, tmp_p
     m.cancel(second)
     wait_for(lambda: second.state == CANCELLED, timeout=15)
     assert os.listdir(other) == []                                               # its half files went too
+
+
+# ------------------------------------------------------------------------------ 🧲 which files
+def test_a_kept_choice_goes_to_aria2_and_is_not_asked_again(tmp_path, monkeypatch):
+    monkeypatch.setattr(torrent, "ensure_aria2", lambda progress=None: "aria2c")
+    monkeypatch.setattr(torrent, "POLL", 0)
+    folder = str(tmp_path / "dl")
+    script = [_status(totalLength="10", completedLength="10", seeder="true", bittorrent=_bt("Film"))]
+    item = Item("https://x.example/film.torrent", folder=folder)
+    item.torrent_select = [3, 1]
+    sessions = []
+    torrent.run(item, aria2_factory=lambda exe, f: sessions.append(FakeAria2(script, f)) or sessions[-1],
+                ask=lambda *a: pytest.fail("asked again"))
+    assert sessions[0].calls[0] == ("addUri", (["https://x.example/film.torrent"], {"select-file": "1,3"}))
+    assert torrent.select_text([3, "1", 3]) == "1,3"
+
+
+@needs_aria2
+def test_only_the_chosen_files_come_and_the_choice_can_change(world, tmp_path, monkeypatch):
+    monkeypatch.setattr(torrent, "find_aria2", lambda: ARIA2)
+    world["seed"]("400K")
+    dl = tmp_path / "dl"
+    asked = []
+
+    def ask(item, files, reply):
+        asked.append(sorted(f["path"] for f in files))
+        reply([f["index"] for f in files if f["path"].endswith("02.bin")])
+    m = DownloadManager(store_path=str(tmp_path / "d.json"))
+    m.torrent_ask = ask
+    m.add_url(pathlib.Path(world["torrent"]).as_uri(), Settings(kind="auto", folder=str(dl)))
+    item = m.items[0]
+    wait_for(lambda: item.done > 100_000, timeout=30)
+    assert asked == [["Albüm/01 Şarkı.bin", "Albüm/CD 2/02.bin"]] and len(item.torrent_files) == 2
+    item.reselect = [f["index"] for f in item.torrent_files]                  # "Dosyaları seç…": both after all
+    wait_for(lambda: item.state == DONE, timeout=60)
+    assert _same(world["src"] / "Albüm" / "01 Şarkı.bin", dl / "Albüm" / "01 Şarkı.bin")
+    assert _same(world["src"] / "Albüm" / "CD 2" / "02.bin", dl / "Albüm" / "CD 2" / "02.bin")
+    assert sorted(item.torrent_select) == [1, 2] and sorted(os.listdir(dl)) == ["Albüm"]
+
+
+@needs_aria2
+def test_cancelling_the_question_cancels_the_torrent(world, tmp_path, monkeypatch):
+    monkeypatch.setattr(torrent, "find_aria2", lambda: ARIA2)
+    world["seed"]()
+    dl = tmp_path / "dl"
+    m = DownloadManager(store_path=str(tmp_path / "d.json"))
+    m.torrent_ask = lambda item, files, reply: reply(None)
+    m.add_url(pathlib.Path(world["torrent"]).as_uri(), Settings(kind="auto", folder=str(dl)))
+    wait_for(lambda: m.items[0].state == CANCELLED, timeout=30)
+    assert not dl.exists() or os.listdir(dl) == []
+
+
+FILES = [{"index": 1, "path": "Film/Film.mkv", "size": 4_000_000_000, "done": 0},
+         {"index": 2, "path": "Film/Altyazı/tr.srt", "size": 60_000, "done": 0},
+         {"index": 3, "path": "Film/Ses/müzik.mp3", "size": 9_000_000, "done": 0},
+         {"index": 4, "path": "Film/kapak.jpg", "size": 200_000, "done": 0}]
+
+
+@pytest.mark.gui
+def test_the_file_window_ticks_folders_and_kinds_and_answers(app, tmp_path):
+    from app.torrent_ui import TorrentFilesDialog
+    got = []
+    win = TorrentFilesDialog(app, "Film", FILES, str(tmp_path), lambda v, remember: got.append((v, remember)))
+    app.update()
+    assert "4 / 4 dosya" in win.summary.cget("text") and str(win.ok_btn.cget("state")) == "normal"
+    assert set(win.quick) == {"all", "none", "video", "music", "pictures"}        # only the kinds it has
+    win.pick("video")
+    assert win.ticked == {1}
+    folder = next(n for n, idx in win._nodes.items() if idx == {2} and win.tree.get_children(n))   # "Altyazı"
+    win.toggle(folder)
+    assert win.ticked == {1, 2} and win.tree.item(folder, "text").startswith("☑")
+    top = next(n for n, idx in win._nodes.items() if idx == {1, 2, 3, 4})
+    assert win.tree.item(top, "text").startswith("◩")                         # some of it
+    win.pick("none")
+    assert str(win.ok_btn.cget("state")) == "disabled"
+    win.search.insert(0, "srt")
+    win._fill()
+    assert len([n for n, idx in win._nodes.items() if not win.tree.get_children(n)]) == 1
+    win.pick("music")
+    win.remember.select()
+    win.accept()
+    assert got == [([3], True)]
+
+
+@pytest.mark.gui
+def test_the_app_asks_once_and_can_ask_again_while_it_downloads(app, tmp_path):
+    item = Item("magnet:?xt=urn:btih:abc&dn=Film", folder=str(tmp_path))
+    answers = []
+    app._ask_torrent_files(item, FILES, answers.append)
+    app._drain_ui_calls()
+    win = app.torrent_dialogs[item.id]
+    win.pick("video")
+    win.accept()
+    assert answers == [[1]]
+    item.torrent_files, item.torrent_select = FILES, [1]
+    from app.ui import ItemMenu
+    item.state = "downloading"
+    menu = dict(ItemMenu(item, app).menu_commands())
+    win = menu["🧲 Dosyaları seç…"]()
+    assert win.ticked == {1} and win.ok_btn.cget("text") == "✓ Uygula"
+    win.pick("all")
+    win.accept()
+    assert item.reselect == [1, 2, 3, 4] and answers == [[1]]
+    app.cfg.set("torrent_ask", False)
+    app._ask_torrent_files(item, FILES, answers.append)                        # not asked: all of them
+    assert answers[-1] == [1, 2, 3, 4]

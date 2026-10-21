@@ -146,6 +146,7 @@ class Aria2:
                 "--bt-save-metadata=true", "--bt-load-saved-metadata=true", "--follow-torrent=true",
                 "--file-allocation=none", "--console-log-level=error", "--summary-interval=0",
                 "--auto-file-renaming=false", "--allow-overwrite=false", "--bt-detach-seed-only=true",
+                "--pause-metadata=true", "--bt-remove-unselected-file=true",     # wait for the choice of files
                 f"--stop-with-process={os.getpid()}"]
         self.proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                      stderr=subprocess.PIPE, **subprocess_flags())
@@ -204,6 +205,28 @@ def _paths(status) -> list:
     return [f.get("path") for f in status.get("files") or [] if f.get("path") and not f["path"].startswith("[METADATA]")]
 
 
+def files_of(status, folder) -> list:
+    """The files of a torrent: [{"index": 1, "path": "Albüm/CD 1/01.mp3" (inside the torrent), "size", "done"}]."""
+    out = []
+    base = os.path.abspath(folder)
+    for f in status.get("files") or []:
+        path = f.get("path") or ""
+        if not path or path.startswith("[METADATA]"):
+            continue
+        try:
+            rel = os.path.relpath(os.path.abspath(path), base)
+        except ValueError:
+            rel = os.path.basename(path)
+        out.append({"index": int(f.get("index") or 0), "path": rel.replace("\\", "/"),
+                    "size": int(f.get("length") or 0), "done": int(f.get("completedLength") or 0)})
+    return out
+
+
+def select_text(indexes) -> str:
+    """aria2's "select-file": 1-based indexes, "1,3,7"."""
+    return ",".join(str(i) for i in sorted(set(int(i) for i in indexes)))
+
+
 class Stopper:
     """What item.attach() needs: stop(reason) ends the wait loop."""
 
@@ -214,9 +237,42 @@ class Stopper:
         self.reason = reason
 
 
-def run(item, aria2_factory=Aria2):
+def _ask(item, files, ask, stopper):
+    """Wait for the user's choice of files (ask(item, files, reply) shows it). None = the torrent was cancelled."""
+    if ask is None or len(files) <= 1:
+        return [f["index"] for f in files]
+    got, event = {}, threading.Event()
+
+    def reply(indexes):
+        got.setdefault("v", None if indexes is None else list(indexes))
+        event.set()
+    item.message = "🧲 Hangi dosyalar insin? Seçimini bekliyorum…"
+    ask(item, files, reply)
+    while not event.wait(0.25):
+        if stopper.reason or item.stop_reason:
+            raise DownloadStopped(stopper.reason or item.stop_reason)
+    return got["v"]
+
+
+def _apply(session, gid, indexes, paused):
+    """Download only these files: aria2 takes a new choice only while the torrent is paused."""
+    if not paused:
+        session.call("forcePause", gid)
+        deadline = time.time() + 10
+        while session.call("tellStatus", gid, ["status"]).get("status") != "paused" and time.time() < deadline:
+            time.sleep(0.1)
+    session.call("changeOption", gid, {"select-file": select_text(indexes)})
+    session.call("unpause", gid)
+
+
+def run(item, aria2_factory=Aria2, ask=None):
     """Download the torrent of `item` (blocking, on the manager's worker thread). Sets item.title,
-    item.final_path and the progress; raises DownloadStopped on pause / cancel."""
+    item.final_path and the progress; raises DownloadStopped on pause / cancel.
+
+    ask(item, files, reply): when the files are known (before anything of them is downloaded) the user picks
+    which ones (reply(indexes) / reply(None) = cancel). The choice is kept in item.torrent_select, so a torrent
+    that goes on after a pause or a new start is not asked again; item.reselect (set by the window) changes it
+    while it downloads. Without `ask` every file is downloaded."""
     from .models import DOWNLOADING
     item.message = f"Torrent için aria2 indiriliyor (tek seferlik, {ARIA2_SIZE})…" if not find_aria2() else ""
     exe = ensure_aria2(lambda d, t: setattr(item, "message", f"aria2 indiriliyor… {human_size(d)}"))
@@ -227,11 +283,13 @@ def run(item, aria2_factory=Aria2):
     known_paths, status, finished, cancelled, since = [], {}, False, False, time.time()
     try:
         local = local_torrent(item.url)
+        chosen = list(item.torrent_select or [])
+        options = {"select-file": select_text(chosen)} if chosen else {"pause": "true"}
         if local:
             with open(local, "rb") as f:
-                gid = session.call("addTorrent", base64.b64encode(f.read()).decode("ascii"))
+                gid = session.call("addTorrent", base64.b64encode(f.read()).decode("ascii"), [], options)
         else:
-            gid = session.call("addUri", [item.url])
+            gid = session.call("addUri", [item.url], {k: v for k, v in options.items() if k != "pause"})
         item.state = DOWNLOADING
         item.title = item.title or magnet_name(item.url) or item.title
         item.message = "Torrent bilgisi alınıyor (eşler aranıyor)…"
@@ -248,6 +306,26 @@ def run(item, aria2_factory=Aria2):
                 raise DownloadError(f"Torrent indirilemedi: {status.get('errorMessage') or status.get('errorCode')}")
             if state == "removed":
                 raise DownloadStopped("cancel")
+            files = files_of(status, item.folder)
+            if files:
+                item.torrent_files = files
+            if state == "paused" and files:                  # the files are known, nothing of them came yet
+                if not chosen:
+                    chosen = _ask(item, files, ask, stopper)
+                    if chosen is None:
+                        raise DownloadStopped("cancel")
+                    item.torrent_select = list(chosen)
+                _apply(session, gid, chosen, paused=True)
+                item.message = ""
+                continue
+            new = item.reselect
+            if new is not None and files:                    # the user changed the choice while it downloads
+                item.reselect = None
+                if new and sorted(new) != sorted(chosen):
+                    chosen = list(new)
+                    item.torrent_select = list(chosen)
+                    _apply(session, gid, chosen, paused=False)
+                    continue
             _show(item, status)
             whole = status.get("seeder") == "true" and _name(status)      # every piece is here and checked
             if state == "complete" or whole:
@@ -266,6 +344,12 @@ def run(item, aria2_factory=Aria2):
         session.close(wait=1.0 if finished else 5.0)
         if finished:
             _forget_metadata(item.folder, status, item.url, since)
+            name = _name(status)
+            if name:                                         # some files were left out: aria2 keeps its notes
+                try:
+                    os.remove(os.path.join(item.folder, name + ".aria2"))
+                except OSError:
+                    pass
         elif cancelled:
             own = os.path.normcase(local_torrent(item.url) or "?")
             item.temp_files += [p for p in _saved_metadata(item.folder, status, since) if os.path.normcase(p) != own]

@@ -96,7 +96,8 @@ def test_everything_survives_a_restart(store, songs, tmp_path):
     assert again.user_names() == [DEFAULT_NAME, "Gece"] and tracks_of(again, "Gece") == ["a", "b"]
     assert again.state == {"last": "Gece", "volume": 35, "shuffle": True, "repeat": "Liste", "resume_list": "Gece",
                            "resume_path": songs[1], "resume_ms": 61000, "ask_list": "Gece", "fade": 0,
-                           "searches": [], "eq": [0] * 8, "level": False}
+                           "searches": [], "eq": [0] * 8, "level": False,
+                           "rename_pattern": "{sanatçı} - {şarkı}"}
 
 
 def test_a_damaged_file_is_ignored(tmp_path):

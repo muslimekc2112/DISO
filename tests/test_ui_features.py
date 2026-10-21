@@ -312,7 +312,8 @@ def test_the_context_menu_depends_on_the_state(app):
     add_item(app, "Run", DOWNLOADING, folder="C:/x")
     add_item(app, "Err", ERROR, folder="C:/x")
     add_item(app, "Pau", PAUSED, folder="C:/x")
-    assert labels(row_for(app, "Done")) == ["Dosyayı aç", "Klasörde göster", "Linki kopyala", "Baştan indir",
+    assert labels(row_for(app, "Done")) == ["Dosyayı aç", "Klasörde göster", "Linki kopyala",
+                                            "🔧 Dosyayı kontrol et / onar", "Baştan indir",
                                             "Listeden kaldır", "Dosyayla birlikte sil"]
     assert labels(row_for(app, "Run")) == ["Klasörü aç", "Linki kopyala", "Listeden kaldır"]
     assert labels(row_for(app, "Err")) == ["Klasörü aç", "Linki kopyala", "Baştan indir", "Listeden kaldır"]
