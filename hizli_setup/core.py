@@ -488,13 +488,13 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
         # ---- 3. shortcuts (a missing shortcut is a pity, not a reason to undo everything)
         progress(0.88, "Kısayolları koyuyorum…")
         exe = os.path.join(target, EXE_NAME)
-        uninstaller = os.path.join(target, UNINSTALLER_NAME)
+        uninstaller, remove_args = uninstall_command(target)
         wanted = []
         about = i18n.tr("Dosya, video ve müzik indirme yöneticisi")
         if options.start_menu:
             wanted.append((os.path.join(env.start_menu_dir, SHORTCUT_NAME), exe, "", about))
             if os.path.isfile(uninstaller):
-                wanted.append((os.path.join(env.start_menu_dir, i18n.tr(UNINSTALL_SHORTCUT)), uninstaller, "",
+                wanted.append((os.path.join(env.start_menu_dir, i18n.tr(UNINSTALL_SHORTCUT)), uninstaller, remove_args,
                                i18n.tr(f"{DISPLAY_NAME}'yu kaldır")))
         if options.desktop_shortcut:
             wanted.append((os.path.join(env.desktop_dir, SHORTCUT_NAME), exe, "", about))
@@ -513,8 +513,8 @@ def install(payload_dir, options: Options, env: Env, progress=_noop, closer=wina
             "DisplayName": (winreg.REG_SZ, DISPLAY_NAME), "DisplayVersion": (winreg.REG_SZ, version),
             "Publisher": (winreg.REG_SZ, PUBLISHER), "InstallLocation": (winreg.REG_SZ, target),
             "DisplayIcon": (winreg.REG_SZ, f'"{exe}",0'),
-            "UninstallString": (winreg.REG_SZ, f'"{uninstaller}"'),
-            "QuietUninstallString": (winreg.REG_SZ, f'"{uninstaller}" --silent'),
+            "UninstallString": (winreg.REG_SZ, f'"{uninstaller}" {remove_args}'.strip()),
+            "QuietUninstallString": (winreg.REG_SZ, f'"{uninstaller}" {remove_args} --silent'.replace("  ", " ")),
             "EstimatedSize": (winreg.REG_DWORD, size_kb), "NoModify": (winreg.REG_DWORD, 1),
             "NoRepair": (winreg.REG_DWORD, 1), "InstallDate": (winreg.REG_SZ, time.strftime("%Y%m%d", time.localtime(now()))),
         })
@@ -625,6 +625,15 @@ def _roll_back(env, target, committed, staged, created_dirs, created_links, regi
 
 
 # ----------------------------------------------------------------------------------- uninstall
+def uninstall_command(target):
+    """(program, its arguments) that removes DISO: an Uninstall.exe when the setup brought one (older setups,
+    the tests), else DISO.exe itself (DISO.exe --uninstall: the setup carries one Python less)."""
+    uninstaller = os.path.join(target, UNINSTALLER_NAME)
+    if os.path.isfile(uninstaller):
+        return uninstaller, ""
+    return os.path.join(target, EXE_NAME), "--uninstall"
+
+
 def uninstall(install_dir, env: Env, remove_data=False, progress=_noop, closer=winapi.close_programs_in,
               read_link=winapi.read_shortcut, sleep=time.sleep, keep=()) -> Result:
     """Remove what install() made. Files that cannot be deleted now (something holds them) are

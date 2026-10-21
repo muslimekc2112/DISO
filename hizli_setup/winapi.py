@@ -183,9 +183,9 @@ def _image_path(pid):
         k32.CloseHandle(handle)
 
 
-def processes_in(folder, ignore_names=()):
+def processes_in(folder, ignore_names=(), ignore_pids=()):
     """[(pid, parent_pid, exe path)] of the running programs whose file lives inside `folder`
-    (except those whose file name, in lower case, is in ignore_names)."""
+    (except those whose file name, in lower case, is in ignore_names, and the processes ignore_pids)."""
     if not WINDOWS or not folder:
         return []
     ignore = {n.lower() for n in ignore_names}
@@ -193,7 +193,7 @@ def processes_in(folder, ignore_names=()):
     me = os.getpid()
     out = []
     for pid, parent in _snapshot():
-        if pid == me:
+        if pid == me or pid in ignore_pids:
             continue
         path = _image_path(pid)
         if path and os.path.normcase(os.path.abspath(path)).startswith(prefix) and os.path.basename(path).lower() not in ignore:
@@ -235,13 +235,23 @@ def _terminate(pid):
             k32.CloseHandle(handle)
 
 
-def close_programs_in(folder, grace=8.0, poll=0.25, sleep=time.sleep, now=time.time, ignore_names=()):
+def ancestors(pid=None) -> set:
+    """The process that started this one, the one that started that one, and so on."""
+    parents = dict(_snapshot()) if WINDOWS else {}
+    out, pid = set(), os.getpid() if pid is None else pid
+    while pid in parents and parents[pid] not in out and parents[pid] != pid:
+        pid = parents[pid]
+        out.add(pid)
+    return out
+
+
+def close_programs_in(folder, grace=8.0, poll=0.25, sleep=time.sleep, now=time.time, ignore_names=(), ignore_pids=()):
     """Ask the programs that run from `folder` to close (as if their window's X was pressed), wait,
     then end what is left. A one-file program is two processes (a launcher and the real one): the
     real one is ended first so the launcher can clean up its temporary files by itself.
     Returns the number of processes that had to be ended by force."""
     def here():
-        return processes_in(folder, ignore_names)
+        return processes_in(folder, ignore_names, ignore_pids)
 
     found = here()
     if not found:

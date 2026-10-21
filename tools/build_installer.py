@@ -201,7 +201,7 @@ def make_payload(folder, app, uninstaller, deno_exe, version, deno_version="", l
     if os.path.isdir(folder):
         shutil.rmtree(folder)
     os.makedirs(folder)
-    entries = app_entries(app) + [("Uninstall.exe", uninstaller, "Uninstall.exe")]
+    entries = app_entries(app) + ([("Uninstall.exe", uninstaller, "Uninstall.exe")] if uninstaller else [])
     if deno_exe:
         entries.append(("deno.exe", deno_exe, "deno/deno.exe"))
     if extension:
@@ -250,9 +250,7 @@ def main(argv):
     log(f"Deno: {deno_version or 'left out'}")
 
     versions = os.path.join(BUILD, "versions")
-    uninstaller = pyinstaller("Uninstall", os.path.join(ROOT, "hizli_setup", "uninstall_main.py"),
-                              write_version_file(os.path.join(versions, "uninstall.txt"), "DISO Kaldırıcı",
-                                                 "Uninstall.exe", __version__, __version_label__))
+    uninstaller = None                    # DISO.exe --uninstall removes DISO: no Uninstall.exe (one Python less)
     log("packing the payload (xz: a few minutes) ...")
     files = make_payload(PAYLOAD, APP_DIR, uninstaller, deno_exe, __version__, deno_version, __version_label__,
                          extension=os.path.join(ROOT, "browser_extension"), packed=True)

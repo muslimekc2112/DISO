@@ -143,6 +143,63 @@ def test_the_payload_is_looked_for_beside_the_program_when_not_given(monkeypatch
     assert cli.default_payload_dir().endswith(os.path.join("build", "payload"))
 
 
+# ------------------------------------------------------------------------------ DISO.exe --uninstall
+@pytest.fixture
+def app_installed(tmp_path, env, logs):
+    """Installed like the real setup does it: DISO.exe and _internal/, no Uninstall.exe."""
+    package = make_payload(tmp_path / "paket2", program_folder=True)
+    target = tmp_path / "Kurulu2"
+    assert silent_setup(env, logs, "--payload", str(package), "--dir", str(target)) == 0
+    return target
+
+
+def test_without_an_uninstall_exe_diso_itself_removes_diso(app_installed, env):
+    target = app_installed
+    assert not (target / "Uninstall.exe").exists() and (target / "_internal" / "python315.dll").is_file()
+    key = env.uninstall_key
+    exe = target / "DISO.exe"
+    assert core._read_value(env, key, "UninstallString") == f'"{exe}" --uninstall'
+    assert core._read_value(env, key, "QuietUninstallString") == f'"{exe}" --uninstall --silent'
+    assert core.uninstall_command(str(target)) == (str(exe), "--uninstall")
+
+
+def test_diso_exe_hands_over_to_a_copy_of_its_folder_without_ffmpeg(app_installed, env, logs):
+    target = app_installed
+    launched = []
+    code = cli.uninstall_main(["--uninstall"], env=env, self_path=str(target / "DISO.exe"), log_folder=logs,
+                              launcher=lambda path, args: launched.append((path, args)) or FakeProc())
+    assert code == 0
+    exe, args = launched[0]
+    place = os.path.dirname(exe)
+    assert os.path.basename(exe) == "DISO.exe" and not core.inside(exe, str(target))
+    assert os.path.isfile(os.path.join(place, "_internal", "python315.dll"))
+    assert not os.path.exists(os.path.join(place, "_internal", "ffmpeg"))           # not needed to remove DISO
+    assert args[:6] == ["--uninstall", "--stage2", "--dir", str(target), "--self-delete", place]
+    assert "--from-app" in args
+    shutil.rmtree(place)
+
+
+def test_while_diso_exe_waits_its_files_are_removed_last(app_installed):
+    held = cli.held_files(str(app_installed), from_app=True)
+    assert held[0] == "DISO.exe" and os.path.join("_internal", "python315.dll") in held
+    assert cli.held_files(str(app_installed), from_app=False) == ["Uninstall.exe"]
+
+
+def test_a_silent_removal_through_diso_exe_leaves_nothing(app_installed, env, logs):
+    target = app_installed
+    assert cli.uninstall_main(["--uninstall", "--stage2", "--silent", "--from-app", "--dir", str(target)], env=env,
+                              log_folder=logs, closer=Closer(), delete_later=lambda p: None) == 0
+    assert not target.exists()
+
+
+def test_the_copy_of_a_program_folder_is_deleted_as_a_folder(tmp_path):
+    place = tmp_path / "DISO-kaldir-1"
+    place.mkdir()
+    seen = []
+    assert cli.schedule_self_delete(str(place), runner=lambda command, **kw: seen.append(command)) is True
+    assert f'rmdir /s /q "{place}"' in seen[0]
+
+
 # ------------------------------------------------------------------------------ uninstall: stage 1
 @pytest.fixture
 def installed(package, env, logs, tmp_path):
@@ -169,7 +226,8 @@ def test_the_uninstaller_first_makes_a_copy_of_itself_elsewhere(installed, env, 
     assert code == 0                                                       # the window case: hand over and leave at once
     copy, args = launched[0]
     assert os.path.isfile(copy) and not core.inside(copy, str(installed)) and copy.endswith(".exe")
-    assert args[:5] == ["--stage2", "--dir", str(installed), "--self-delete", copy]
+    assert args[:6] == ["--uninstall", "--stage2", "--dir", str(installed), "--self-delete", copy]
+    assert "--from-app" not in args                                        # an Uninstall.exe started it
     assert "--silent" not in args and "--result" not in args and args[args.index("--parent-pid") + 1] == str(os.getpid())
     os.remove(copy)
 
@@ -215,7 +273,7 @@ def test_the_uninstaller_finds_the_install_through_the_registry_when_its_own_fol
     launched = []
     cli.uninstall_main([], env=env, self_path=str(stray / "Uninstall.exe"), log_folder=logs,
                        launcher=lambda path, args: launched.append((path, args)) or None)
-    assert launched[0][1][2] == str(installed)
+    assert launched[0][1][3] == str(installed)
     os.remove(launched[0][0])
 
 

@@ -14,7 +14,7 @@ Double-click `DISO-Setup-1.1.exe` and press **Install**. Python, FFmpeg, yt-dlp 
 - **Updating:** DISO tells you when a new version is out; `⟳ Updates` → **DISO** → **Update** downloads the setup, checks it with SHA-256 and installs it (Windows asks for permission), then DISO opens again with the new version. Nothing is downloaded unless you ask. Running the new setup file by hand works too: it closes a running DISO and installs into the same folder; your settings and playlists stay.
 - **Coming from the old version** (Hızlı İndirici): setup removes the old one itself and moves your settings, playlists and download list to `%LOCALAPPDATA%\DISO`. Nothing is lost.
 - **Uninstalling:** Settings → Apps → DISO → Uninstall, or right-click DISO in the Start menu → Uninstall (Windows first opens its list of apps; press Uninstall next to DISO there), or "Uninstall DISO" in the Start menu. Only what setup put there is deleted. It asks whether your settings, playlists and the songs you found and downloaded in the music player should go too. What you downloaded to your download folder is never touched.
-- **Silent install:** `DISO-Setup-1.1.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and `Uninstall.exe --silent [--remove-data]`. Log: `%TEMP%\DISO-kurulum.log`.
+- **Silent install:** `DISO-Setup-1.1.exe --silent [--dir "C:\path"] [--no-desktop] [--autostart]` and to remove it `DISO.exe --uninstall --silent [--remove-data]` (the DISO.exe in the install folder). Log: `%TEMP%\DISO-kurulum.log`.
 - Windows may warn about an "unknown publisher" (the package is not digitally signed): **More info → Run anyway**.
 
 ## 🌐 Language

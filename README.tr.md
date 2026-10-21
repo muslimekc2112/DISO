@@ -14,7 +14,7 @@ Linki yapıştır, gerisini DISO'ya bırak: **dosya** (parçalı, çok bağlant�
 - **Güncelleme:** DISO yeni sürüm çıkınca haber verir; `⟳ Güncellemeler` → **DISO** → **Güncelle** dersen kurulum dosyasını indirir, SHA-256 ile doğrular ve kurar (Windows izin ister), sonra yeni sürümle açılır. Sen istemeden hiçbir şey indirmez. Yeni kurulum dosyasını elle çalıştırmak da olur: çalışan DISO'yu kapatır, aynı klasöre kurar; ayarların ve çalma listelerin korunur.
 - **Eski sürümden geliyorsan** (Hızlı İndirici): kurulum eskisini kendisi kaldırır, ayarların, çalma listelerin ve indirme listen `%LOCALAPPDATA%\DISO` klasörüne taşınır, hiçbir şey kaybolmaz.
 - **Kaldırma:** Ayarlar → Uygulamalar → DISO → Kaldır, ya da Başlat menüsünde DISO'ya sağ tık → Kaldır (Windows önce kendi uygulama listesini açar; orada DISO'nun yanındaki Kaldır'a bas), ya da Başlat menüsündeki "DISO'yu Kaldır". Yalnızca kurulumun koyduklarını siler. Ayarlarını, çalma listelerini ve müzik çalardan bulup indirdiğin şarkıları da silmek isteyip istemediğini sorar. İndirme klasörüne indirdiklerine dokunmaz.
-- **Sessiz kurulum:** `DISO-Setup-1.1.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve `Uninstall.exe --silent [--remove-data]`. Günlük: `%TEMP%\DISO-kurulum.log`.
+- **Sessiz kurulum:** `DISO-Setup-1.1.exe --silent [--dir "C:\yol"] [--no-desktop] [--autostart]` ve kaldırmak için `DISO.exe --uninstall --silent [--remove-data]` (kurulum klasöründeki DISO.exe). Günlük: `%TEMP%\DISO-kurulum.log`.
 - Windows "bilinmeyen yayıncı" uyarısı çıkarabilir (paket dijital olarak imzalı değil): **Daha fazla bilgi → Yine de çalıştır**.
 
 ## 🌐 Dil

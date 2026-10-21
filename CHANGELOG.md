@@ -18,7 +18,7 @@
 - **🏷 Edit a song's details** (right-click a song in the music player): name, artist, album, year, genre and the **cover picture** are written into the file itself (MP3, M4A, FLAC, OGG, Opus, WAV, WMA; covers in MP3 / M4A / FLAC). The sound is not re-encoded; a playing song goes on from the same second.
 - **✎ Write / paste lyrics by hand:** **✎ Edit** in the lyrics window (or right-click a song). Lines starting with `[01:23.45]` keep following the song; saving it empty deletes the lyrics.
 - **📤 / 📥 .m3u lists:** ⚙ menu of the music player (the List menu in Nostalgia): export a list as `.m3u8` (for a phone, other players), or import another player's `.m3u` / `.m3u8` / `.pls` as a new list.
-- **A smaller setup:** the program is packed much tighter (xz) inside the setup file; the setup is about a third of its old size and takes a few seconds more to unpack while installing.
+- **A smaller setup (214 → ~110 MB):** the program is packed much tighter (xz) inside the setup file, and there is no separate uninstaller any more (Uninstall.exe, with a second Python inside): the installed DISO.exe removes DISO itself (`DISO.exe --uninstall`; the Apps list and "Uninstall DISO" in the Start menu call it).
 - **Lyrics:** when YouTube Music drops the connection DISO asks once more (before it said "could not look" at once).
 - **Browser extension:** a small file the browser finished before DISO took it over is no longer downloaded a second time.
 - **Everything stays where it was when the look changes:** after a new style or language DISO opens again at the same place and size, in the music player if you were there, with the settings open (on the same tab) if they were; a song that played goes on from where it was.

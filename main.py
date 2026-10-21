@@ -2,6 +2,9 @@ import sys
 import threading
 
 if __name__ == "__main__":
+    if "--uninstall" in sys.argv[1:]:                 # "Apps" / the Start menu: DISO removes itself (hizli_setup)
+        from hizli_setup.cli import uninstall_main
+        sys.exit(uninstall_main(sys.argv[1:]))
     from app import native_host
     if native_host.is_host_call(sys.argv[1:]):        # started by the browser extension: only start the app
         sys.exit(native_host.main(sys.argv[1:]))

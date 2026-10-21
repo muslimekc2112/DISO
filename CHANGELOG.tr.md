@@ -18,7 +18,7 @@
 - **🏷 Şarkı bilgilerini düzenle** (müzik çalarda şarkıya sağ tık): adı, sanatçısı, albümü, yılı, türü ve **kapak resmi** dosyanın içine yazılır (MP3, M4A, FLAC, OGG, Opus, WAV, WMA; kapak MP3 / M4A / FLAC'ta). Ses dosyası yeniden kodlanmaz; çalan şarkı kaldığı saniyeden devam eder.
 - **✎ Şarkı sözlerini elle yaz / yapıştır:** sözler penceresinde **✎ Düzenle** (ya da şarkıya sağ tık). `[01:23.45]` ile başlayan satırlar şarkıyla akmaya devam eder; boş bırakıp kaydedersen sözler silinir.
 - **📤 / 📥 .m3u listeleri:** müzik çalarda ⚙ menüsü (Nostalji'de Liste menüsü): listeyi `.m3u8` olarak dışa aktar (telefona, başka çalara), ya da başka bir çaların `.m3u` / `.m3u8` / `.pls` listesini yeni bir liste olarak içe aktar.
-- **Daha küçük kurulum paketi:** program kurulum dosyasının içinde çok daha sıkı (xz) sıkıştırılıyor; kurulum dosyası yaklaşık üçte bir boyuta indi, kurarken açılması birkaç saniye sürer.
+- **Daha küçük kurulum paketi (214 → ~110 MB):** program kurulum dosyasının içinde çok daha sıkı (xz) sıkıştırılıyor ve ayrı bir kaldırıcı (Uninstall.exe, içinde ikinci bir Python) artık yok: DISO'yu kurulu DISO.exe'nin kendisi kaldırıyor (`DISO.exe --uninstall`; Uygulamalar listesi ve Başlat menüsündeki "DISO'yu Kaldır" bunu çağırır).
 - **Şarkı sözleri:** YouTube Music bağlantıyı koparırsa DISO bir kez daha sorar (önce hemen "bakamadım" diyordu).
 - **Tarayıcı eklentisi:** tarayıcının DISO devralmadan önce bitirdiği küçük bir dosya artık ikinci kez indirilmez.
 - **Görünüm değişince her şey yerinde:** stil ya da dil değişip DISO yeniden açılınca pencere aynı yerde ve aynı boyutta açılır, müzik çalardaysan müzik çalar, Ayarlar açıksa Ayarlar (aynı sekmede) gelir; çalan şarkı kaldığı yerden devam eder.

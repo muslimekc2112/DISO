@@ -96,14 +96,14 @@ def test_the_setup_installs_the_program_with_everything_it_needs(world, tmp_path
     assert install(world, target) == 0
     assert (target / "DISO.exe").is_file() and (target / "_internal").is_dir()        # the program is a folder: it starts at once
     assert sum(f.stat().st_size for f in (target / "_internal").rglob("*") if f.is_file()) > 50_000_000
-    assert (target / "Uninstall.exe").is_file() and (target / "deno" / "deno.exe").is_file()
+    assert not (target / "Uninstall.exe").exists() and (target / "deno" / "deno.exe").is_file()   # DISO removes itself
     manifest = core.read_manifest(str(target))
-    assert manifest and manifest["version"] and set(manifest["files"]) >= {"DISO.exe", "Uninstall.exe", "install.json"}
+    assert manifest and manifest["version"] and set(manifest["files"]) >= {"DISO.exe", "install.json"}
     assert os.path.isfile(os.path.join(world.env.start_menu_dir, core.SHORTCUT_NAME))
     assert os.path.isfile(os.path.join(world.env.desktop_dir, core.SHORTCUT_NAME))
     assert core.find_existing(world.env) == (str(target), manifest["version"])
     uninstall_string = core._read_value(world.env, world.env.uninstall_key, "UninstallString")
-    assert uninstall_string == f'"{target / "Uninstall.exe"}"'
+    assert uninstall_string == f'"{target / "DISO.exe"}" --uninstall'
     assert world.leftovers_in_temp() == []                                    # the setup cleaned up its own unpacking
 
 
@@ -155,7 +155,7 @@ def test_the_properties_of_the_files_name_the_program_and_its_version(world, tmp
     target = tmp_path / "Ozellikler"
     assert install(world, target) == 0
     version = core.read_manifest(str(target))["version"]
-    for path in (SETUP, str(target / "DISO.exe"), str(target / "Uninstall.exe")):
+    for path in (SETUP, str(target / "DISO.exe")):
         out = subprocess.run(["powershell", "-NoProfile", "-Command",
                               f"$v=(Get-Item -LiteralPath '{path}').VersionInfo; [Console]::OutputEncoding=[Text.Encoding]::UTF8; "
                               "\"$($v.CompanyName)|$($v.FileVersion)|$($v.FileDescription)|$($v.ProductName)|$($v.ProductVersion)\""],
@@ -192,7 +192,7 @@ def test_the_uninstaller_removes_everything_and_leaves_no_trace(world, tmp_path)
     data = world.env.user_data_dir
     os.makedirs(data)
     open(os.path.join(data, "playlists.json"), "w").write("{}")
-    done = world.run(str(target / "Uninstall.exe"), "--silent")
+    done = world.run(str(target / "DISO.exe"), "--uninstall", "--silent")
     assert done.returncode == 0, done.stderr
     assert wait_until(lambda: not target.exists(), 60)
     assert not os.path.exists(os.path.join(world.env.start_menu_dir, core.SHORTCUT_NAME))
@@ -208,7 +208,7 @@ def test_the_uninstaller_can_remove_the_users_data_too(world, tmp_path):
     data = world.env.user_data_dir
     os.makedirs(data)
     open(os.path.join(data, "playlists.json"), "w").write("{}")
-    assert world.run(str(target / "Uninstall.exe"), "--silent", "--remove-data").returncode == 0
+    assert world.run(str(target / "DISO.exe"), "--uninstall", "--silent", "--remove-data").returncode == 0
     assert wait_until(lambda: not target.exists() and not os.path.exists(data), 60)
 
 
@@ -217,7 +217,7 @@ def test_uninstalling_a_running_program(world, tmp_path):
     world.popen(str(target / "DISO.exe"))
     assert wait_until(lambda: len(winapi.processes_in(str(target))) >= 1, 60)
     time.sleep(4)
-    assert world.run(str(target / "Uninstall.exe"), "--silent").returncode == 0
+    assert world.run(str(target / "DISO.exe"), "--uninstall", "--silent").returncode == 0
     assert wait_until(lambda: not target.exists(), 60)
     assert winapi.processes_in(str(target)) == []
 
@@ -225,13 +225,13 @@ def test_uninstalling_a_running_program(world, tmp_path):
 def test_files_the_user_added_to_the_folder_survive_the_uninstall(world, tmp_path):
     target = installed_copy(world, tmp_path, "BenimDosyam")
     (target / "notlarim.txt").write_text("keep me")
-    assert world.run(str(target / "Uninstall.exe"), "--silent").returncode == 0
+    assert world.run(str(target / "DISO.exe"), "--uninstall", "--silent").returncode == 0
     assert wait_until(lambda: not (target / "DISO.exe").exists(), 60)
     assert (target / "notlarim.txt").read_text() == "keep me"
 
 
 def test_a_reinstall_after_an_uninstall_works_like_the_first_time(world, tmp_path):
     target = installed_copy(world, tmp_path, "TekrarKur")
-    assert world.run(str(target / "Uninstall.exe"), "--silent").returncode == 0
+    assert world.run(str(target / "DISO.exe"), "--uninstall", "--silent").returncode == 0
     assert wait_until(lambda: not target.exists(), 60)
     assert install(world, target) == 0 and (target / "DISO.exe").is_file()

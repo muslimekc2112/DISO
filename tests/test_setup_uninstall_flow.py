@@ -162,7 +162,8 @@ def test_the_default_closer_never_closes_the_uninstaller(monkeypatch):
     seen = {}
     monkeypatch.setattr(cli.winapi, "close_programs_in", lambda folder, **kw: seen.update(folder=folder, **kw) or 0)
     assert cli.close_others(r"C:\Kurulu") == 0
-    assert seen == {"folder": r"C:\Kurulu", "ignore_names": ("uninstall.exe",)}
+    assert seen["folder"] == r"C:\Kurulu" and seen["ignore_names"] == ("uninstall.exe",)
+    assert os.getppid() in seen["ignore_pids"]           # whoever started us waits for us: never closed
 
 
 def test_the_stage_two_in_a_silent_run_uses_that_closer_by_default(installed, env, logs, monkeypatch):

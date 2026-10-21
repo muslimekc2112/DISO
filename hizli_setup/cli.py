@@ -57,6 +57,7 @@ def _parser(kind):
     p.add_argument("--self-delete")
     p.add_argument("--result")
     p.add_argument("--parent-pid", type=int)
+    p.add_argument("--from-app", action="store_true")   # the first process is DISO.exe --uninstall (not Uninstall.exe)
     return p
 
 
@@ -157,8 +158,9 @@ def _run_setup(args, env, payload_dir, closer) -> int:
 
 # ----------------------------------------------------------------------------------- uninstall
 def schedule_self_delete(path, runner=subprocess.Popen):
-    """Delete a program file that is still running, a moment after it has ended."""
-    command = (f'cmd.exe /d /c for /l %i in (1,1,40) do @(if exist "{path}" (del /f /q "{path}" 2>nul'
+    """Delete a program file (or the folder of a program) that is still running, a moment after it has ended."""
+    remove = f'rmdir /s /q "{path}" 2>nul' if os.path.isdir(path) else f'del /f /q "{path}" 2>nul'
+    command = (f'cmd.exe /d /c for /l %i in (1,1,40) do @(if exist "{path}" ({remove}'
                f' & ping -n 2 127.0.0.1 >nul))')
     try:
         runner(command, close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -179,9 +181,41 @@ RESULT_WAIT = 600.0
 
 
 def close_others(folder):
-    """Close what runs from the install folder, except the uninstaller itself (that is us, or the process that
-    started us and is waiting for the result)."""
-    return winapi.close_programs_in(folder, ignore_names=(core.UNINSTALLER_NAME.lower(),))
+    """Close what runs from the install folder, except the uninstaller itself: that is us, or the processes that
+    started us and wait for the result (an Uninstall.exe, or DISO.exe --uninstall: never the DISO that runs)."""
+    return winapi.close_programs_in(folder, ignore_names=(core.UNINSTALLER_NAME.lower(),),
+                                    ignore_pids=winapi.ancestors())
+
+
+def copy_of_program(self_path, temp=None):
+    """(program to start, what to delete afterwards): a copy of us in the temp folder. A one-file uninstaller is
+    one file; DISO.exe --uninstall is a program folder (DISO.exe and _internal/, without FFmpeg: not needed)."""
+    temp = temp or tempfile.gettempdir()
+    folder = os.path.dirname(os.path.abspath(self_path))
+    inner = os.path.join(folder, "_internal")
+    if os.path.basename(self_path).lower() == core.UNINSTALLER_NAME.lower() or not os.path.isdir(inner):
+        copy = os.path.join(temp, f"DISO-kaldir-{uuid.uuid4().hex[:8]}.exe")
+        shutil.copy2(self_path, copy)
+        return copy, copy
+    place = os.path.join(temp, f"DISO-kaldir-{uuid.uuid4().hex[:8]}")
+    os.makedirs(place)
+    try:
+        shutil.copy2(self_path, os.path.join(place, os.path.basename(self_path)))
+        shutil.copytree(inner, os.path.join(place, "_internal"),
+                        ignore=lambda d, names: ["ffmpeg"] if os.path.normcase(d) == os.path.normcase(inner) else [])
+    except OSError:
+        shutil.rmtree(place, ignore_errors=True)
+        raise
+    return os.path.join(place, os.path.basename(self_path)), place
+
+
+def held_files(install_dir, from_app):
+    """What the first process still holds while the copy removes DISO: Uninstall.exe, or DISO.exe and its
+    _internal folder (removed in the last step, after that process has ended)."""
+    if not from_app:
+        return [core.UNINSTALLER_NAME]
+    files = (core.read_manifest(install_dir) or {}).get("files") or []
+    return [core.EXE_NAME] + [f for f in files if f.replace("\\", "/").startswith("_internal/")]
 
 
 def write_result(path, code):
@@ -235,16 +269,18 @@ def uninstall_main(argv=None, env=None, closer=None, self_path=None, launcher=st
                 if not args.silent:
                     _message(core.DISPLAY_NAME, "Kurulu bir DISO bulunamadı.")
                 return 3
-        copy = os.path.join(tempfile.gettempdir(), f"DISO-kaldir-{uuid.uuid4().hex[:8]}.exe")
         try:
-            shutil.copy2(self_path, copy)
+            copy, leftover = copy_of_program(self_path)
         except OSError as e:
             log.error("cannot make the temporary copy: %s", e)
             if not args.silent:
                 _message(core.DISPLAY_NAME, f"Kaldırıcı başlatılamadı: {e}")
             return 1
         result_file = copy + ".result"
-        passed = ["--stage2", "--dir", install_dir, "--self-delete", copy, "--parent-pid", str(os.getpid())]
+        from_app = os.path.basename(self_path).lower() != core.UNINSTALLER_NAME.lower()
+        passed = ["--uninstall", "--stage2", "--dir", install_dir, "--self-delete", leftover,
+                  "--parent-pid", str(os.getpid())]
+        passed += ["--from-app"] if from_app else []
         passed += ["--silent", "--result", result_file] if args.silent else []
         passed += ["--remove-data"] if args.remove_data else []
         proc = launcher(copy, passed)
@@ -269,7 +305,7 @@ def uninstall_main(argv=None, env=None, closer=None, self_path=None, launcher=st
         return 4
     code = 1
     try:
-        keep = [core.UNINSTALLER_NAME]                    # the first process still runs it: removed in the last step
+        keep = held_files(install_dir, args.from_app)    # the first process still runs it: removed in the last step
         if args.silent:
             try:
                 core.uninstall(install_dir, env, remove_data=args.remove_data, closer=closer, keep=keep)
