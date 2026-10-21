@@ -79,7 +79,7 @@ Müzik çaların üstündeki **🔍 Şarkı bul** sekmesine şarkının adını 
 - Aynı şarkıyı iki kez indirmez: iniyorsa bekler, inmişse yeniden listeye eklemeyi sorar, yarım kaldıysa kaldığı yerden sürer.
 
 ### ⚙ Ayarlar
-Aynı anda indirme sayısı (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, "Dene" düğmesiyle), bildirimler, **zamanlayıcı**, **kapatınca arka planda çalış** (sistem tepsisi), **Windows ile başlat**, tema (koyu/açık/sistem), görünüm stili (Yeni/Klasik), **dil** (Türkçe/English), "tüm indirmeler bitince" eylemi (DISO'yu kapat / uyut / bilgisayarı kapat) ve günlük dosyası. Seçtiğin her şey kapanıp açılınca hatırlanır.
+Aynı anda indirme sayısı (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, "Dene" düğmesiyle), bildirimler, **zamanlayıcı**, **kapatınca arka planda çalış** (sistem tepsisi), **Windows ile başlat**, tema (koyu/açık/sistem), görünüm stili (Yeni / Klasik / **Nostalji**: 2000'lerin indirme yöneticileri gibi menü, araç çubuğu, kategoriler ve tablo), **dil** (Türkçe/English), "tüm indirmeler bitince" eylemi (DISO'yu kapat / uyut / bilgisayarı kapat) ve günlük dosyası. Seçtiğin her şey kapanıp açılınca hatırlanır.
 
 **Yedek ve yardım:** 💾 Yedek al (ayarlar, çalma listeleri, indirme listesi ve geçmiş tek `.disoyedek` dosyasına), 📂 Yedeği yükle (başka bilgisayardan getir), 📊 İndirme geçmişi (ne zaman ne indi, ne kadar hızlı, en çok hangi siteden; listeden silinenler de kalır), ⌨ Klavye kısayolları (her yerde **F1**).
 

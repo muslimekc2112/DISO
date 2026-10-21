@@ -16,8 +16,9 @@ import customtkinter as ctk
 
 from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import backup, channels, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists
+from . import backup, channels, classic_ui, extension_setup, history, i18n, look, lyrics, music_search, playable, player, playlists
 from .channels_ui import ChannelsWindow
+from .classic_ui import NostalgiaWindow
 from .extra_ui import HistoryWindow, ShortcutsWindow
 from . import video_engine as ve
 from .config import (AFTER_ALL, AUTO_RETRY, FILTERS, MAX_PARALLEL_CHOICES, SORTS, SPEED_LIMITS,
@@ -94,58 +95,10 @@ STATE_COLOURS = {DONE: look.STATE_DONE, ERROR: look.STATE_ERROR, CANCELLED: look
 
 CLOSE_WAIT = 6              # s: the longest a closing waits for downloads to write down where they are
 
-class DownloadRow(ctk.CTkFrame):
-    """One line of the list: checkbox, name, progress bar, status text and buttons.
-    Right click opens a menu, double click opens the finished file."""
-
-    def __init__(self, master, item, app):
-        super().__init__(master, corner_radius=10)
-        self.item, self.app = item, app
-        self._cache = {}
-        self.columnconfigure(1, weight=1)
-
-        self.stripe = None
-        if look.is_new():
-            self.stripe = ctk.CTkFrame(self, width=5, corner_radius=3, fg_color=look.STATE_IDLE)
-            self.stripe.place(x=8, rely=0.5, relheight=0.72, anchor="w")
-        self.sel_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(self, text="", width=24, checkbox_width=20, checkbox_height=20,
-                        variable=self.sel_var, command=self._on_select).grid(
-            row=0, column=0, rowspan=3, padx=(22 if self.stripe else 12, 0))
-        self.name = ctk.CTkLabel(self, text="", anchor="w", font=ctk.CTkFont(weight="bold"))
-        self.name.grid(row=0, column=1, sticky="ew", padx=(10, 6), pady=(8, 0))
-        self.bar = ctk.CTkProgressBar(self, height=10)
-        self.bar.set(0)
-        self.bar.grid(row=1, column=1, sticky="ew", padx=(10, 6), pady=6)
-        self.info = ctk.CTkLabel(self, text="", anchor="w", justify="left", text_color="gray",
-                                 wraplength=600)
-        self.info.grid(row=2, column=1, sticky="ew", padx=(10, 6), pady=(0, 8))
-
-        box = ctk.CTkFrame(self, fg_color="transparent")
-        box.grid(row=0, column=2, rowspan=3, padx=8)
-        self.toggle_btn = ctk.CTkButton(box, text="⏸", width=38, command=self._toggle)
-        self.toggle_btn.pack(side="left", padx=2)
-        self.open_btn = ctk.CTkButton(box, text="📂", width=38, command=self._open)
-        self.open_btn.pack(side="left", padx=2)
-        self.del_btn = ctk.CTkButton(box, text="✖", width=38, fg_color=BAD, hover_color=BAD_HOVER,
-                                     command=self._remove)
-        self.del_btn.pack(side="left", padx=2)
-
-        for w in (self, self.name, self.bar, self.info):
-            w.bind("<Button-3>", self._popup)
-        for w in (self.name, self.info):
-            w.bind("<Double-Button-1>", lambda e: self._open_file())
-
-    # ---- buttons
-    def _on_select(self):
-        self.app.set_selected(self.item.id, bool(self.sel_var.get()))
-
-    def _toggle(self):
-        it, m = self.item, self.app.manager
-        if it.state in ACTIVE_STATES:
-            m.pause(it)
-        else:
-            m.resume(it)
+class ItemActions:
+    """What can be done with one download: the buttons of its row and its right-click menu
+    (the table of the "Nostalji" look uses them too, see ItemMenu)."""
+    item = app = None
 
     def _open(self):
         it = self.item
@@ -201,9 +154,9 @@ class DownloadRow(ctk.CTkFrame):
         if name and name.strip():
             self.app.add_to_music_list(self.item, self.app.new_music_list(name))
 
-    def _popup(self, event):
-        menu = tk.Menu(self, tearoff=0)
-        for label, action in self.menu_commands():
+    def popup_menu(self, parent, event, extra=()):
+        menu = tk.Menu(parent, tearoff=0)
+        for label, action in [*extra, *self.menu_commands()]:
             if isinstance(action, list):                       # a sub-menu: [(label, action), ...]
                 sub = tk.Menu(menu, tearoff=0)
                 for sub_label, sub_action in action:
@@ -215,6 +168,68 @@ class DownloadRow(ctk.CTkFrame):
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+
+class ItemMenu(ItemActions):
+    def __init__(self, item, app):
+        self.item, self.app = item, app
+
+
+class DownloadRow(ItemActions, ctk.CTkFrame):
+    """One line of the list: checkbox, name, progress bar, status text and buttons.
+    Right click opens a menu, double click opens the finished file."""
+
+    def __init__(self, master, item, app):
+        super().__init__(master, corner_radius=10)
+        self.item, self.app = item, app
+        self._cache = {}
+        self.columnconfigure(1, weight=1)
+
+        self.stripe = None
+        if look.is_new():
+            self.stripe = ctk.CTkFrame(self, width=5, corner_radius=3, fg_color=look.STATE_IDLE)
+            self.stripe.place(x=8, rely=0.5, relheight=0.72, anchor="w")
+        self.sel_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(self, text="", width=24, checkbox_width=20, checkbox_height=20,
+                        variable=self.sel_var, command=self._on_select).grid(
+            row=0, column=0, rowspan=3, padx=(22 if self.stripe else 12, 0))
+        self.name = ctk.CTkLabel(self, text="", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.name.grid(row=0, column=1, sticky="ew", padx=(10, 6), pady=(8, 0))
+        self.bar = ctk.CTkProgressBar(self, height=10)
+        self.bar.set(0)
+        self.bar.grid(row=1, column=1, sticky="ew", padx=(10, 6), pady=6)
+        self.info = ctk.CTkLabel(self, text="", anchor="w", justify="left", text_color="gray",
+                                 wraplength=600)
+        self.info.grid(row=2, column=1, sticky="ew", padx=(10, 6), pady=(0, 8))
+
+        box = ctk.CTkFrame(self, fg_color="transparent")
+        box.grid(row=0, column=2, rowspan=3, padx=8)
+        self.toggle_btn = ctk.CTkButton(box, text="⏸", width=38, command=self._toggle)
+        self.toggle_btn.pack(side="left", padx=2)
+        self.open_btn = ctk.CTkButton(box, text="📂", width=38, command=self._open)
+        self.open_btn.pack(side="left", padx=2)
+        self.del_btn = ctk.CTkButton(box, text="✖", width=38, fg_color=BAD, hover_color=BAD_HOVER,
+                                     command=self._remove)
+        self.del_btn.pack(side="left", padx=2)
+
+        for w in (self, self.name, self.bar, self.info):
+            w.bind("<Button-3>", self._popup)
+        for w in (self.name, self.info):
+            w.bind("<Double-Button-1>", lambda e: self._open_file())
+
+    # ---- buttons
+    def _on_select(self):
+        self.app.set_selected(self.item.id, bool(self.sel_var.get()))
+
+    def _toggle(self):
+        it, m = self.item, self.app.manager
+        if it.state in ACTIVE_STATES:
+            m.pause(it)
+        else:
+            m.resume(it)
+
+    def _popup(self, event):
+        self.popup_menu(self, event)
 
     # ---- helpers
     def _set(self, key, value, apply):
@@ -364,7 +379,8 @@ class UpdatePanel(ctk.CTkToplevel):
 
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.grid(row=0, column=0, sticky="ew", padx=22, pady=(20, 6))
-        ctk.CTkLabel(head, text="⟳ Güncellemeler", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(head, text="🔄 Güncellemeler" if look.is_nostalgia() else "⟳ Güncellemeler",
+                     font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w")
         ctk.CTkLabel(head, text="yt-dlp ve FFmpeg her açılışta kontrol edilir, yeni sürüm kendiliğinden iner ve "
                                 "SHA-256 ile doğrulanır. DISO'nun yeni sürümü yalnızca haber verilir: sen "
                                 "“Güncelle” dersen kurulur.",
@@ -426,13 +442,22 @@ class SettingsPanel(ctk.CTkToplevel):
         self.rowconfigure(1, weight=1)
         cfg = app.cfg
 
-        ctk.CTkLabel(self, text="⚙ Ayarlar", font=ctk.CTkFont(size=22, weight="bold")).grid(
-            row=0, column=0, sticky="w", padx=24, pady=(14, 4))
+        self._cards = {}
+        self.nostalgia = look.is_nostalgia()
+        if not self.nostalgia:
+            ctk.CTkLabel(self, text="⚙ Ayarlar", font=ctk.CTkFont(size=22, weight="bold")).grid(
+                row=0, column=0, sticky="w", padx=24, pady=(14, 4))
         # up here, not among the buttons below: there it was squeezed and cut ("SO 0.11.4 be")
-        self.version_label = ctk.CTkLabel(self, text=f"{brand.NAME} {brand.VERSION_LABEL}", text_color="gray")
-        self.version_label.grid(row=0, column=0, sticky="e", padx=24, pady=(14, 4))
-        self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.body.grid(row=1, column=0, sticky="nsew", padx=14, pady=4)
+        self.version_label = ctk.CTkLabel(self, text=f"{brand.NAME} {brand.VERSION_LABEL}", text_color=look.grey_text())
+        self.version_label.grid(row=0, column=0, sticky="e", padx=24, pady=(14, 4) if not self.nostalgia else (6, 0))
+        if self.nostalgia:           # the options dialog of those days: one tab for each group
+            from tkinter import ttk
+            ttk.Style(self).configure("Classic.TFrame", background=look.N_FACE)
+            self.body = ttk.Notebook(self)
+            self.body.grid(row=1, column=0, sticky="nsew", padx=12, pady=(2, 4))
+        else:
+            self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
+            self.body.grid(row=1, column=0, sticky="nsew", padx=14, pady=4)
 
         # ---- general
         card = self._card("İndirme")
@@ -465,18 +490,18 @@ class SettingsPanel(ctk.CTkToplevel):
         self.proxy_test_btn.pack(side="left", padx=(6, 0))
         _, self.proxy_hint = self._add(card, "Proxy", "http://adres:port veya socks5://adres:port", proxy_box)
 
-        self.dup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.dup_switch = self._switch(card, command=lambda: app.apply_setting(
             "block_duplicates", bool(self.dup_switch.get())))
         self._set_switch(self.dup_switch, cfg.get("block_duplicates"))
         self._add(card, "Aynı linki tekrar ekleme", "Aynı link listedeyse ikinciyi eklemem", self.dup_switch)
 
-        self.playlist_ask_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.playlist_ask_switch = self._switch(card, command=lambda: app.apply_setting(
             "playlist_ask", bool(self.playlist_ask_switch.get())))
         self._set_switch(self.playlist_ask_switch, cfg.get("playlist_ask"))
         self._add(card, "Oynatma listesinde videoları seç", "Kapalıysa listedeki her şeyi sormadan eklerim",
                   self.playlist_ask_switch)
 
-        self.auto_music_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.auto_music_switch = self._switch(card, command=lambda: app.apply_setting(
             "auto_music", bool(self.auto_music_switch.get())))
         self._set_switch(self.auto_music_switch, cfg.get("auto_music"))
         self._add(card, "Biten müzikleri çalma listesine ekle",
@@ -485,19 +510,19 @@ class SettingsPanel(ctk.CTkToplevel):
 
         # ---- notifications
         card = self._card("Bildirimler")
-        self.sound_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.sound_switch = self._switch(card, command=lambda: app.apply_setting(
             "notify_sound", bool(self.sound_switch.get())))
         self._set_switch(self.sound_switch, cfg.get("notify_sound"))
         self._add(card, "Bildirim sesi", "İndirme bitince veya hata verince", self.sound_switch)
 
-        self.toast_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.toast_switch = self._switch(card, command=lambda: app.apply_setting(
             "notify_toast", bool(self.toast_switch.get())))
         self._set_switch(self.toast_switch, cfg.get("notify_toast"))
         self._add(card, "Windows bildirimi", "Sağ alttaki bildirim balonu", self.toast_switch)
 
         # ---- scheduler
         card = self._card("Zamanlayıcı")
-        self.schedule_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.schedule_switch = self._switch(card, command=lambda: app.apply_setting(
             "schedule_on", bool(self.schedule_switch.get())))
         self._set_switch(self.schedule_switch, cfg.get("schedule_on"))
         self._add(card, "Zamanlanmış indirme", "Kapalıyken yeni indirmeler başlama saatini bekler",
@@ -519,7 +544,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
         # ---- system
         card = self._card("Sistem")
-        self.tray_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.tray_switch = self._switch(card, command=lambda: app.apply_setting(
             "tray_on_close", bool(self.tray_switch.get())))
         self._set_switch(self.tray_switch, cfg.get("tray_on_close"))
         if MAC:
@@ -530,13 +555,13 @@ class SettingsPanel(ctk.CTkToplevel):
             hint = "pystray kurulu değil"
         self._add(card, "Kapatınca arka planda çalış", hint, self.tray_switch)
 
-        self.startup_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.startup_switch = self._switch(card, command=lambda: app.apply_setting(
             "start_with_windows", bool(self.startup_switch.get())))
         self._set_switch(self.startup_switch, cfg.get("start_with_windows"))
         self._add(card, "Windows açılışında başlat" if WINDOWS else "Oturum açılınca başlat",
                   "Açılışta pencere göstermeden, simge olarak başlar", self.startup_switch)
 
-        self.bridge_switch = ctk.CTkSwitch(card, text="", command=lambda: app.apply_setting(
+        self.bridge_switch = self._switch(card, command=lambda: app.apply_setting(
             "bridge_on", bool(self.bridge_switch.get())))
         self._set_switch(self.bridge_switch, cfg.get("bridge_on"))
         self._add(card, "Tarayıcı eklentisinden link al", "Sadece bu bilgisayardaki eklentiyi dinlerim; dışarıdan kimse link gönderemez",
@@ -558,7 +583,10 @@ class SettingsPanel(ctk.CTkToplevel):
         self.theme_menu = ctk.CTkOptionMenu(card, values=list(THEMES), width=150,
                                             command=lambda v: app.apply_setting("theme", v))
         self.theme_menu.set(cfg.get("theme"))
-        self._add(card, "Görünüm", "Koyu, açık ya da Windows ne derse o", self.theme_menu)
+        self._add(card, "Görünüm", "Nostalji stili hep açık renktir" if self.nostalgia
+                  else "Koyu, açık ya da Windows ne derse o", self.theme_menu)
+        if self.nostalgia:
+            self.theme_menu.configure(state="disabled")
         self.look_menu = ctk.CTkOptionMenu(card, values=look.STYLES, width=150,
                                            command=lambda v: app.apply_setting("look", v))
         self.look_menu.set(cfg.get("look"))
@@ -601,25 +629,66 @@ class SettingsPanel(ctk.CTkToplevel):
 
     # ---- layout helpers
     def _card(self, title):
-        ctk.CTkLabel(self.body, text=title, font=ctk.CTkFont(size=14, weight="bold"), text_color="gray",
-                     anchor="w").pack(fill="x", padx=8, pady=(10, 2))
-        card = ctk.CTkFrame(self.body, corner_radius=12)
-        card.pack(fill="x", padx=4, pady=2)
+        if self.nostalgia:
+            from tkinter import ttk
+            page = ttk.Frame(self.body, style="Classic.TFrame")
+            self.body.add(page, text=i18n.tr(title))
+            scroll = ctk.CTkScrollableFrame(page, fg_color="transparent")
+            scroll.pack(fill="both", expand=True, padx=4, pady=6)
+            card = ctk.CTkFrame(scroll, fg_color="transparent")
+            card.pack(fill="x")
+            card._page = page
+        else:
+            ctk.CTkLabel(self.body, text=title, font=ctk.CTkFont(size=14, weight="bold"), text_color="gray",
+                         anchor="w").pack(fill="x", padx=8, pady=(10, 2))
+            card = ctk.CTkFrame(self.body, corner_radius=12)
+            card.pack(fill="x", padx=4, pady=2)
         card.columnconfigure(0, weight=1)
         card._row = 0
+        self._cards[title] = card
         return card
+
+    def show_tab(self, title):
+        """Show one group: its tab ("Nostalji"), or scroll the list down to it."""
+        card = self._cards.get(title)
+        if card is None:
+            return
+        try:
+            if self.nostalgia:
+                self.body.select(card._page)
+            else:
+                self.update_idletasks()
+                self.body._parent_canvas.yview_moveto(max(0.0, card.winfo_y() - 30) / max(1, self.body.winfo_height()))
+        except (TclError, AttributeError):
+            pass
+
+    def current_tab(self):
+        """The group whose tab is open ("" when the groups are one long list)."""
+        if not self.nostalgia:
+            return ""
+        try:
+            shown = str(self.body.select())
+            return next((t for t, c in self._cards.items() if str(c._page) == shown), "")
+        except TclError:
+            return ""
 
     def _add(self, card, title, hint, widget):
         # both fill their column and wrap at its width (a wide control next to them leaves less room)
         t = ctk.CTkLabel(card, text=title, anchor="w", font=ctk.CTkFont(weight="bold"), wraplength=380,
                          justify="left")
         t.grid(row=card._row, column=0, sticky="ew", padx=16, pady=(8, 0))
-        h = ctk.CTkLabel(card, text=hint, anchor="w", text_color="gray", font=ctk.CTkFont(size=11),
+        h = ctk.CTkLabel(card, text=hint, anchor="w", text_color=look.grey_text(), font=ctk.CTkFont(size=11),
                          wraplength=380, justify="left")
         h.grid(row=card._row + 1, column=0, sticky="ew", padx=16, pady=(0, 6))
         widget.grid(row=card._row, column=1, rowspan=2, padx=16, sticky="e")
         card._row += 2
         return t, h
+
+    def _switch(self, card, command):
+        """An on / off control: a switch, or a plain tick box in the "Nostalji" look (no switches back then)."""
+        if self.nostalgia:
+            return ctk.CTkCheckBox(card, text="", width=24, checkbox_width=16, checkbox_height=16, command=command)
+        return ctk.CTkSwitch(card, text="", command=command)
 
     @staticmethod
     def _set_switch(switch, on):
@@ -1044,10 +1113,10 @@ class BridgeApi:
             self.app.cfg.set("extension_seen", True)
 
 
-class App(ctk.CTk):
+class App(NostalgiaWindow, ctk.CTk):
     def __init__(self, minimized=False):
         self.cfg = Config()
-        ctk.set_appearance_mode(THEMES.get(self.cfg.get("theme"), "dark"))
+        ctk.set_appearance_mode(look.appearance(THEMES.get(self.cfg.get("theme"), "dark")))
         super().__init__()
         # Garbage collection must run on this (the window's) thread only. Collected Tk objects
         # (fonts ...) call into Tcl from their finalizer; on a download thread that call waits for
@@ -1060,6 +1129,17 @@ class App(ctk.CTk):
         w, h = fit_geometry(self, 1000, 820)
         self.minsize(min(900, w), min(560, h))
         self._set_icon()
+        # where the windows were before "restart now" (a new look / language): DISO comes back the same way
+        view = self.cfg.get("restart_view")
+        self.cfg.set("restart_view", {})
+        self._view = view if isinstance(view, dict) and not minimized else {}
+        if self._view.get("geometry"):
+            try:
+                self.geometry(self._view["geometry"])
+            except TclError:
+                pass
+        if self._view.get("mode") == MODE_MUSIC:
+            self.withdraw()                  # the music window comes up instead (see _restore_view)
 
         self.cfg.sanitize({
             "kind": list(KIND_LABELS), "quality": ve.QUALITIES, "bitrate": ve.BITRATES,
@@ -1068,6 +1148,7 @@ class App(ctk.CTk):
             "language": list(i18n.LANGUAGES),
             "auto_retry": list(AUTO_RETRY.values()),
         })
+        self.nostalgia = look.is_nostalgia()
         if not 1 <= self.cfg.get("max_parallel") <= 8:
             self.cfg.data["max_parallel"] = 3
         self.manager = DownloadManager(max_parallel=self.cfg.get("max_parallel"),
@@ -1117,21 +1198,12 @@ class App(ctk.CTk):
         self.channel_watcher = channels.Watcher(self.channel_store)
         self.app_update = app_update.AppUpdate()
         self.channels_window = None
+        self.address_dialog = None
 
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(5, weight=1)
-        self._build_top()
-        self._build_options()
-        self._build_toolbar()
-        self._build_filter_bar()
-        self.list_frame = ctk.CTkScrollableFrame(self, label_text="")
-        self.list_frame.grid(row=5, column=0, sticky="nsew", padx=16, pady=(0, 6))
-        self.empty_label = ctk.CTkLabel(self.list_frame, text="", text_color="gray")
-        self._build_update_bar()
-        self.status = ctk.CTkLabel(self, text="", anchor="w", text_color="gray")
-        self.status.grid(row=7, column=0, sticky="ew", padx=20, pady=(0, 4))
-        self.mode_bar = mode_bar(self, MODE_DOWNLOAD, self._switch_mode)
-        self.mode_bar.grid(row=8, column=0, sticky="ew", padx=16, pady=(0, 12))
+        if self.nostalgia:
+            self._n_build()          # menu bar, toolbar, categories and a table (app/classic_ui.py)
+        else:
+            self._build_layout()
 
         self._on_kind(self.kind_menu.get())
         self.clip_var.set(bool(self.cfg.get("clip_watch")))
@@ -1151,11 +1223,29 @@ class App(ctk.CTk):
         if minimized:
             self.after(50, self._hide_to_tray)
         self.after(300, self._tick)
+        if self._view:
+            self.after(60, self._restore_view)
         self.updates.start()  # checks and updates yt-dlp / FFmpeg in the background
         self.app_update.start()  # looks for a new DISO now and then; only tells, never installs by itself
         self.channel_watcher.start()
 
     # ------------------------------------------------------------------------ layout
+    def _build_layout(self):
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(5, weight=1)
+        self._build_top()
+        self._build_options()
+        self._build_toolbar()
+        self._build_filter_bar()
+        self.list_frame = ctk.CTkScrollableFrame(self, label_text="")
+        self.list_frame.grid(row=5, column=0, sticky="nsew", padx=16, pady=(0, 6))
+        self.empty_label = ctk.CTkLabel(self.list_frame, text="", text_color="gray")
+        self._build_update_bar()
+        self.status = ctk.CTkLabel(self, text="", anchor="w", text_color="gray")
+        self.status.grid(row=7, column=0, sticky="ew", padx=20, pady=(0, 4))
+        self.mode_bar = mode_bar(self, MODE_DOWNLOAD, self._switch_mode)
+        self.mode_bar.grid(row=8, column=0, sticky="ew", padx=16, pady=(0, 12))
+
     def _set_icon(self):
         ico = resource_path(os.path.join("assets", "icon.ico"))
         if os.path.exists(ico) and os.name == "nt":
@@ -1577,11 +1667,17 @@ class App(ctk.CTk):
 
     def _visible_items(self):
         text = self.search_entry.get().strip().lower()
-        states = FILTER_STATES.get(self.filter_menu.get())
+        if self.nostalgia:                       # the category tree and the table's headings choose
+            category = self.category
+            keep = lambda it: classic_ui.in_category(category, it)    # noqa: E731
+            sort = self.cfg.get("sort")
+        else:
+            states = FILTER_STATES.get(self.filter_menu.get())
+            keep = lambda it: states is None or it.state in states    # noqa: E731
+            sort = self.sort_menu.get()
         items = [it for it in list(self.manager.items)
-                 if (states is None or it.state in states)
-                 and (not text or text in it.display_name.lower() or text in it.url.lower())]
-        items.sort(key=SORT_KEYS.get(self.sort_menu.get(), SORT_KEYS["Yeni üstte"]))
+                 if keep(it) and (not text or text in it.display_name.lower() or text in it.url.lower())]
+        items.sort(key=SORT_KEYS.get(sort, SORT_KEYS["Yeni üstte"]))
         return items
 
     def set_selected(self, item_id, flag):
@@ -1633,6 +1729,9 @@ class App(ctk.CTk):
             self.select_all_var.set(all_selected)
 
     def _sync_rows(self):
+        if self.nostalgia:
+            self._n_sync()
+            return
         items = list(self.manager.items)
         ids = {i.id for i in items}
         for iid in [k for k in self.rows if k not in ids]:
@@ -1679,14 +1778,19 @@ class App(ctk.CTk):
         self.notice(f"{brand.NAME}'ya hoş geldin! Linki yapıştır, gerisini bana bırak." if not last
                     else f"{brand.NAME} {label} sürümüne güncellendi 🎉", 9)
 
-    def _open_settings(self):
+    def _open_settings(self, tab=None):
+        """The settings window; `tab`: the group to show ("Zamanlayıcı" ...)."""
         try:
             if self.settings_panel is not None and self.settings_panel.winfo_exists():
                 self._bring_to_front(self.settings_panel)
+                if tab:
+                    self.settings_panel.show_tab(tab)
                 return
         except TclError:
             pass
         self.settings_panel = SettingsPanel(self)
+        if tab:
+            self.settings_panel.show_tab(tab)
 
     def _on_language_switch(self, short):
         name = LANGUAGE_SHORT.get(short)
@@ -1705,6 +1809,8 @@ class App(ctk.CTk):
                 panel.language_menu.set(name)
         except (TclError, AttributeError):
             pass
+        if self.nostalgia:
+            self._n_show_choices()
 
     def apply_setting(self, key, value):
         """Settings window changed something: save it and apply it at once."""
@@ -1790,7 +1896,10 @@ class App(ctk.CTk):
             if win is not None and win.alive():
                 win.take(news)
         count = len(self.channel_store.new)
-        set_if_changed(self.channels_btn, text=f"📺 {count}" if count else "📺")
+        if self.nostalgia:
+            set_if_changed(self.channels_btn, text=f"Kanallar ({count})" if count else "Kanallar")
+        else:
+            set_if_changed(self.channels_btn, text=f"📺 {count}" if count else "📺")
 
     def _dialog_parent(self):
         panel = self.settings_panel
@@ -1843,10 +1952,58 @@ class App(ctk.CTk):
         text = text or ("Yeni görünüm programı yeniden açınca uygulanır.\n\nŞimdi yeniden açılsın mı?\n"
                         "(İndirmeler duraklatılır ve açılışta kaldığı yerden devam eder; çalan müzik durur.)")
         if messagebox.askyesno("DISO", text, parent=parent):
+            self._remember_view()
             self.restart_requested = True
             self._on_close()
         else:
             self.notice(later, 8)
+
+    def _remember_view(self):
+        """Before "restart now": the size and place of the window, the mode, an open settings window and
+        whether a song plays. The new start puts them back (_restore_view): only the look changes."""
+        view = {"mode": self.mode}
+        try:
+            view["geometry"] = self._geometry_of(self)
+            view["zoomed"] = self.state() == "zoomed"
+            panel = self.settings_panel
+            if panel is not None and panel.winfo_exists():
+                view["settings"] = panel.current_tab() or "Sistem"     # where the look and the language are
+            music = self.music
+            if music is not None:
+                view["music_geometry"] = self._geometry_of(music)
+                view["music_zoomed"] = music.state() == "zoomed"
+                view["playing"] = music.controller.state == "playing"
+        except (TclError, AttributeError):
+            pass
+        self.cfg.set("restart_view", view)
+
+    @staticmethod
+    def _geometry_of(win):
+        """'WxH+X+Y' of a window, also of one that is hidden now (customtkinter keeps the size it was given;
+        Tk tells a never shown window's size wrong)."""
+        place = re.search(r"([+-]-?\d+[+-]-?\d+)$", win.wm_geometry())
+        return f"{win._current_width}x{win._current_height}" + (place.group(1) if place else "")
+
+    def _restore_view(self):
+        view, self._view = self._view, {}
+        try:
+            if view.get("mode") == MODE_MUSIC:
+                self._switch_mode(MODE_MUSIC)
+                if self.music is None:
+                    self.deiconify()
+                else:
+                    if view.get("music_geometry"):
+                        self.music.geometry(view["music_geometry"])
+                    if view.get("music_zoomed"):
+                        self.music.state("zoomed")
+            elif view.get("zoomed"):
+                self.state("zoomed")
+            if view.get("playing") and self._ensure_music():
+                self.music.go_on()
+            if "settings" in view:
+                self._open_settings(view["settings"] or None)
+        except TclError:
+            pass
 
     def _apply_theme(self, value):
         if self._closing:
@@ -2447,6 +2604,8 @@ class App(ctk.CTk):
         else:
             n = sum(c.status == "available" for c in comps + [self.app_update.comp])
             text = f"⟳ Güncellemeler ({n})" if n else "⟳ Güncellemeler"
+        if self.nostalgia:                        # under a picture: no symbol in front
+            text = text[2:]
         if text != self._btn_text:
             self._btn_text = text
             self.updates_btn.configure(text=text)

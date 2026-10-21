@@ -3,6 +3,8 @@
 **[English](CHANGELOG.md) | Türkçe**
 
 ## 1.1
+- **🕹 Nostalji görünümü:** Ayarlar → Sistem → Görünüm stili → **Nostalji** (ya da menüden Görünüm → Görünüm stili). 2000'lerin gri Windows'u ve o zamanın indirme yöneticileri gibi bir pencere: menü çubuğu (Görevler, İndirmeler, Görünüm, Araçlar, Yardım), büyük resimli araç çubuğu (Yeni indirme, Devam et, Durdur, Hepsini durdur, Sil, Bitenleri sil, Ayarlar, Zamanlayıcı …), solda kategoriler (Video, Müzik, Sıkıştırılmış, Belgeler, Programlar, Bitmemiş, Bitmiş, Hatalı), indirmeler tablo halinde (Dosya adı, Boyut, Durum, Kalan süre, Hız …; başlığa tıkla, sıralansın), altta durum çubuğu. İnen bir indirmeye çift tıkla: yeşil bloklu ilerleme penceresi açılır; bitmişse dosya açılır. Ayarlar sekmeli, müzik çaların da menü çubuğu var; her yer Tahoma yazılı, gri ve hep açık renkli.
+- **Görünüm değişince her şey yerinde:** stil ya da dil değişip DISO yeniden açılınca pencere aynı yerde ve aynı boyutta açılır, müzik çalardaysan müzik çalar, Ayarlar açıksa Ayarlar (aynı sekmede) gelir; çalan şarkı kaldığı yerden devam eder.
 - **Yalnızca Windows:** Linux sürümü bırakıldı (1.0'ın Linux paketleri olduğu gibi kalır, yenisi çıkmayacak).
 - **🔄 DISO kendini güncelliyor:** yeni sürüm çıkınca haber verir; `⟳ Güncellemeler` → DISO → **Güncelle** dersen indirir, SHA-256 ile doğrular, kurar ve yeni sürümle açılır. Sen istemeden hiçbir şey indirmez; Windows'un izin sorusuna "hayır" dersen DISO çalışmaya devam eder.
 - **📺 Kanal takibi:** takip ettiğin kanallara yeni video gelince bildirim; hiçbir şeyi kendiliğinden indirmez, seçtiklerini MP4 / MP3 indirirsin.

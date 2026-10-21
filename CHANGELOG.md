@@ -3,6 +3,8 @@
 **English | [Türkçe](CHANGELOG.tr.md)**
 
 ## 1.1
+- **🕹 Nostalgia look:** Settings → System → Style → **Nostalgia** (or View → Look in the menu). The grey Windows of the 2000s and a window like the download managers of that time: a menu bar (Tasks, Downloads, View, Tools, Help), a toolbar of big pictures (New download, Resume, Stop, Stop all, Delete, Delete completed, Options, Scheduler …), categories on the left (Video, Music, Compressed, Documents, Programs, Unfinished, Finished, Failed), the downloads as a table (File name, Size, Status, Time left, Speed …; click a heading to sort) and a status bar. Double-click a running download: its progress window with the green block bar opens; a finished one opens the file. The settings are tabs, the music player has a menu bar too; everything in Tahoma, grey and always light.
+- **Everything stays where it was when the look changes:** after a new style or language DISO opens again at the same place and size, in the music player if you were there, with the settings open (on the same tab) if they were; a song that played goes on from where it was.
 - **Windows only:** the Linux version is dropped (1.0's Linux packages stay as they are; no new ones will come).
 - **🔄 DISO updates itself:** it tells you when a new version is out; `⟳ Updates` → DISO → **Update** downloads it, checks it with SHA-256, installs it and opens the new version. Nothing is downloaded unless you ask; say "no" to Windows' permission question and DISO just goes on.
 - **📺 Followed channels:** a notification when a channel you follow gets a new video; nothing is downloaded by itself, you download what you pick as MP4 / MP3.

@@ -76,6 +76,8 @@ DEFAULTS = {
     # list
     "sort": "Yeni üstte",
     "filter": "Hepsi",
+    "category": "all",                  # "Nostalji": the category chosen on the left (app/classic_ui.py)
+    "restart_view": {},                 # the windows before "restart now"; put back at the next start
 }
 
 

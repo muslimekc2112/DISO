@@ -79,7 +79,7 @@ Type a song name (or a YouTube link) in the **🔍 Find songs** tab at the top o
 - The same song is never downloaded twice: if it is downloading DISO waits, if it is done it asks whether to add it to a list again, and if it stopped halfway it goes on from there.
 
 ### ⚙ Settings
-Number of downloads at the same time (1–8), a total **speed limit**, the number of automatic retries, a **proxy** (http / socks5, with a "Test" button), notifications, the **scheduler**, **keep running when closed** (system tray), **start with Windows**, theme (dark/light/system), style (New/Classic), **language** (Türkçe/English), what to do "when all downloads finish" (close DISO / sleep / shut down the PC) and the log file. Everything you choose is remembered.
+Number of downloads at the same time (1–8), a total **speed limit**, the number of automatic retries, a **proxy** (http / socks5, with a "Test" button), notifications, the **scheduler**, **keep running when closed** (system tray), **start with Windows**, theme (dark/light/system), style (New / Classic / **Nostalgia**: menu bar, toolbar, categories and a table, like the download managers of the 2000s), **language** (Türkçe/English), what to do "when all downloads finish" (close DISO / sleep / shut down the PC) and the log file. Everything you choose is remembered.
 
 **Backup and help:** 💾 Back up (settings, playlists, download list and history in one `.disoyedek` file), 📂 Restore (bring them from another PC), 📊 Download history (what was downloaded when, how fast, from which sites the most; rows you removed from the list stay here), ⌨ Keyboard shortcuts (**F1** everywhere).
 

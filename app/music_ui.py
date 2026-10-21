@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
-from . import equalizer, i18n, lyrics, mediakeys, music_search, playlists, smtc, tags
+from . import equalizer, i18n, look, lyrics, mediakeys, music_search, playlists, smtc, tags
 from . import taskbar as taskbar_module
 from .logs import log
 from .playlists import FADE_CHOICES
@@ -41,9 +41,9 @@ SLEEP_CHOICES = [SLEEP_OFF, "15 dk", "30 dk", "45 dk", "60 dk", "90 dk", SLEEP_T
 SORT_COLUMNS = {"title": "title", "artist": "artist", "time": "time"}
 
 
-def mode_bar(parent, current, command):
+def mode_bar(parent, current, command, height=32):
     """The 'İndirme modu | Müzik çalar modu' switch that sits at the bottom of both windows."""
-    bar = ctk.CTkSegmentedButton(parent, values=MODES, command=command, height=32)
+    bar = ctk.CTkSegmentedButton(parent, values=MODES, command=command, height=height)
     bar.set(current)
     return bar
 
@@ -93,20 +93,23 @@ def rounded(img, radius):
 def placeholder_image(px=COVER_PX * 2, shown=COVER_PX):
     """The 'no cover' tile, one colour for each appearance."""
     from PIL import Image
+    if look.is_nostalgia():                      # a plain grey square, like the album art of old players
+        tile = Image.new("RGB", (px, px), "#D4D0C8")
+        return ctk.CTkImage(light_image=tile, dark_image=tile, size=(shown, shown))
     tiles = [rounded(Image.new("RGB", (px, px), colour), px // 8) for colour in ("#EADFF0", "#2A1B36")]
     return ctk.CTkImage(light_image=tiles[0], dark_image=tiles[1], size=(shown, shown))
 
 
-_TABLE_THEME = []
-
-
 def style_table(widget, name="Music.Treeview"):
     """Colours of the plain ttk tables (music, history) for the current theme: ttk does not follow it."""
+    if look.is_nostalgia():                      # Windows' own list look
+        from .classic_ui import style_tree
+        style_tree(widget, name)
+        return
     theme = ctk.ThemeManager.theme
     style = ttk.Style(widget)
-    if not _TABLE_THEME:
+    if style.theme_use() != "clam":
         style.theme_use("clam")                  # the one built-in theme that accepts our colours
-        _TABLE_THEME.append(True)
     body = _themed(theme["CTkFrame"]["fg_color"])
     head = _themed(theme["CTkFrame"]["top_fg_color"])
     text = _themed(theme["CTkLabel"]["text_color"])
@@ -228,6 +231,8 @@ class MusicWindow(ctk.CTkToplevel):
         self._build_player()
         self.mode_bar = mode_bar(self, MODE_MUSIC, self._on_mode)
         self.mode_bar.grid(row=6, column=0, sticky="ew", padx=16, pady=(4, 12))
+        if look.is_nostalgia():
+            self._build_menu_bar()
         self._bind_keys()
         self._refresh_lists()
         self.recolor()
@@ -240,9 +245,10 @@ class MusicWindow(ctk.CTkToplevel):
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 4))
         head.columnconfigure(1, weight=1)
-        self._logo = logo_image(36)                  # kept on self: a picture nobody holds disappears
+        old = look.is_nostalgia()
+        self._logo = logo_image(24 if old else 36)   # kept on self: a picture nobody holds disappears
         ctk.CTkLabel(head, text=" Müzik çalar" if self._logo else "🎵 Müzik çalar", image=self._logo,
-                     compound="left", font=ctk.CTkFont(size=24, weight="bold")).grid(
+                     compound="left", font=ctk.CTkFont(size=16 if old else 24, weight="bold")).grid(
             row=0, column=0, sticky="w", padx=(0, 16))
         self.view_switch = ctk.CTkSegmentedButton(head, values=[VIEW_LISTS, VIEW_FIND], command=self._show_view,
                                                   height=32)
@@ -264,6 +270,34 @@ class MusicWindow(ctk.CTkToplevel):
         if shortcuts:
             items += [None, ("⌨ Klavye kısayolları  (F1)", shortcuts)]
         return items
+
+    def _build_menu_bar(self):
+        """"Nostalji": the player's commands in a menu bar too, like the players of those days."""
+        bar = self.menubar = tk.Menu(self, tearoff=0)
+        mode = lambda: self._on_mode(MODE_DOWNLOAD)     # noqa: E731
+        groups = (
+            ("Dosya", [("Dosya ekle…", self._add_files), ("Klasör ekle…", self._add_folder), None,
+                       ("İndirme moduna geç", mode)]),
+            ("Liste", [("Yeni liste…", self._new_list), ("Yeniden adlandır…", self._rename_list),
+                       ("Listeyi sil", self._delete_list), None, ("Karıştır", self._shuffle_list),
+                       ("Karıştırmayı geri al", self._undo_shuffle), ("Listeyi temizle", self._clear_list)]),
+            ("Çalma", [("Çal / duraklat", self._toggle), ("Önceki", self._previous), ("Sonraki", self._next),
+                       ("Durdur", self._stop), None, ("Tekrar", self._cycle_repeat)]),
+            ("Araçlar", [("Şarkı bul", lambda: self._show_view(VIEW_FIND)),
+                         ("Çalma listelerim", lambda: self._show_view(VIEW_LISTS)), None,
+                         ("Ekolayzır…", self.open_eq), ("Mini oynatıcı", self.open_mini),
+                         ("Şarkı sözleri", self.open_lyrics)]),
+            ("Yardım", [("Klavye kısayolları", lambda: getattr(self.app, "open_shortcuts", lambda: None)())]),
+        )
+        for label, entries in groups:
+            menu = tk.Menu(bar, tearoff=0)
+            for entry in entries:
+                if entry is None:
+                    menu.add_separator()
+                else:
+                    menu.add_command(label=entry[0], command=entry[1])
+            bar.add_cascade(label=label, menu=menu)
+        tk.Toplevel.configure(self, menu=bar)
 
     def _open_player_menu(self):
         menu = tk.Menu(self, tearoff=0)
@@ -350,7 +384,10 @@ class MusicWindow(ctk.CTkToplevel):
             tree.heading(name, text=text, anchor=anchor)
             tree.column(name, width=width, minwidth=44, anchor=anchor, stretch=stretch)
         tree.grid(row=0, column=0, sticky="nsew", padx=(8, 0), pady=8)
-        bar = ctk.CTkScrollbar(parent, command=tree.yview)
+        if look.is_nostalgia():
+            bar = ttk.Scrollbar(parent, orient="vertical", command=tree.yview)
+        else:
+            bar = ctk.CTkScrollbar(parent, command=tree.yview)
         bar.grid(row=0, column=1, sticky="ns", pady=8, padx=(0, 4))
         tree.configure(yscrollcommand=bar.set)
         return tree
@@ -367,9 +404,10 @@ class MusicWindow(ctk.CTkToplevel):
             self.tree.heading(column, command=lambda c=column: self._sort(c))
         self.tree.bind("<Double-Button-1>", self._on_double_click)
         self.tree.bind("<Button-3>", self._track_menu)
+        hint_bg = look.N_FIELD if look.is_nostalgia() else "transparent"     # on the white table
         self.empty_hint = ctk.CTkLabel(box, text="Liste bomboş.\n“＋ Dosya” ya da “📁 Klasör” ile müzik ekle,\n"
                                                  "ya da “🔍 Şarkı bul” ile internetten bul.",
-                                       text_color="gray", justify="center")
+                                       text_color="gray", justify="center", fg_color=hint_bg)
 
     def _build_results(self):
         box = self.find_box = ctk.CTkFrame(self)
@@ -386,7 +424,8 @@ class MusicWindow(ctk.CTkToplevel):
         self.find_hint = ctk.CTkLabel(box, text="Dinlemek istediğin şarkıyı yukarıya yaz, Enter'a bas.\n"
                                                 "Beğendiğini çift tıkla: MP3 olarak iner, sonra hangi listeye\n"
                                                 "koyacağımı sorarım.",
-                                      text_color="gray", justify="center")
+                                      text_color="gray", justify="center",
+                                      fg_color=look.N_FIELD if look.is_nostalgia() else "transparent")
 
     def _build_list_buttons(self):
         row = self.list_buttons = ctk.CTkFrame(self, fg_color="transparent")
@@ -1169,6 +1208,11 @@ class MusicWindow(ctk.CTkToplevel):
     def _forget_place(self):
         self._resume = None
         self.store.set_state(_persist=False, resume_list="", resume_path="", resume_ms=0)
+
+    def go_on(self):
+        """Carry on with the song where it stopped (DISO started again with a new look, say)."""
+        if self.controller.state == "stopped" and self._go_on():
+            self._after_action()
 
     def _go_on(self) -> bool:
         """▶ with nothing playing and nothing chosen: carry on from where the music stopped last time."""

@@ -19,6 +19,7 @@ SHORTCUTS = [
         ("Ctrl + A", "Hepsini seç"),
         ("Delete", "Seçilenleri listeden kaldır"),
         ("Çift tık", "Bitmiş dosyayı aç"),
+        ("Ctrl + N", "Yeni indirme penceresi (Nostalji görünümü)"),
         ("F1", "Bu pencere"),
     ]),
     ("Müzik çalar", [

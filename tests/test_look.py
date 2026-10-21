@@ -70,7 +70,7 @@ def test_the_style_is_a_saved_setting(isolated_home):
     cfg = Config()
     cfg.set("look", "Klasik")
     assert Config().get("look") == "Klasik"
-    assert set(look.STYLES) == {"Yeni", "Klasik"}
+    assert set(look.STYLES) == {"Yeni", "Klasik", "Nostalji"}
 
 
 def test_the_palette_is_readable_in_both_modes():
