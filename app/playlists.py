@@ -21,6 +21,8 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "eq_advanced": False,                                     # 🎛 the eight bands shown
                   "keys": {}, "global_keys": {},                            # ⌨ the user's shortcuts (hotkeys.py)
                   "vis_style": "Çubuklar", "vis_palette": "Mor",            # 🌈 the visualizer's picture and colours
+                  "vis_lyrics": True,                                       # 🎤 ... with the lyrics flowing over it
+                  "alarm": {},                                              # ⏰ the music alarm (alarm.py)
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
 # ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)

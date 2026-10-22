@@ -4,11 +4,12 @@ background that glows with the beat and peaks that fall slowly. F11 / double cli
 It draws ~30 times a second from the analysis (visualizer.Analyzer) at the player's position, reusing its
 canvas items (only their coordinates and colours change), so it stays light."""
 import math
+import os
 import tkinter as tk
 
 import customtkinter as ctk
 
-from . import visualizer
+from . import lyrics, tooltip, visualizer
 from .player import artist_and_title
 from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
@@ -32,6 +33,9 @@ class VisualizerWindow(ctk.CTkToplevel):
         state = music.store.state
         self.style = state.get("vis_style") if state.get("vis_style") in STYLES else STYLES[0]
         self.palette_name = state.get("vis_palette") if state.get("vis_palette") in visualizer.PALETTES else "Mor"
+        self.show_lyrics = bool(state.get("vis_lyrics", True))
+        self._lyrics_for = (None, None)              # (path, file time) of the lyrics in self._lyrics
+        self._lyrics = None
 
         self.bar = ctk.CTkFrame(self, fg_color="transparent")
         self.bar.grid(row=0, column=0, sticky="ew", padx=12, pady=(10, 6))
@@ -45,8 +49,11 @@ class VisualizerWindow(ctk.CTkToplevel):
                                               command=self.set_palette)
         self.palette_menu.set(self.palette_name)
         self.palette_menu.grid(row=0, column=2, padx=6)
+        self.lyrics_btn = ctk.CTkButton(self.bar, text="🎤", width=36, command=lambda: self.set_lyrics(not self.show_lyrics))
+        tooltip.set(self.lyrics_btn, "Şarkıyla akan sözleri göster / gizle")
+        self.lyrics_btn.grid(row=0, column=3, padx=(0, 6))
         self.full_btn = ctk.CTkButton(self.bar, text="⛶", width=36, command=self.toggle_full)
-        self.full_btn.grid(row=0, column=3)
+        self.full_btn.grid(row=0, column=4)
 
         self.canvas = tk.Canvas(self, highlightthickness=0, bg="#0b0710")
         self.canvas.grid(row=1, column=0, sticky="nsew")
@@ -63,6 +70,7 @@ class VisualizerWindow(ctk.CTkToplevel):
         self.path = None
         self._job = None
         self._rebuild()
+        self.set_lyrics(self.show_lyrics)
         self._frame()
 
     # ------------------------------------------------------------------ choices
@@ -81,6 +89,62 @@ class VisualizerWindow(ctk.CTkToplevel):
         self.palette_menu.set(self.palette_name)
         self.music.store.set_state(vis_palette=self.palette_name)
         self._rebuild()
+
+    def set_lyrics(self, on):
+        """🎤 The song's lyrics flowing with it, over the picture."""
+        self.show_lyrics = bool(on)
+        self.music.store.set_state(vis_lyrics=self.show_lyrics)
+        self.lyrics_btn.configure(fg_color=self.full_btn.cget("fg_color") if self.show_lyrics else "transparent",
+                                  border_width=0 if self.show_lyrics else 1)
+        if not self.show_lyrics:
+            for key in ("lyr_prev", "lyr_now", "lyr_next", "lyr_shadow"):
+                self.canvas.itemconfigure(self.items[key], text="")
+
+    def _lines(self, path):
+        """The synced lyrics of the song (read again when its .lrc changes: written by hand, found)."""
+        try:
+            stamp = os.path.getmtime(lyrics.lyrics_path(path))
+        except OSError:
+            stamp = None
+        if self._lyrics_for != (path, stamp):
+            self._lyrics_for = (path, stamp)
+            data = lyrics.load(path) if stamp is not None else None
+            self._lyrics = data["synced"] if data and data["synced"] else None
+            if stamp is None and path:                      # no lyrics yet: the player looks them up
+                track = self.music.controller.current_track()
+                finder = getattr(self.music, "find_lyrics", None)
+                if track and finder and path not in getattr(self.music, "_lyrics_asked", set()):
+                    try:
+                        finder(track)
+                    except Exception:  # noqa: BLE001 - only a wish
+                        pass
+        return self._lyrics
+
+    def _draw_lyrics(self):
+        c = self.canvas
+        keys = ("lyr_prev", "lyr_now", "lyr_next", "lyr_shadow")
+        lines = self._lines(self.path) if self.show_lyrics and self.path else None
+        if not lines:
+            for key in keys:
+                c.itemconfigure(self.items[key], text="")
+            return
+        ms = self.music.controller.position_ms()
+        i = lyrics.line_at(lines, ms + 250)                  # a little early: easier to sing along
+        now = lines[i][1] if i >= 0 else ""
+        before = lines[i - 1][1] if i >= 1 else ""
+        after = lines[i + 1][1] if i + 1 < len(lines) else (lines[0][1] if i < 0 else "")
+        w, h = self._size()
+        size = max(14, min(34, int(h / 15)))
+        y = h - size * 2.6
+        width = w * 0.9
+        c.coords(self.items["lyr_now"], w / 2, y)
+        c.coords(self.items["lyr_shadow"], w / 2 + 2, y + 2)
+        c.coords(self.items["lyr_prev"], w / 2, y - size * 1.7)
+        c.coords(self.items["lyr_next"], w / 2, y + size * 1.6)
+        c.itemconfigure(self.items["lyr_now"], text=now or "♪", font=("Segoe UI", size, "bold"), width=width)
+        c.itemconfigure(self.items["lyr_shadow"], text=now or "♪", font=("Segoe UI", size, "bold"), width=width)
+        c.itemconfigure(self.items["lyr_prev"], text=before, font=("Segoe UI", int(size * 0.6)), width=width)
+        c.itemconfigure(self.items["lyr_next"], text=after, font=("Segoe UI", int(size * 0.6)), width=width)
 
     def toggle_full(self):
         self.full = not self.full
@@ -120,6 +184,10 @@ class VisualizerWindow(ctk.CTkToplevel):
             self.items["core"] = c.create_oval(0, 0, 0, 0, outline=p[3], width=3, fill=p[0])
             self.items["title"] = c.create_text(w / 2, h / 2, text="", fill="#ffffff", font=("Segoe UI", 12, "bold"),
                                                 width=10)
+        self.items["lyr_prev"] = c.create_text(0, 0, text="", fill="#9a8aa6", justify="center")
+        self.items["lyr_next"] = c.create_text(0, 0, text="", fill="#9a8aa6", justify="center")
+        self.items["lyr_shadow"] = c.create_text(0, 0, text="", fill="#000000", justify="center")
+        self.items["lyr_now"] = c.create_text(0, 0, text="", fill="#ffffff", justify="center")
         c.tag_raise(self.items["text"])
 
     def _target(self):
@@ -153,6 +221,7 @@ class VisualizerWindow(ctk.CTkToplevel):
         self.canvas.itemconfigure(self.items["text"], text=message)
         self.canvas.configure(bg=visualizer.blend(["#0b0710", self.palette[0], self.palette[1]], self.glow * 0.55))
         getattr(self, "_draw_" + {"Çubuklar": "bars", "Dalga": "wave", "Halka": "ring"}[self.style])()
+        self._draw_lyrics()
 
     def _draw_bars(self):
         c, p = self.canvas, self.palette

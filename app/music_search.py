@@ -171,6 +171,38 @@ def radio(video_id="", artist="", title="", api=None, limit=RADIO_SIZE) -> Found
     return Found(results, title=f"📻 {name} radyosu")
 
 
+MIX_SIZE = 40
+
+
+def daily_mix(seeds, have=(), api=None, day=None, per=10, size=MIX_SIZE) -> Found:
+    """✨ Today's mix: songs like the ones listened to most (seeds: [(artist, title)]), the ones already in the
+    lists left out (have: [(artist, title)]), mixed in today's order (the same all day, another tomorrow)."""
+    import datetime
+    import random
+    api = api or _ytmusic()
+    day = day or datetime.date.today()
+    known = {(fold(a), fold(t)) for a, t in have}
+    seen, picks = set(), []
+    for artist, title in seeds:
+        try:
+            found = radio("", artist, title, api=api, limit=per * 2)
+        except Exception as e:  # noqa: BLE001 - one seed less
+            log.info("mix seed %s - %s: %s", artist, title, e)
+            continue
+        n = 0
+        for r in found:
+            key = (fold(r.get("channel", "")), fold(r["title"]))
+            if r["url"] in seen or key in known:
+                continue
+            seen.add(r["url"])
+            picks.append(r)
+            n += 1
+            if n >= per:
+                break
+    random.Random(day.toordinal()).shuffle(picks)
+    return Found(picks[:size], title=f"✨ Günün karışığı ({day.strftime('%d.%m')})")
+
+
 def ytmusic_search(words: str, artist="", api=None, limit=LIMIT) -> list:
     """YouTube Music's songs for `words` (+ artist): songs only, never its videos."""
     api = api if api is not None else _ytmusic()

@@ -316,7 +316,8 @@ def test_the_context_menu_depends_on_the_state(app):
                                             "🔧 Dosyayı kontrol et / onar", "Baştan indir",
                                             "Listeden kaldır", "Dosyayla birlikte sil"]
     assert labels(row_for(app, "Run")) == ["Klasörü aç", "Linki kopyala", "Listeden kaldır"]
-    assert labels(row_for(app, "Err")) == ["Klasörü aç", "Linki kopyala", "Baştan indir", "Listeden kaldır"]
+    assert labels(row_for(app, "Err")) == ["🔧 Kaldığı yerden tekrar dene", "❓ Hatanın ayrıntısı", "Klasörü aç",
+                                             "Linki kopyala", "Baştan indir", "Listeden kaldır"]
     assert "Baştan indir" in labels(row_for(app, "Pau"))
 
 

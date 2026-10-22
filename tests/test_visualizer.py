@@ -125,6 +125,39 @@ def test_the_window_draws_every_style(app, monkeypatch, tmp_path):
 
 
 @pytest.mark.gui
+def test_the_lyrics_flow_over_the_picture_and_can_be_hidden(app, monkeypatch, tmp_path):
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
+    assert app._ensure_music()
+    music = app.music
+    song = make_wav(tmp_path / "Barış Manço - Gülpembe.wav")
+    (tmp_path / "Barış Manço - Gülpembe.lrc").write_text("[00:01.00]Sen gülünce\n[00:04.00]güller açar\n"
+                                                        "[00:07.00]gül pembe", encoding="utf-8")
+    music._pick_files = lambda: [song]
+    music._add_files()
+    music.tree.selection_set("0")
+    music._play_selected()
+    win = music.open_visualizer(lyrics_on=True)
+    win.analyzer = ReadyAnalyzer(visualizer.analyse_samples(_tone(440, 10.0)))
+    win.update()
+    now = {"ms": 4500}
+    monkeypatch.setattr(music.controller, "position_ms", lambda: now["ms"])
+    win.step()
+    text = lambda key: win.canvas.itemcget(win.items[key], "text")     # noqa: E731
+    assert (text("lyr_prev"), text("lyr_now"), text("lyr_next")) == ("Sen gülünce", "güller açar", "gül pembe")
+    now["ms"] = 7600
+    win.step()
+    assert text("lyr_now") == "gül pembe" and text("lyr_next") == ""
+    win.set_style("Halka")                                          # every picture keeps the lyrics
+    win.step()
+    assert text("lyr_now") == "gül pembe"
+    win.lyrics_btn.invoke()
+    win.step()
+    assert text("lyr_now") == "" and music.store.state["vis_lyrics"] is False
+    assert music.open_visualizer(lyrics_on=True) is win and win.show_lyrics
+    win.destroy()
+
+
+@pytest.mark.gui
 def test_with_nothing_playing_it_says_so_and_rests(app, monkeypatch):
     monkeypatch.setattr(player, "new_backend", FakeBackend)
     assert app._ensure_music()

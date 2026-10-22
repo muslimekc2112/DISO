@@ -193,6 +193,22 @@ def logo_image(px):
     return ctk.CTkImage(light_image=img, dark_image=img, size=(px, px))
 
 
+def no_window_animation(win):
+    """Windows' open / close animation off for this window: switching between the download and the music
+    window then shows the other one at once, not a shrinking and a growing window for a moment."""
+    import sys
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+        win.update_idletasks()
+        hwnd = int(win.wm_frame(), 16)
+        on = ctypes.c_int(1)
+        return ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 3, ctypes.byref(on), ctypes.sizeof(on)) == 0
+    except Exception:  # noqa: BLE001 - only looks: the animation stays
+        return False
+
+
 def set_window_icon(win):
     """The DISO icon in the window's title bar (and on the taskbar). Without this every customtkinter
     window shows customtkinter's own blue icon; once iconbitmap was called it no longer puts that back."""

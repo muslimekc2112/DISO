@@ -34,8 +34,14 @@ def main(argv) -> int:
     from app import backup
     backup.apply_pending()                # a backup chosen in the settings comes in now, before anything reads
 
-    # One window only: if the app already runs, wake it up and leave.
+    # 🧲 a .torrent file double-clicked / a magnet: link clicked: DISO was started with it
+    from app import associations
+    links = associations.links_from_argv(argv)
+
+    # One window only: if the app already runs, wake it up (hand it the links) and leave.
     if bridge.ping_existing(Config().get("bridge_port")):
+        if links:
+            associations.send_to_running(links, Config().get("bridge_port"))
         bridge.show_existing(Config().get("bridge_port"))
         return 0
 
@@ -50,7 +56,7 @@ def main(argv) -> int:
     from app import native_host
     threading.Thread(target=_register_host, args=(native_host,), daemon=True, name="native-host").start()
     look.apply(cfg.get("look"), cfg.get("theme"))   # colours and shapes; before the first window exists
-    app = App(minimized="--minimized" in argv)
+    app = App(minimized="--minimized" in argv, links=links)
     app.mainloop()
     if app.restart_requested:
         restart.relaunch([a for a in argv if a != "--minimized"])

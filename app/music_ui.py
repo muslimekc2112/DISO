@@ -288,9 +288,11 @@ class MusicWindow(ctk.CTkToplevel):
                  for s in FADE_CHOICES]
         level = ("✓ " if self.store.state["level"] else "   ") + "🔊 Ses seviyesini eşitle"
         items = [("🎚 Şarkılar arası geçiş", fades), ("🎛 Ekolayzır…", self.open_eq), ("🗗 Mini oynatıcı", self.open_mini),
-                 ("📻 Çalan şarkıdan radyo", self.start_radio), ("👤 YouTube Music hesabım…", self.open_google),
+                 ("📻 Çalan şarkıdan radyo", self.start_radio), ("✨ Sana özel günlük karışık", self.daily_mix),
+                 ("⏰ Müzikli alarm…", self.open_alarm), ("👤 YouTube Music hesabım…", self.open_google),
                  ("📊 Dinleme istatistiklerim…", self.open_stats), ("⌨ Kısayolları ayarla…", self.open_keys),
                  ("🌈 Görselleştirici", self.open_visualizer),
+                 ("🌈🎤 Görselleştirici + şarkıyla akan sözler", lambda: self.open_visualizer(lyrics_on=True)),
                  (level, lambda: self.set_level(not self.store.state["level"])),
                  None, ("📤 Bu listeyi dışa aktar (.m3u)…", self.export_list), ("📥 Liste içe aktar (.m3u)…", self.import_list),
                  ("🖼 Kapağı olmayanlara kapak bul", lambda: self.find_covers(self.store.tracks(self.viewed)))]
@@ -379,19 +381,23 @@ class MusicWindow(ctk.CTkToplevel):
         self.find_label.configure(text=f"📻 “{name}” şarkısına benzeyenleri buluyorum…")
         return True
 
-    def open_visualizer(self):
-        """🌈 The playing song as moving colours."""
+    def open_visualizer(self, lyrics_on=None):
+        """🌈 The playing song as moving colours (lyrics_on: with / without the lyrics flowing over it)."""
         from .visualizer_ui import VisualizerWindow
         win = getattr(self, "visualizer_window", None)
         try:
-            if win is not None and win.winfo_exists():
-                win.deiconify()
-                win.lift()
-                return win
+            if win is None or not win.winfo_exists():
+                win = None
         except tk.TclError:
-            pass
-        self.visualizer_window = VisualizerWindow(self)
-        return self.visualizer_window
+            win = None
+        if win is None:
+            win = self.visualizer_window = VisualizerWindow(self)
+        else:
+            win.deiconify()
+            win.lift()
+        if lyrics_on is not None:
+            win.set_lyrics(lyrics_on)
+        return win
 
     def open_keys(self):
         """⌨ Set the shortcuts."""
@@ -421,6 +427,70 @@ class MusicWindow(ctk.CTkToplevel):
             pass
         self.stats_window = StatsWindow(self, self.store)
         return self.stats_window
+
+    def daily_mix(self):
+        """✨ Songs like the ones listened to most (or, without listening yet, like the songs in the lists)."""
+        top = self.store.summary(0)["songs"][:5]
+        seeds = [(a, t) for t, a, _n in top]
+        have = [artist_and_title(t) for n in self.store.user_names() for t in self.store.tracks(n)]
+        if not seeds:
+            seeds = random.sample(have, min(5, len(have))) if have else []
+        if not seeds:
+            self.note("Önce birkaç şarkı ekle ya da dinle; sevdiklerine göre karışık hazırlayayım")
+            return False
+        self.view_switch.set(VIEW_FIND)
+        self._show_view(VIEW_FIND)
+        self.searcher.run("✨", lambda: music_search.daily_mix(seeds, have))
+        self._search_started = time.time()
+        self.search_btn.configure(state="disabled", text="Arıyor…")
+        self.find_label.configure(text="✨ Sevdiğin şarkılara bakıp bugünün karışığını hazırlıyorum…")
+        return True
+
+    # ------------------------------------------------------------------ ⏰ the music alarm
+    def open_alarm(self):
+        from .alarm_ui import AlarmWindow
+        win = getattr(self, "alarm_window", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.deiconify()
+                win.lift()
+                return win
+        except tk.TclError:
+            pass
+        self.alarm_window = AlarmWindow(self)
+        return self.alarm_window
+
+    def ring_alarm(self, setting):
+        """⏰ Time to wake up: the list starts, its volume rising from very low."""
+        from . import alarm as alarm_module
+        import datetime
+        setting = dict(setting, last=datetime.date.today().isoformat())
+        self.store.set_state(alarm=setting)
+        name = setting.get("list") if setting.get("list") in self.store.names() else self.viewed
+        target = int(self.volume.get()) or 60
+        self.set_shuffle(bool(setting.get("shuffle")))
+        if self.controller.state != "stopped":
+            self.controller.stop()
+        self.playing_list = None
+        self.set_volume(alarm_module.START_VOLUME if setting.get("fade") else target)
+        self.play_list(name)
+        self._alarm_ramp = (time.time(), int(setting.get("fade") or 0), target)
+        self.note("⏰ Günaydın! Müzikli alarm çalıyor", 30)
+
+    def _ramp_alarm(self):
+        ramp = getattr(self, "_alarm_ramp", None)
+        if not ramp:
+            return
+        from . import alarm as alarm_module
+        started, fade, target = ramp
+        if self.controller.state == "stopped":
+            self._alarm_ramp = None                         # stopped by hand: no more rising
+            return
+        volume = alarm_module.volume_at(time.time() - started, fade, target)
+        if volume != int(self.volume.get()):
+            self.set_volume(volume)
+        if volume >= target:
+            self._alarm_ramp = None
 
     def open_google(self):
         """👤 The Google account: YouTube Music's lists, to download as MP3."""
@@ -2303,6 +2373,7 @@ class MusicWindow(ctk.CTkToplevel):
             return
         try:
             self._check_sleep()
+            self._ramp_alarm()
             self.controller.tick()
             self._count_listening()
             if self.controller.error:
@@ -2692,6 +2763,11 @@ class LyricsWindow(ctk.CTkToplevel):
         self.edit_btn.grid(row=0, column=4, padx=(0, 8))
         self.close_btn = ctk.CTkButton(foot, text="Kapat", width=90, command=self.destroy)
         self.close_btn.grid(row=0, column=5)
+        show = getattr(parent, "open_visualizer", None)
+        if show:                                             # 🌈 the same lyrics over the moving picture
+            vis = ctk.CTkButton(foot, text="🌈", width=40, command=lambda: show(lyrics_on=True))
+            vis.grid(row=0, column=6, padx=(8, 0))
+            tooltip.set(vis, "Görselleştiriciyle birlikte aç")
         self.foot = foot
         self.bind("<Escape>", lambda e: self._cancel_edit() if self.editing else self.destroy())
         try:

@@ -17,7 +17,7 @@ import customtkinter as ctk
 
 from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import backup, channels, classic_ui, extras, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
+from . import associations, backup, channels, classic_ui, explain, extras, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
 from .speed_graph import Sampler, SpeedGraph
@@ -34,7 +34,7 @@ from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED,
                      QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
 from .segmented_downloader import LIMITER, check_connection, set_proxy
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
-from .ui_common import guard_color_emoji, install_smooth_scrolling, install_wrap_to_fit
+from .ui_common import guard_color_emoji, install_smooth_scrolling, install_wrap_to_fit, no_window_animation
 
 guard_color_emoji()                 # Linux with an old libXft: before the first window
 install_smooth_scrolling()
@@ -140,6 +140,11 @@ class ItemActions:
         it = self.item
         finished = it.state == DONE and bool(it.final_path)
         cmds = []
+        if it.state == ERROR:                                   # ❓ why, and the click that fixes it
+            _reason, fix = explain.explain(it.error)
+            if fix:
+                cmds.append(("🔧 " + explain.FIXES[fix], lambda: self.app.fix_error(it, fix)))
+            cmds.append(("❓ Hatanın ayrıntısı", lambda: self.app.show_error(it)))
         if finished:
             cmds += [("Dosyayı aç", self._open_file), ("Klasörde göster", self._open)]
         elif it.folder or it.dest:
@@ -240,6 +245,8 @@ class DownloadRow(ItemActions, ctk.CTkFrame):
         it, m = self.item, self.app.manager
         if it.state in ACTIVE_STATES:
             m.pause(it)
+        elif it.state == ERROR and explain.explain(it.error)[1]:
+            self.app.fix_error(it, explain.explain(it.error)[1])    # ▶ on a failed one: what fixes it
         else:
             m.resume(it)
 
@@ -285,7 +292,8 @@ class DownloadRow(ItemActions, ctk.CTkFrame):
         elif st == PAUSED:
             text = f"⏸ Beklemede • {pct}"
         elif st == ERROR:
-            text = f"❌ {it.error}"
+            reason, fix = explain.explain(it.error)
+            text = f"❌ {reason}" + (f"\n🔧 ▶: {explain.FIXES[fix]}" if fix else "  (ayrıntı: sağ tık)")
         elif st == CANCELLED:
             text = "İptal edildi"
         else:
@@ -663,6 +671,17 @@ class SettingsPanel(ctk.CTkToplevel):
         self._add(card, "🛡 Bitince virüs taraması", "İnen her dosyayı Windows Defender tarar; tehdit bulursa "
                   "haber veririm (Defender karantinaya alır)", self.defender_switch)
 
+        assoc = ctk.CTkFrame(card, fg_color="transparent")
+        self.assoc_switch = self._switch(assoc, command=lambda: app.set_associate(bool(self.assoc_switch.get())))
+        self._set_switch(self.assoc_switch, cfg.get("associate"))
+        self.assoc_switch.pack(side="left")
+        ctk.CTkButton(assoc, text="Varsayılan yap…", width=110, fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=associations.open_default_apps).pack(side="left",
+                                                                                                padx=(6, 0))
+        self._add(card, "🧲 .torrent ve magnet linkleri DISO'da açılsın", "Torrent dosyasına çift tıklayınca ya da "
+                  "tarayıcıda magnet linkine basınca DISO indirir. Başka bir program tutuyorsa “Varsayılan yap” ile "
+                  "Windows'ta DISO'yu seç", assoc)
+
         speed = ctk.CTkFrame(card, fg_color="transparent")
         self.speed_btn = ctk.CTkButton(speed, text="🚀 Ölç", width=80, command=self._speed_test)
         self.speed_btn.pack(side="left")
@@ -680,13 +699,14 @@ class SettingsPanel(ctk.CTkToplevel):
 
         foot = ctk.CTkFrame(self, fg_color="transparent")
         foot.grid(row=2, column=0, sticky="ew", padx=24, pady=(8, 14))
-        foot.columnconfigure(3, weight=1)
+        foot.columnconfigure(4, weight=1)
         ctk.CTkButton(foot, text="🔔 Bildirimi dene", width=140, command=app.test_notification).grid(row=0, column=0)
         self.log_button = ctk.CTkButton(foot, text="📜 Günlüğü aç", width=120, command=app.open_log)
         self.log_button.grid(row=0, column=1, padx=8)
         self.about_button = ctk.CTkButton(foot, text="ℹ Hakkında", width=110, command=app.open_about)
         self.about_button.grid(row=0, column=2)
-        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=4)
+        ctk.CTkButton(foot, text="🎉 Yenilikler", width=110, command=app.open_whats_new).grid(row=0, column=3, padx=8)
+        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=5)
 
         self._proxy_result = None
         self.after(500, self._sync)
@@ -1245,11 +1265,12 @@ class BridgeApi:
 
 
 class App(NostalgiaWindow, ctk.CTk):
-    def __init__(self, minimized=False):
+    def __init__(self, minimized=False, links=()):
         tooltip.install()                # every button explains itself when the mouse rests on it
         self.cfg = Config()
         ctk.set_appearance_mode(look.appearance(THEMES.get(self.cfg.get("theme"), "dark")))
         super().__init__()
+        self.after_idle(lambda: no_window_animation(self))
         # Garbage collection must run on this (the window's) thread only. Collected Tk objects
         # (fonts ...) call into Tcl from their finalizer; on a download thread that call waits for
         # this thread, and if the download thread holds a lock this thread needs, both freeze.
@@ -1329,6 +1350,9 @@ class App(NostalgiaWindow, ctk.CTk):
         self.history = history.History()         # every finished download, also after it leaves the list
         self.phone_link = None                   # 📱 the little web page the phone sends links to
         self.phone_window = None
+        if links:                                # 🧲 started with a .torrent / magnet: link
+            self.after(800, lambda: self.add_urls(list(links)))
+        self.after(2000, self._associate)
         self.scanner = extras.Scanner()          # 🛡 Windows Defender looks at every finished download
         self.watcher = extras.FolderWatcher()    # 📂 .torrent / link files dropped into a folder
         self.watcher.watch(self.cfg.get("watch_folder"))
@@ -1336,6 +1360,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self.history_window = None
         self.shortcuts_window = None
         self.health_window = None
+        self.tour_window = None                  # 👋 the first start's tour
+        self.whats_new_window = None             # 🎉 what came with this version
         self.channel_store = channels.Store()             # 📺 followed channels: new videos are announced, never downloaded
         self.channel_watcher = channels.Watcher(self.channel_store)
         self.app_update = app_update.AppUpdate()
@@ -1355,6 +1381,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self.createcommand("::tk::mac::ReopenApplication", self._show_window)
             self.createcommand("::tk::mac::Quit", self._on_close)
         self._bind_shortcuts()
+        self._started_hidden = minimized         # (in the tray: no tour / what is new popping up)
         self._announce_version()         # before anything that can fail: a warning must be the last word
         self._start_bridge()
         self._started_hidden = minimized
@@ -2139,6 +2166,35 @@ class App(NostalgiaWindow, ctk.CTk):
         self.cfg.set("last_version", label)
         self.notice(f"{brand.NAME}'ya hoş geldin! Linki yapıştır, gerisini bana bırak." if not last
                     else f"{brand.NAME} {label} sürümüne güncellendi 🎉", 9)
+        if not getattr(self, "_started_hidden", False):        # 👋 the tour the first time, 🎉 what is new after
+            self.after(1200, self.open_tour if not last else self.open_whats_new)
+
+    def open_tour(self):
+        from .welcome_ui import TourWindow
+        return self._single("tour_window", lambda: TourWindow(self))
+
+    def open_whats_new(self):
+        from .welcome_ui import WhatsNewWindow
+        return self._single("whats_new_window", lambda: WhatsNewWindow(self))
+
+    def try_feature(self, action):
+        """🎉 "Dene": open what a card of "Yenilikler" tells about."""
+        music = {"google": "open_google", "visualizer": "open_visualizer", "mix": "daily_mix", "alarm": "open_alarm",
+                 "stats": "open_stats", "eq": "open_eq", "keys": "open_keys"}
+        if action in music:
+            if self.mode != MODE_MUSIC:
+                self._switch_mode(MODE_MUSIC)
+            if self.music is None:
+                return None
+            fn = getattr(self.music, music[action])
+            return fn(lyrics_on=True) if action == "visualizer" else fn()
+        if action == "phone":
+            return self.open_phone()
+        if action == "torrent":
+            return self.add_torrent_files()
+        if action == "extras":
+            return self._open_settings("Ekstralar")
+        return None
 
     def _open_settings(self, tab=None):
         """The settings window; `tab`: the group to show ("Zamanlayıcı" ...)."""
@@ -2614,6 +2670,78 @@ class App(NostalgiaWindow, ctk.CTk):
             if bad:
                 self.notice(f"🔌 USB belleğe kopyalayamadım: {bad[0][1]}", 12)
 
+    # ---- ❓ why a download failed, and its fix
+    def fix_error(self, item, fix):
+        """The one click that fixes a failed download (explain.FIXES)."""
+        if fix == "cookies":
+            name = explain.cookie_browser(extension_setup.find_browsers(), ve.BROWSERS)
+            if not name:
+                self.notice("Giriş yaptığın bir tarayıcı bulamadım: “Giriş çerezleri”nden seç", 10)
+                return False
+            self.cfg.set("cookies", name)
+            try:
+                self.cookie_menu.set(name)
+            except (AttributeError, TclError):
+                pass
+            item.cookies = name
+            self.manager.start(item)
+            self.notice(f"🔑 Giriş çerezleri: {name}. Tekrar deniyorum (o tarayıcıda siteye giriş yapmış ol)", 10)
+        elif fix == "retry":
+            self.manager.start(item)
+        elif fix == "folder":
+            folder = filedialog.askdirectory(parent=self, title="İndirme klasörünü seç")
+            if not folder:
+                return False
+            item.folder = os.path.normpath(folder)
+            self.manager.redownload(item)
+        elif fix == "proxy":
+            self._open_settings("İndirme")
+            self.notice("Proxy kutusuna başka bir ülkeden bir proxy yaz, sonra ▶ ile tekrar dene", 12)
+        elif fix == "tools":
+            self._open_updates()
+            self.notice("Güncellemeler penceresinde araçları güncelle, sonra ▶ ile tekrar dene", 12)
+        return True
+
+    def show_error(self, item):
+        reason, fix = explain.explain(item.error)
+        text = f"{item.display_name}\n\n❌ {reason}"
+        if fix:
+            text += f"\n🔧 {explain.FIXES[fix]}"
+        text += f"\n\nTeknik ayrıntı:\n{item.error[:800]}"
+        messagebox.showinfo("DISO • Neden inmedi?", text, parent=self)
+
+    # ---- ⏰ the music alarm rings also when the music window was never opened
+    def _check_alarm(self):
+        from . import alarm
+        try:
+            setting = alarm.clean(self._store().state.get("alarm"))
+        except Exception:  # noqa: BLE001
+            return
+        if alarm.due(setting) and self._ensure_music():
+            self.music.ring_alarm(setting)
+
+    # ---- 🧲 .torrent / magnet: open in DISO
+    def _associate(self):
+        exe = associations.program_path()
+        if exe and self.cfg.get("associate"):
+            try:
+                associations.register(exe)
+            except OSError as e:
+                log.info("could not register .torrent / magnet: %s", e)
+
+    def set_associate(self, on):
+        self.cfg.set("associate", bool(on))
+        exe = associations.program_path()
+        if not exe:
+            return None
+        try:
+            if on:
+                return associations.register(exe)
+            associations.unregister()
+        except OSError as e:
+            log.info("associations: %s", e)
+        return None
+
     def set_watch_folder(self, folder):
         """📂 Watch this folder ("" = stop watching)."""
         self.cfg.set("watch_folder", folder or "")
@@ -2979,6 +3107,7 @@ class App(NostalgiaWindow, ctk.CTk):
         self.music = MusicWindow(self, self._store(), player.Controller(backend, spare=spare, prepare=prepare),
                                  on_close=self._on_window_x, on_mode=self._switch_mode)
         self.music.withdraw()
+        no_window_animation(self.music)          # switching windows: no shrinking / growing in between
         return True
 
     def _switch_mode(self, mode):
@@ -3229,6 +3358,8 @@ class App(NostalgiaWindow, ctk.CTk):
             self._check_schedule()
             self._drain_channels()
             self._drain_extras()
+            if self._tick_no % 10 == 5:
+                self._check_alarm()
             self._announce_app_update()
             if self._tick_no % 10 == 1:
                 self._tell_recovered()

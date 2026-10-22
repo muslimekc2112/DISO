@@ -701,6 +701,11 @@ def uninstall(install_dir, env: Env, remove_data=False, progress=_noop, closer=w
     delete_key_tree(env, env.uninstall_key)
     for hive in dict.fromkeys((env.hive, winreg.HKEY_CURRENT_USER)):    # ours, and the one the app made for its user
         native_host.unregister(hive, env.reg_prefix, inside=install_dir)
+    try:                                              # 🧲 .torrent / magnet: the app registered them for its user
+        from app import associations
+        associations.unregister(winreg.HKEY_CURRENT_USER, env.reg_prefix, inside=install_dir)
+    except Exception:  # noqa: BLE001 - a leftover registration only points to a program that is gone
+        pass
     files += [n for n in (native_host.CHROME_MANIFEST, native_host.FIREFOX_MANIFEST) if n not in files]
 
     progress(0.55, "Dosyalar siliniyor…")

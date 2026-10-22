@@ -66,6 +66,7 @@ DEFAULTS = {
     "watch_folder": "",                 # 📂 .torrent / link files put here are downloaded ("" = off)
     "usb_copy": "Kapalı",               # 🔌 copy finished downloads onto a USB stick (ui.USB_CHOICES)
     "defender_scan": True,              # 🛡 scan every finished download with Windows Defender
+    "associate": True,                  # 🧲 .torrent files and magnet: links open in DISO
     "tray_on_close": False,
     "start_with_windows": False,
     "bridge_on": True,
