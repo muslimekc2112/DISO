@@ -123,6 +123,7 @@ def test_the_installed_program_runs_on_a_computer_with_nothing_on_it(world, tmp_
     assert info["tray_icon"] is True
     assert info["media_panel"] is True and info["extras"] is True                    # winrt and the new parts are inside
     assert info["ytmusic"] is True                                                  # lyrics from YouTube Music
+    assert info["visualizer"] is True and info["phone_qr"] is True                  # numpy, segno, websockets inside
 
 
 def test_the_shortcuts_made_by_the_real_setup_point_at_the_installed_program(world, tmp_path):

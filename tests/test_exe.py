@@ -121,6 +121,7 @@ def test_the_exe_carries_everything_it_needs(home, tmp_path):
     assert info["tag_tools"] is True                                          # ffprobe + ffmpeg are found inside
     assert info["playable"] is True                                           # a song MCI refuses still plays
     assert info["equalizer"] is True                                          # 🎛 pygame + SDL are inside
+    assert info["visualizer"] is True and info["phone_qr"] is True            # 🌈 numpy, 📱 segno are inside
     assert "yt_dlp_error" not in info and info["yt_dlp_version"]
     assert "_MEI" in info["yt_dlp_file"] or "Temp" in info["yt_dlp_file"]     # the copy inside the exe
     assert info["overrides"] == {}

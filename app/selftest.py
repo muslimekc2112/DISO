@@ -102,6 +102,18 @@ def collect() -> dict:
         info["equalizer"] = bool(pygame.mixer) and bool(equalizer.ffmpeg_filter(equalizer.PRESETS["Rock"]))
     except Exception as e:  # noqa: BLE001
         info["equalizer"] = f"error: {type(e).__name__}: {e}"
+    try:   # 🌈 the visualizer needs numpy (its compiled parts) inside the exe
+        from . import visualizer
+        frames, _level = visualizer.analyse_samples([0.0] * visualizer.WINDOW * 2)
+        info["visualizer"] = frames.shape[1] == visualizer.BANDS
+    except Exception as e:  # noqa: BLE001
+        info["visualizer"] = f"error: {type(e).__name__}: {e}"
+    try:   # 📱 the phone's QR code (segno) and 👤 the Google window's connection (websockets)
+        from . import phone_link
+        import websockets.sync.client  # noqa: F401
+        info["phone_qr"] = phone_link.qr_image("http://192.168.1.2:1/?k=x").size[0] > 50
+    except Exception as e:  # noqa: BLE001
+        info["phone_qr"] = f"error: {type(e).__name__}: {e}"
     return info
 
 
