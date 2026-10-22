@@ -61,6 +61,21 @@ def test_the_headers_make_ytmusicapi_use_the_signed_in_website():
     assert h["origin"] == g.ORIGIN and h["user-agent"] == "UA/1"
 
 
+def test_the_default_browser_is_used_when_it_can_be(monkeypatch):
+    found = {"chrome": "chrome.exe", "edge": "edge.exe", "firefox": "firefox.exe"}
+    monkeypatch.setattr("app.extension_setup.find_browsers", lambda: found)
+    monkeypatch.setattr(g, "default_browser_id", lambda: "chrome")
+    assert list(g.usable_browsers()) == ["chrome", "edge"] and g.find_browser() == ("chrome", "chrome.exe")
+    assert g.find_browser("edge") == ("edge", "edge.exe")                 # chosen by hand
+    monkeypatch.setattr(g, "default_browser_id", lambda: "firefox")         # its cookies cannot be asked for
+    assert g.find_browser() == ("chrome", "chrome.exe")
+    assert g.profile_dir("chrome") != g.profile_dir("edge")                # each browser its own profile
+
+
+def test_the_default_browser_is_read_from_windows():
+    assert g.default_browser_id() in ("", "chrome", "edge", "firefox", "brave", "vivaldi", "opera")
+
+
 # ------------------------------------------------------------------------------ the library
 def test_the_lists_liked_songs_first_and_their_songs():
     lists = g.playlists(FakeApi())
@@ -93,8 +108,8 @@ def test_connecting_waits_for_the_sign_in_window_then_takes_the_session(monkeypa
             self.open = False
 
     window = Window()
-    monkeypatch.setattr(g, "open_login", lambda exe: window)
-    monkeypatch.setattr(g, "read_session", lambda exe, visit=True: {"cookie": f"{g.NEEDED}=s", "agent": "UA"})
+    monkeypatch.setattr(g, "open_login", lambda exe, *a: window)
+    monkeypatch.setattr(g, "read_session", lambda exe, visit=True, **k: {"cookie": f"{g.NEEDED}=s", "agent": "UA"})
     monkeypatch.setattr(g, "client", lambda data=None: FakeApi())
     real_sleep = time.sleep
     monkeypatch.setattr(g.time, "sleep", lambda s: real_sleep(min(s, 0.02)))
@@ -112,8 +127,8 @@ def test_a_window_closed_without_signing_in_or_cancelled_is_reported(monkeypatch
     class Closed:
         def poll(self):
             return 0
-    monkeypatch.setattr(g, "open_login", lambda exe: Closed())
-    monkeypatch.setattr(g, "read_session", lambda exe, visit=True: {"cookie": "", "agent": "UA"})
+    monkeypatch.setattr(g, "open_login", lambda exe, *a: Closed())
+    monkeypatch.setattr(g, "read_session", lambda exe, visit=True, **k: {"cookie": "", "agent": "UA"})
     monkeypatch.setattr(g.time, "sleep", lambda s: None)
     account = g.Account(browser="edge.exe")
     account.connect()
@@ -125,7 +140,7 @@ def test_old_cookies_are_renewed_from_the_profile_once(monkeypatch):
     apis = [FakeApi(refuse=1), FakeApi()]
     used = []
     monkeypatch.setattr(g, "client", lambda data=None: (used.append(data["cookie"]), apis.pop(0))[1])
-    monkeypatch.setattr(g, "read_session", lambda exe, visit=True: {"cookie": f"{g.NEEDED}=new", "agent": "UA"})
+    monkeypatch.setattr(g, "read_session", lambda exe, visit=True, **k: {"cookie": f"{g.NEEDED}=new", "agent": "UA"})
     account = g.Account(browser="edge.exe")
     account.library()
     what, lists, error = _wait(account, "library")
@@ -136,7 +151,7 @@ def test_old_cookies_are_renewed_from_the_profile_once(monkeypatch):
 def test_a_session_that_cannot_be_renewed_says_signed_out(monkeypatch):
     g.save({"cookie": f"{g.NEEDED}=old", "agent": "UA"})
     monkeypatch.setattr(g, "client", lambda data=None: FakeApi(refuse=5))
-    monkeypatch.setattr(g, "read_session", lambda exe, visit=True: {"cookie": "", "agent": "UA"})
+    monkeypatch.setattr(g, "read_session", lambda exe, visit=True, **k: {"cookie": "", "agent": "UA"})
     account = g.Account(browser="edge.exe")
     account.library()
     assert isinstance(_wait(account, "library")[2], PermissionError)

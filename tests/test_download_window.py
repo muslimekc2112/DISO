@@ -1,6 +1,7 @@
 """The download window: the music player's downloads are not listed here, ▶ ⏸ 🧹 🗑 for the whole list
 (🗑 asks first when downloads are still going), and the 🧲 button for .torrent files."""
 import os
+import time
 
 import pytest
 from ui_support import add_item, shown
@@ -90,6 +91,31 @@ def test_switching_windows_shows_the_new_one_in_the_same_place_before_hiding_the
     app.update()
     assert order == [("download", "deiconify"), ("music", "withdraw")]
     assert app.mode == MODE_DOWNLOAD and app.mode_bar.get() == MODE_DOWNLOAD
+
+
+@pytest.mark.gui
+def test_a_new_window_comes_in_front_once_but_does_not_stay_on_top(app):
+    import customtkinter as ctk
+
+    from app.ui_common import bring_new_window_forward
+    win = ctk.CTkToplevel(app)
+    win.deiconify()
+    win.update()
+    assert bring_new_window_forward(win) is True and win.attributes("-topmost")
+    end = time.time() + 2
+    while win.attributes("-topmost") and time.time() < end:
+        app.update()
+        time.sleep(0.02)
+    assert not win.attributes("-topmost")                             # in front, then a window like any other
+    win.attributes("-topmost", True)                                  # one that stays on top by itself (mini player)
+    bring_new_window_forward(win)
+    end = time.time() + 0.5
+    while time.time() < end:
+        app.update()
+    assert win.attributes("-topmost")
+    win.withdraw()
+    assert bring_new_window_forward(win) is False                     # a hidden one is left hidden
+    win.destroy()
 
 
 @pytest.mark.gui

@@ -29,8 +29,10 @@ LIKED = "LM"                         # YouTube Music's "liked songs" list
 LIKED_TITLE = "Beğendiğim şarkılar"
 
 
-def profile_dir() -> str:
-    return os.path.join(app_data_dir(), "google_profile")
+def profile_dir(browser_id=None) -> str:
+    """DISO's own profile of that browser (each browser keeps its own: their files do not mix)."""
+    name = "google_profile" if browser_id in (None, "", "edge") else f"google_profile_{browser_id}"
+    return os.path.join(app_data_dir(), name)
 
 
 def store_path() -> str:
@@ -87,24 +89,52 @@ def sign_out():
             os.remove(path)
         except OSError:
             pass
-    shutil.rmtree(profile_dir(), ignore_errors=True)
+    for bid in CHROMIUM:
+        shutil.rmtree(profile_dir(bid), ignore_errors=True)
 
 
 # ------------------------------------------------------------------------------ the browser
-def find_browser():
-    """Edge (on every Windows), else Chrome: (id, program) or (None, None)."""
+CHROMIUM = ("chrome", "edge", "brave", "vivaldi", "opera")      # the ones that can be asked for their cookies
+_DEFAULT_PROGIDS = {"chromehtml": "chrome", "msedgehtm": "edge", "bravehtml": "brave", "vivaldihtm": "vivaldi",
+                    "operastable": "opera", "operagxstable": "opera"}
+
+
+def default_browser_id():
+    """The browser Windows opens links with ("chrome", "edge", "firefox" …), or ""."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations"
+                                                       r"\https\UserChoice") as k:
+            progid = str(winreg.QueryValueEx(k, "ProgId")[0]).lower()
+    except OSError:
+        return ""
+    if progid.startswith("firefox"):
+        return "firefox"
+    return next((bid for key, bid in _DEFAULT_PROGIDS.items() if progid.startswith(key)), "")
+
+
+def usable_browsers(found=None) -> dict:
+    """{id: program} of the browsers on this PC that the Google sign-in can use, the default one first."""
     from . import extension_setup
-    found = extension_setup.find_browsers()
-    for bid in ("edge", "chrome", "brave", "vivaldi", "opera"):
-        if found.get(bid):
-            return bid, found[bid]
-    return None, None
+    found = extension_setup.find_browsers() if found is None else found
+    default = default_browser_id()
+    order = ([default] if default in CHROMIUM else []) + [b for b in CHROMIUM if b != default]
+    return {bid: found[bid] for bid in order if found.get(bid)}
 
 
-def open_login(exe):
+def find_browser(prefer=""):
+    """(id, program): the chosen one, else the default browser (when it can be used), else Chrome, Edge …"""
+    usable = usable_browsers()
+    if prefer in usable:
+        return prefer, usable[prefer]
+    return next(iter(usable.items()), (None, None))
+
+
+def open_login(exe, browser_id=None):
     """The sign-in window (a plain browser window: Google lets people sign in there)."""
-    os.makedirs(profile_dir(), exist_ok=True)
-    return subprocess.Popen([exe, f"--user-data-dir={profile_dir()}", "--no-first-run", "--no-default-browser-check",
+    profile = profile_dir(browser_id)
+    os.makedirs(profile, exist_ok=True)
+    return subprocess.Popen([exe, f"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check",
                              "--new-window", LOGIN_URL], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
 
@@ -164,10 +194,10 @@ class _Cdp:
             pass
 
 
-def read_session(exe, visit=True, timeout=READ_TIMEOUT):
+def read_session(exe, visit=True, timeout=READ_TIMEOUT, browser_id=None):
     """Open DISO's browser profile without a window and take its cookies: {cookie, agent} (cookie "" when
     nobody is signed in there). visit: open music.youtube.com first, so the browser renews old cookies."""
-    profile = profile_dir()
+    profile = profile_dir(browser_id)
     try:
         os.remove(os.path.join(profile, "DevToolsActivePort"))
     except OSError:
@@ -257,9 +287,11 @@ class Account:
     """The account on worker threads: connect(), refresh(), library(), songs(id), each answers through
     drain() as (what, result, error). The window polls drain() (it must not wait for the network)."""
 
-    def __init__(self, browser=None):
-        self.browser = browser or find_browser()[1]
+    def __init__(self, browser=None, browser_id=None, prefer=""):
         self.data = load()
+        if browser is None:
+            browser_id, browser = find_browser(prefer or (self.data or {}).get("browser", ""))
+        self.browser, self.browser_id = browser, browser_id
         self._done = queue.Queue()
         self._login = None
         self._cancel = threading.Event()
@@ -296,7 +328,7 @@ class Account:
         except Exception as e:  # noqa: BLE001
             if not _refused(e) or not self.browser:
                 raise
-            fresh = read_session(self.browser)
+            fresh = read_session(self.browser, browser_id=self.browser_id)
             if not fresh["cookie"]:
                 raise PermissionError("signed out") from e
             self.data = dict(self.data, **fresh)
@@ -311,18 +343,18 @@ class Account:
         self._cancel.clear()
 
         def work():
-            self._login = open_login(self.browser)
+            self._login = open_login(self.browser, self.browser_id)
             while self._login.poll() is None:
                 if self._cancel.is_set():
                     self._login.terminate()
                     raise InterruptedError("cancelled")
                 time.sleep(0.3)
             time.sleep(1)                                   # the profile is let go of
-            fresh = read_session(self.browser, visit=False)
+            fresh = read_session(self.browser, visit=False, browser_id=self.browser_id)
             if not fresh["cookie"]:
                 raise PermissionError("not signed in")
             info = account_info(client(fresh))
-            self.data = dict(fresh, **info)
+            self.data = dict(fresh, browser=self.browser_id or "", **info)
             save(self.data)
             return info
         self._run("connected", work)
@@ -344,6 +376,12 @@ class Account:
                     log.info("google list %s: %s", p.get("id"), e)
             return out
         self._run("songs", work)
+
+    def use_browser(self, browser_id):
+        """Sign in with another browser (its program is looked up again)."""
+        bid, exe = find_browser(browser_id)
+        if exe:
+            self.browser_id, self.browser = bid, exe
 
     def sign_out(self):
         sign_out()

@@ -193,6 +193,45 @@ def logo_image(px):
     return ctk.CTkImage(light_image=img, dark_image=img, size=(px, px))
 
 
+def bring_new_window_forward(win):
+    """A window that was just opened comes in front (on Windows a customtkinter window is often made behind
+    the one it was opened from, and had to be asked for a second time). Windows that stay hidden are left alone."""
+    try:
+        if not win.winfo_exists() or win.state() != "normal":
+            return False
+        win.lift()
+        if not win.attributes("-topmost"):                # (one that stays on top by itself is left as it is)
+            win.attributes("-topmost", True)              # over its parent for a moment, then like any window
+            win.after(200, lambda: win.winfo_exists() and win.attributes("-topmost", False))
+        win.focus_set()
+        return True
+    except Exception:  # noqa: BLE001 - only where it shows
+        return False
+
+
+_forward_installed = False
+
+
+def install_bring_forward():
+    """Every customtkinter window opened from now on comes in front by itself (once per program)."""
+    global _forward_installed
+    if _forward_installed:
+        return
+    _forward_installed = True
+    import os
+
+    import customtkinter as ctk
+    orig = ctk.CTkToplevel.__init__
+
+    def __init__(self, *args, **kw):
+        orig(self, *args, **kw)
+        if not os.environ.get("PYTEST_CURRENT_TEST"):     # the tests' windows must not jump over other programs
+            self.after(60, lambda: bring_new_window_forward(self))
+            self.after(260, lambda: bring_new_window_forward(self))    # after customtkinter's own late icon step
+
+    ctk.CTkToplevel.__init__ = __init__
+
+
 def no_window_animation(win):
     """Windows' open / close animation off for this window: switching between the download and the music
     window then shows the other one at once, not a shrinking and a growing window for a moment."""

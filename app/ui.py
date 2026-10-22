@@ -34,7 +34,7 @@ from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED,
                      QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
 from .segmented_downloader import LIMITER, check_connection, set_proxy
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
-from .ui_common import guard_color_emoji, install_smooth_scrolling, install_wrap_to_fit, no_window_animation
+from .ui_common import guard_color_emoji, install_bring_forward, install_smooth_scrolling, install_wrap_to_fit, no_window_animation
 
 guard_color_emoji()                 # Linux with an old libXft: before the first window
 install_smooth_scrolling()
@@ -1267,6 +1267,7 @@ class BridgeApi:
 class App(NostalgiaWindow, ctk.CTk):
     def __init__(self, minimized=False, links=()):
         tooltip.install()                # every button explains itself when the mouse rests on it
+        install_bring_forward()          # a window that opens comes in front (not behind this one)
         self.cfg = Config()
         ctk.set_appearance_mode(look.appearance(THEMES.get(self.cfg.get("theme"), "dark")))
         super().__init__()

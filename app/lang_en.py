@@ -142,11 +142,11 @@ PLAIN = {
         "I couldn't find Edge or Chrome on this PC; one of them is needed to connect to Google.",
     "Bu bilgisayarda Edge ya da Chrome bulamadım.": "I couldn't find Edge or Chrome on this PC.",
     "Google hesabınla bağlan: YouTube Music'teki listelerin ve beğendiğin şarkılar burada görünür, istediklerini MP3 "
-    "olarak indirirsin.\n\nŞifreni DISO'ya yazmazsın: Edge'de Google'ın kendi sayfasında giriş yaparsın. Oturum bu "
-    "bilgisayarda şifreli saklanır, \"Çıkış yap\" ile silinir.":
+    "olarak indirirsin.\n\nŞifreni DISO'ya yazmazsın: tarayıcında Google'ın kendi sayfasında giriş yaparsın (DISO'ya "
+    "ayrılmış ayrı bir pencerede, bir kez). Oturum bu bilgisayarda şifreli saklanır, \"Çıkış yap\" ile silinir.":
         "Connect your Google account: your YouTube Music playlists and liked songs show here, and you download the ones "
-        "you want as MP3.\n\nYou never type your password into DISO: you sign in on Google's own page in Edge. The "
-        "session is kept encrypted on this PC and deleted with \"Sign out\".",
+        "you want as MP3.\n\nYou never type your password into DISO: you sign in on Google's own page in your browser "
+        "(in a separate window just for DISO, once). The session is kept encrypted on this PC and deleted with \"Sign out\".",
     "Google hesabından çıkış yapılsın mı?\nİndirdiğin şarkılar yerinde kalır.":
         "Sign out of your Google account?\nThe songs you downloaded stay where they are.",
     "Bağlanmadan vazgeçildi.": "Connecting was cancelled.",

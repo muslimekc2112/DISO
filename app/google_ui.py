@@ -52,6 +52,13 @@ class GoogleWindow(ctk.CTkToplevel):
         foot.grid(row=3, column=0, sticky="ew", padx=16, pady=(6, 14))
         foot.columnconfigure(1, weight=1)
         self.connect_btn = ctk.CTkButton(foot, text="🔑 Google ile bağlan", height=36, command=self.connect)
+        from . import extension_setup
+        self._browsers = {extension_setup.NAMES.get(bid, bid): bid for bid in google_account.usable_browsers()}
+        self.browser_menu = ctk.CTkOptionMenu(foot, values=list(self._browsers) or ["—"], width=150,
+                                              command=self._pick_browser)
+        current = next((n for n, b in self._browsers.items() if b == self.account.browser_id), None)
+        if current:
+            self.browser_menu.set(current)
         self.cancel_btn = ctk.CTkButton(foot, text="Vazgeç", width=90, height=36, fg_color="transparent",
                                         border_width=1, text_color=("gray20", "gray85"), command=self.cancel)
         self.all_box = ctk.CTkCheckBox(foot, text="Hepsini seç", command=self._tick_all)
@@ -85,10 +92,12 @@ class GoogleWindow(ctk.CTkToplevel):
                 text = "Bu bilgisayarda Edge ya da Chrome bulamadım; Google'a bağlanmak için biri gerekli."
             else:
                 text = ("Google hesabınla bağlan: YouTube Music'teki listelerin ve beğendiğin şarkılar burada "
-                        "görünür, istediklerini MP3 olarak indirirsin.\n\nŞifreni DISO'ya yazmazsın: Edge'de "
-                        "Google'ın kendi sayfasında giriş yaparsın. Oturum bu bilgisayarda şifreli saklanır, "
-                        "\"Çıkış yap\" ile silinir.")
-                self.connect_btn.grid(row=0, column=0, columnspan=3, sticky="ew")
+                        "görünür, istediklerini MP3 olarak indirirsin.\n\nŞifreni DISO'ya yazmazsın: tarayıcında "
+                        "Google'ın kendi sayfasında giriş yaparsın (DISO'ya ayrılmış ayrı bir pencerede, bir kez). "
+                        "Oturum bu bilgisayarda şifreli saklanır, \"Çıkış yap\" ile silinir.")
+                self.connect_btn.grid(row=0, column=0, columnspan=2, sticky="ew")
+                if len(self._browsers) > 1:
+                    self.browser_menu.grid(row=0, column=2, padx=(8, 0))
             set_if_changed(self.info, text=text)
             return
         self.out_btn.grid()
@@ -155,6 +164,11 @@ class GoogleWindow(ctk.CTkToplevel):
         threading.Thread(target=work, daemon=True, name="google-photo").start()
 
     # ------------------------------------------------------------------ actions
+    def _pick_browser(self, name):
+        bid = self._browsers.get(name)
+        if bid:
+            self.account.use_browser(bid)
+
     def connect(self):
         try:
             self.account.connect()
