@@ -19,7 +19,15 @@ $ErrorActionPreference = 'Stop'
 $title = [System.Security.SecurityElement]::Escape($env:HI_TITLE)
 $body = [System.Security.SecurityElement]::Escape($env:HI_BODY)
 $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$title</text><text>$body</text></binding></visual></toast>")
+$actions = ''
+if ($env:HI_OPEN_LINK) {
+  $a1 = [System.Security.SecurityElement]::Escape($env:HI_OPEN_LINK)
+  $a2 = [System.Security.SecurityElement]::Escape($env:HI_FOLDER_LINK)
+  $l1 = [System.Security.SecurityElement]::Escape($env:HI_OPEN)
+  $l2 = [System.Security.SecurityElement]::Escape($env:HI_FOLDER)
+  $actions = "<actions><action content='$l1' activationType='protocol' arguments='$a1'/><action content='$l2' activationType='protocol' arguments='$a2'/></actions>"
+}
+$xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$title</text><text>$body</text></binding></visual>$actions</toast>")
 $toast = New-Object Windows.UI.Notifications.ToastNotification $xml
 $app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show($toast)
@@ -51,9 +59,21 @@ def toast_command(title: str, body: str, system=None):
     return None
 
 
-def show_toast(title: str, body: str, timeout: int = 20) -> int:
+def toast_buttons(path) -> dict:
+    """The environment that puts "Open" / "Show in folder" on the toast (empty: no buttons; DISO must be
+    the installed DISO.exe, which answers the diso: links)."""
+    from . import associations
+    from .i18n import tr
+    if not path or not associations.program_path():
+        return {}
+    return {"HI_OPEN": tr("Aç"), "HI_FOLDER": tr("Klasörde göster"),
+            "HI_OPEN_LINK": associations.protocol_link("open", path),
+            "HI_FOLDER_LINK": associations.protocol_link("folder", path)}
+
+
+def show_toast(title: str, body: str, timeout: int = 20, path=None) -> int:
     """Windows notification (macOS: Notification Center, Linux: notify-send). Blocks until it is shown;
-    returns the exit code (-1: n/a)."""
+    returns the exit code (-1: n/a). path: a finished file, for the "Open" / "Show in folder" buttons."""
     if not _WIN:
         cmd = toast_command(title, body)
         if not cmd:
@@ -64,6 +84,8 @@ def show_toast(title: str, body: str, timeout: int = 20) -> int:
             return -1
     script = base64.b64encode(_TOAST_PS.encode("utf-16-le")).decode("ascii")
     env = dict(os.environ, HI_TITLE=str(title)[:100], HI_BODY=str(body)[:240])
+    env.pop("HI_OPEN_LINK", None)
+    env.update(toast_buttons(path))
     try:
         r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                             "-EncodedCommand", script],
@@ -73,9 +95,9 @@ def show_toast(title: str, body: str, timeout: int = 20) -> int:
         return -1
 
 
-def toast(title: str, body: str) -> None:
+def toast(title: str, body: str, path=None) -> None:
     """Same, in the background (the window must not wait for PowerShell)."""
-    threading.Thread(target=show_toast, args=(title, body), daemon=True).start()
+    threading.Thread(target=show_toast, args=(title, body), kwargs={"path": path}, daemon=True).start()
 
 
 def power_action(kind: str) -> bool:

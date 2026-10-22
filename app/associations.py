@@ -158,6 +158,7 @@ def unregister(hive=None, prefix="", inside=None) -> bool:
     _delete_value(hive, p["ext"] + r"\OpenWithProgids", PROGID_TORRENT)
     for key in ("torrent", "magnet_id"):
         _delete_tree(hive, p[key])
+    unregister_protocol(hive, prefix)
     _delete_tree(hive, p["caps"])
     _delete_value(hive, p["apps"], APP_NAME)
     _changed()
@@ -173,6 +174,55 @@ def open_default_apps():
         except OSError:
             continue
     return False
+
+
+# ---- diso: links, used by the buttons of the "download finished" notification (notify.py)
+PROTOCOL = "diso"
+
+
+def register_protocol(exe, hive=None, prefix="") -> None:
+    """diso:open?<path> / diso:folder?<path> start DISO.exe, which opens the file or shows it in its folder."""
+    import winreg
+    hive = winreg.HKEY_CURRENT_USER if hive is None else hive
+    key = prefix + r"Software\Classes" + "\\" + PROTOCOL
+    _set(hive, key, "", "URL:DISO")
+    _set(hive, key, "URL Protocol", "")
+    _set(hive, key + r"\DefaultIcon", "", f'"{exe}",0')
+    _set(hive, key + r"\shell\open\command", "", command_for(exe))
+
+
+def unregister_protocol(hive=None, prefix="") -> None:
+    import winreg
+    hive = winreg.HKEY_CURRENT_USER if hive is None else hive
+    _delete_tree(hive, prefix + r"Software\Classes" + "\\" + PROTOCOL)
+
+
+def protocol_link(action, path) -> str:
+    from urllib.parse import quote
+    return f"{PROTOCOL}:{action}?{quote(str(path), safe='')}"
+
+
+def protocol_action(argv):
+    """("open" | "folder", path) when DISO was started by such a link, else None."""
+    from urllib.parse import unquote
+    for a in argv or []:
+        a = (a or "").strip().strip('"')
+        head, sep, rest = a.partition("?")
+        if sep and head.lower() in (f"{PROTOCOL}:open", f"{PROTOCOL}:folder"):
+            return head.lower().split(":", 1)[1], unquote(rest).rstrip("/")
+    return None
+
+
+def run_protocol_action(action, path) -> bool:
+    """Open the file / show it selected in Explorer (False when it is not there any more)."""
+    import subprocess
+    if not path or not os.path.exists(path):
+        return False
+    if action == "open":
+        os.startfile(path)
+    else:
+        subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
+    return True
 
 
 def program_path():

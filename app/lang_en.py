@@ -394,7 +394,7 @@ PLAIN = {
     "Tarayıcı eklentisiyle konuşamıyorum: port başka bir programda kullanımda. Ayarlardan değiştirebilirsin.":
         "Can't talk to the browser extension: another program uses the port. You can change it in Settings.",
     "FFmpeg: hazır": "FFmpeg: ready", "FFmpeg: yok (lazım olunca kendim indiririm)": "FFmpeg: none (I'll download it when needed)",
-    "Dosyayı aç": "Open file", "Klasörde göster": "Show in folder", "Müzik listesine ekle": "Add to a playlist",
+    "Dosyayı aç": "Open file", "Aç": "Open", "Klasörde göster": "Show in folder", "Müzik listesine ekle": "Add to a playlist",
     "Baştan indir": "Download again", "Dosyayla birlikte sil": "Delete with the file", "yok": "none", "Eklendi: ": "Added: ",
     "Windows açılışına ekleyemedim": "Could not add DISO to the Windows start-up",
     "Yedeği nereye kaydedeyim?": "Where should the backup go?", "Hangi yedeği yükleyeyim?": "Which backup should I restore?",

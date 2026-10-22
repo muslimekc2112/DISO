@@ -2609,11 +2609,11 @@ class App(NostalgiaWindow, ctk.CTk):
             self.notice(f"Eklenti klasörünü hazırlayamadım: {e}", 10)
 
     # ------------------------------------------------------------------ notifications
-    def _notify(self, kind, text):
+    def _notify(self, kind, text, path=None):
         if self.cfg.get("notify_sound"):
             notify.play_sound(kind)
         if self.cfg.get("notify_toast"):
-            notify.toast("İndirme tamamlandı" if kind == "done" else "İndirme başarısız", text)
+            notify.toast("İndirme tamamlandı" if kind == "done" else "İndirme başarısız", text, path)
 
     def _drain_events(self):
         dones, errors = [], []
@@ -2631,8 +2631,9 @@ class App(NostalgiaWindow, ctk.CTk):
                 log.exception("could not write the download history")
             self._music_collect(dones)
             self._after_done(dones)
+            path = dones[-1].final_path if dones[-1].final_path and os.path.exists(dones[-1].final_path) else None
             self._notify("done", dones[0].display_name if len(dones) == 1
-                         else f"{len(dones)} indirme tamamlandı")
+                         else f"{len(dones)} indirme tamamlandı", path)
         if errors:
             self._notify("error", errors[0].display_name if len(errors) == 1
                          else f"{len(errors)} indirme başarısız")
@@ -2724,6 +2725,11 @@ class App(NostalgiaWindow, ctk.CTk):
     # ---- 🧲 .torrent / magnet: open in DISO
     def _associate(self):
         exe = associations.program_path()
+        if exe:
+            try:
+                associations.register_protocol(exe)   # the notification's "Open" / "Show in folder"
+            except OSError as e:
+                log.info("could not register diso: links: %s", e)
         if exe and self.cfg.get("associate"):
             try:
                 associations.register(exe)

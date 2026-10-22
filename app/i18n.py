@@ -258,4 +258,4 @@ def install():
 
     from . import notify
     orig_toast = notify.toast
-    notify.toast = lambda title, body: orig_toast(tr(title), tr(body))
+    notify.toast = lambda title, body, path=None: orig_toast(tr(title), tr(body), path)

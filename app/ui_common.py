@@ -79,6 +79,18 @@ def guard_color_emoji(folder=None, version=None, environ=None) -> bool:
 SCROLL_FRAME_MS = 16          # wheel steps that arrive within this time are scrolled together
 
 
+def repaint(canvas):
+    """Paint the canvas and every row on it again, now (Windows kept the old pictures of the rows that
+    had moved, when the tabs were scrolled up and down: update_idletasks alone does not repaint them)."""
+    canvas.update_idletasks()
+    try:
+        import ctypes
+        # RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW
+        ctypes.windll.user32.RedrawWindow(canvas.winfo_id(), None, None, 0x1 | 0x4 | 0x80 | 0x100)
+    except Exception:  # noqa: BLE001 - only a repaint
+        pass
+
+
 def install_smooth_scrolling():
     """Fast wheel scrolling in a customtkinter scrollable frame (the settings ...) left copies of rows
     on the screen: every wheel step moved all the rows at once, and when the steps came faster than
@@ -102,9 +114,28 @@ def install_smooth_scrolling():
         try:
             canvas = frame._parent_canvas
             canvas.yview("scroll", units, "units")
-            canvas.update_idletasks()                          # paint the new place before the next step
+            repaint(canvas)
         except tk.TclError:                                    # the window was closed meanwhile
             pass
+
+    def drag(frame, *args):
+        """The scroll bar dragged: the same full repaint (there too, rows were left behind)."""
+        try:
+            frame._parent_canvas.yview(*args)
+            repaint(frame._parent_canvas)
+        except tk.TclError:
+            pass
+
+    original_init = cls.__init__
+
+    def init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        try:
+            self._scrollbar.configure(command=lambda *a: drag(self, *a))
+        except (AttributeError, tk.TclError, ValueError):
+            pass
+
+    cls.__init__ = init
 
     def wheel(self, event):
         if self._shift_pressed or not self._check_if_valid_scroll(event.widget):

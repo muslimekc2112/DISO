@@ -24,6 +24,12 @@ def main(argv) -> int:
         i = argv.index("--selftest")
         return selftest.run(argv[i + 1] if i + 1 < len(argv) else None)
 
+    from app import associations
+    action = associations.protocol_action(argv)   # a button of the "download finished" notification
+    if action:
+        associations.run_protocol_action(*action)
+        return 0
+
     from app import bridge
     from app.config import Config
 
@@ -35,7 +41,6 @@ def main(argv) -> int:
     backup.apply_pending()                # a backup chosen in the settings comes in now, before anything reads
 
     # 🧲 a .torrent file double-clicked / a magnet: link clicked: DISO was started with it
-    from app import associations
     links = associations.links_from_argv(argv)
 
     # One window only: if the app already runs, wake it up (hand it the links) and leave.

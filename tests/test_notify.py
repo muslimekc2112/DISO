@@ -43,9 +43,22 @@ def test_toast_does_nothing_off_windows(monkeypatch):
 
 def test_toast_runs_in_the_background(monkeypatch):
     calls = []
-    monkeypatch.setattr(notify, "show_toast", lambda t, b: calls.append((t, b)) or 0)
+    monkeypatch.setattr(notify, "show_toast", lambda t, b, path=None: calls.append((t, b, path)) or 0)
     notify.toast("T", "B")
-    assert wait_for(lambda: calls == [("T", "B")])
+    assert wait_for(lambda: calls == [("T", "B", None)])
+
+
+def test_toast_buttons_open_and_show_in_folder(monkeypatch):
+    from app import associations
+    monkeypatch.setattr(associations, "program_path", lambda: r"C:\DISO\DISO.exe")
+    env = notify.toast_buttons(r"C:\Müzik & b.mp3")
+    assert associations.protocol_action([env["HI_OPEN_LINK"]]) == ("open", r"C:\Müzik & b.mp3")
+    assert associations.protocol_action([env["HI_FOLDER_LINK"]]) == ("folder", r"C:\Müzik & b.mp3")
+    assert "&" not in env["HI_OPEN_LINK"] and env["HI_OPEN"] and env["HI_FOLDER"]
+    assert notify.toast_buttons(None) == {}
+    monkeypatch.setattr(associations, "program_path", lambda: None)   # from the source: no diso: links
+    assert notify.toast_buttons(r"C:.mp3") == {}
+    assert associations.protocol_action(["magnet:?xt=urn:btih:x"]) is None
 
 
 def test_sound_uses_the_right_system_sound(monkeypatch):
