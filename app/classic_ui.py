@@ -508,6 +508,7 @@ class NostalgiaWindow:
             ("Panodaki linkleri ekle", self._n_paste_links, "Ctrl+V"),
             ("Dosyadaki linkleri ekle…", self._import_file, None),
             ("Torrent dosyası ekle…", self.add_torrent_files, None),
+            ("Telefondan link gönder…", self.open_phone, None),
             ("Link bilgisi ve kalite seçimi…", self._show_info, None),
             None,
             ("Çıkış", self._on_close, None)])

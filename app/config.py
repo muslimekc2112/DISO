@@ -63,6 +63,9 @@ DEFAULTS = {
     "schedule_on": False,
     "schedule_start": "02:00",
     "schedule_stop": "07:00",
+    "watch_folder": "",                 # 📂 .torrent / link files put here are downloaded ("" = off)
+    "usb_copy": "Kapalı",               # 🔌 copy finished downloads onto a USB stick (ui.USB_CHOICES)
+    "defender_scan": True,              # 🛡 scan every finished download with Windows Defender
     "tray_on_close": False,
     "start_with_windows": False,
     "bridge_on": True,

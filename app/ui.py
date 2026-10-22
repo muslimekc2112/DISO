@@ -17,7 +17,7 @@ import customtkinter as ctk
 
 from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import backup, channels, classic_ui, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
+from . import backup, channels, classic_ui, extras, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
 from .speed_graph import Sampler, SpeedGraph
@@ -90,6 +90,7 @@ SORT_KEYS = {
     "Duruma göre": lambda it: (_STATE_RANK.get(it.state, 9), -it.added),
 }
 NO_END_ACTION = "Hiçbir şey yapma"
+USB_CHOICES = {"Kapalı": "off", "Yalnız şarkılar": "songs", "Tüm indirmeler": "all"}    # 🔌 copy onto a USB stick
 
 
 STATE_COLOURS = {DONE: look.STATE_DONE, ERROR: look.STATE_ERROR, CANCELLED: look.STATE_IDLE,
@@ -639,6 +640,37 @@ class SettingsPanel(ctk.CTkToplevel):
         self._add(card, "Sorun bildir", "Günlüğü ve sürümleri masaüstüne bir zip olarak koyar (listelerin, geçmişin, "
                   "çerezlerin olmadan) ve GitHub'da yeni bir sorun sayfası açar", self.report_button)
 
+        # ---- the helpers beside the downloads
+        card = self._card("Ekstralar")
+        watch = ctk.CTkFrame(card, fg_color="transparent")
+        self.watch_btn = ctk.CTkButton(watch, text="Klasör seç…", width=110, command=self._pick_watch_folder)
+        self.watch_btn.pack(side="left")
+        self.watch_off = ctk.CTkButton(watch, text="Kapat", width=60, fg_color="transparent", border_width=1,
+                                       text_color=("gray20", "gray85"), command=lambda: self._set_watch(""))
+        self.watch_off.pack(side="left", padx=(6, 0))
+        _t, self.watch_hint = self._add(card, "📂 Klasör izleme", "", watch)
+        self._show_watch()
+
+        self.usb_menu = ctk.CTkOptionMenu(card, values=list(USB_CHOICES), width=150,
+                                          command=lambda v: app.apply_setting("usb_copy", v))
+        self.usb_menu.set(cfg.get("usb_copy") if cfg.get("usb_copy") in USB_CHOICES else "Kapalı")
+        self._add(card, "🔌 Bitince USB belleğe kopyala", "Takılı USB belleğin DISO klasörüne; takılı değilse "
+                  "takınca kopyalanır", self.usb_menu)
+
+        self.defender_switch = self._switch(card, command=lambda: app.apply_setting(
+            "defender_scan", bool(self.defender_switch.get())))
+        self._set_switch(self.defender_switch, cfg.get("defender_scan"))
+        self._add(card, "🛡 Bitince virüs taraması", "İnen her dosyayı Windows Defender tarar; tehdit bulursa "
+                  "haber veririm (Defender karantinaya alır)", self.defender_switch)
+
+        speed = ctk.CTkFrame(card, fg_color="transparent")
+        self.speed_btn = ctk.CTkButton(speed, text="🚀 Ölç", width=80, command=self._speed_test)
+        self.speed_btn.pack(side="left")
+        self.speed_apply = ctk.CTkButton(speed, text="Öneriyi uygula", width=110, command=self._apply_speed)
+        _t, self.speed_hint = self._add(card, "🚀 İnternet hız testi", "Birkaç saniye indirerek ölçer, sana uygun "
+                                        "bağlantı sayısını önerir", speed)
+        self._speed_result = None
+
         # ---- when everything is finished
         card = self._card("Bitince")
         self.after_menu = ctk.CTkOptionMenu(card, values=list(AFTER_ALL), width=150,
@@ -658,6 +690,69 @@ class SettingsPanel(ctk.CTkToplevel):
 
         self._proxy_result = None
         self.after(500, self._sync)
+
+    # ---- 📂 watched folder, 🚀 speed test
+    def _show_watch(self):
+        folder = self.app.cfg.get("watch_folder")
+        set_if_changed(self.watch_hint, text=(f"İzleniyor: {folder}\nOraya konan .torrent ve link dosyaları iner, "
+                                              "sonra içindeki “Eklendi” klasörüne taşınır") if folder else
+                       "Kapalı. Bir klasör seç: oraya konan .torrent ve link (.txt) dosyaları kendiliğinden iner")
+        self.watch_off.configure(state="normal" if folder else "disabled")
+
+    def _pick_watch_folder(self):
+        folder = filedialog.askdirectory(parent=self, title="İzlenecek klasörü seç")
+        if folder:
+            self._set_watch(os.path.normpath(folder))
+
+    def _set_watch(self, folder):
+        self.app.set_watch_folder(folder)
+        self._show_watch()
+
+    def _speed_test(self):
+        self.speed_btn.configure(state="disabled", text="Ölçülüyor…")
+        self.speed_apply.pack_forget()
+        set_if_changed(self.speed_hint, text="Birkaç saniye sürer…")
+        box = {}
+
+        def work():
+            try:
+                box["r"] = extras.speed_test()
+            except Exception as e:  # noqa: BLE001
+                box["e"] = e
+        thread = threading.Thread(target=work, daemon=True, name="speed-test")
+        thread.start()
+        self._wait_speed(thread, box)
+
+    def _wait_speed(self, thread, box):
+        try:
+            if not self.winfo_exists():
+                return
+        except TclError:
+            return
+        if thread.is_alive():
+            self.after(200, self._wait_speed, thread, box)
+            return
+        self.speed_btn.configure(state="normal", text="🚀 Ölç")
+        r = box.get("r")
+        if r is None:
+            set_if_changed(self.speed_hint, text="Ölçemedim: internet bağlantını kontrol et")
+            return
+        self._speed_result = r
+        set_if_changed(self.speed_hint, text=f"İndirme hızı: {r['mbps']} Mbit/sn  •  Gecikme: {r['ping_ms']} ms\n"
+                                             f"Önerilen bağlantı sayısı: {r['connections']}")
+        if r["connections"] != self.app.cfg.get("connections"):
+            self.speed_apply.pack(side="left", padx=(6, 0))
+
+    def _apply_speed(self):
+        r = self._speed_result
+        if r:
+            self.app.cfg.set("connections", r["connections"])
+            try:
+                self.app.conn_menu.set(r["connections"])
+            except (AttributeError, TclError):
+                pass
+            self.app.notice(f"🚀 Bağlantı sayısı {r['connections']} yapıldı", 6)
+            self.speed_apply.pack_forget()
 
     # ---- layout helpers
     def _card(self, title):
@@ -1232,6 +1327,12 @@ class App(NostalgiaWindow, ctk.CTk):
         self.song_dialog = None          # 'Hangi listeye ekleyeyim?' while it is open
         self.lyrics_fetcher = lyrics.Fetcher()   # lyrics of found songs, looked up in the background
         self.history = history.History()         # every finished download, also after it leaves the list
+        self.phone_link = None                   # 📱 the little web page the phone sends links to
+        self.phone_window = None
+        self.scanner = extras.Scanner()          # 🛡 Windows Defender looks at every finished download
+        self.watcher = extras.FolderWatcher()    # 📂 .torrent / link files dropped into a folder
+        self.watcher.watch(self.cfg.get("watch_folder"))
+        self.usb = extras.UsbCopier()            # 🔌 finished songs onto a USB stick
         self.history_window = None
         self.shortcuts_window = None
         self.health_window = None
@@ -1340,14 +1441,16 @@ class App(NostalgiaWindow, ctk.CTk):
             row=0, column=2, padx=(0, 8))
         self.torrent_btn = ctk.CTkButton(row, text="🧲", width=48, height=44, command=self.add_torrent_files)
         self.torrent_btn.grid(row=0, column=3, padx=(0, 8))
-        ctk.CTkButton(row, text="ℹ", width=48, height=44, command=self._show_info).grid(row=0, column=4, padx=(0, 8))
+        self.phone_btn = ctk.CTkButton(row, text="📱", width=48, height=44, command=self.open_phone)
+        self.phone_btn.grid(row=0, column=4, padx=(0, 8))
+        ctk.CTkButton(row, text="ℹ", width=48, height=44, command=self._show_info).grid(row=0, column=5, padx=(0, 8))
         self.history_button = ctk.CTkButton(row, text="📊", width=48, height=44, command=self.open_history)
-        self.history_button.grid(row=0, column=5, padx=(0, 8))
+        self.history_button.grid(row=0, column=6, padx=(0, 8))
         # 📺 followed channels; "📺 3" when 3 new videos came
         self.channels_btn = ctk.CTkButton(row, text="📺", width=48, height=44, command=self.open_channels)
-        self.channels_btn.grid(row=0, column=6, padx=(0, 8))
+        self.channels_btn.grid(row=0, column=7, padx=(0, 8))
         ctk.CTkButton(row, text="⬇  İndir", height=44, width=130, font=ctk.CTkFont(size=16, weight="bold"),
-                      command=self.add_from_entry).grid(row=0, column=7)
+                      command=self.add_from_entry).grid(row=0, column=8)
 
     def _build_options(self):
         opt = ctk.CTkFrame(self)
@@ -1606,6 +1709,26 @@ class App(NostalgiaWindow, ctk.CTk):
                                                      ("Torrent dosyaları", "*.torrent"), ("Tüm dosyalar", "*.*")])
         if path:
             self._add_from_paths([path])
+
+    def open_phone(self):
+        """📱 The QR code: links sent from the phone (same Wi-Fi) download here."""
+        from . import phone_link
+        from .phone_ui import PhoneWindow
+        if self.phone_link is None:
+            self.phone_link = phone_link.PhoneLink(
+                on_links=lambda urls, kind: self._ui_calls.put(lambda: self._from_phone(urls, kind)),
+                language=lambda: i18n.LANGUAGES.get(self.cfg.get("language"), "tr"))
+        if not self.phone_link.running:
+            try:
+                self.phone_link.start()
+            except OSError as e:
+                self.notice(f"Telefon bağlantısını açamadım: {e}", 10)
+                return None
+        return self._single("phone_window", lambda: PhoneWindow(self, self.phone_link))
+
+    def _from_phone(self, urls, kind):
+        added = self.add_urls(urls, None if kind == "auto" else kind)
+        self.notice(f"📱 Telefondan {len(urls)} link geldi" + (f", {added} indirme eklendi" if added != len(urls) else ""), 8)
 
     def add_torrent_files(self, paths=None):
         """🧲 Add .torrent files from the computer (several at once)."""
@@ -2450,11 +2573,53 @@ class App(NostalgiaWindow, ctk.CTk):
             except Exception:  # noqa: BLE001 - the history must never stop the downloads
                 log.exception("could not write the download history")
             self._music_collect(dones)
+            self._after_done(dones)
             self._notify("done", dones[0].display_name if len(dones) == 1
                          else f"{len(dones)} indirme tamamlandı")
         if errors:
             self._notify("error", errors[0].display_name if len(errors) == 1
                          else f"{len(errors)} indirme başarısız")
+
+    def _after_done(self, dones):
+        """🛡 scan and 🔌 copy what just finished (each when it is switched on)."""
+        usb = USB_CHOICES.get(self.cfg.get("usb_copy"), "off")
+        for it in dones:
+            path = it.final_path
+            if not path or not os.path.exists(path):
+                continue
+            if self.cfg.get("defender_scan") and os.path.isfile(path):
+                self.scanner.scan(it)
+            if usb == "all" and os.path.isfile(path) or usb == "songs" and player.is_audio(path):
+                self.usb.copy(path)
+
+    def _drain_extras(self):
+        """What the helpers beside the downloads found (on the window's thread)."""
+        for it, verdict in self.scanner.drain():
+            if verdict == "threat":
+                it.message = "⚠ Windows Defender tehdit buldu"
+                self.notice(f"⚠ Windows Defender “{it.display_name}” dosyasında tehdit buldu ve karantinaya aldı", 30)
+                notify.toast("Virüs bulundu", f"{it.display_name}: Windows Defender karantinaya aldı")
+        found = self.watcher.drain()
+        if found:
+            added = self._add_from_paths(found)
+            self.notice(f"📂 İzlenen klasörden {added} indirme eklendi" if added
+                        else "📂 İzlenen klasöre gelen dosyada link bulamadım", 8)
+        copied = self.usb.drain()
+        if copied:
+            good = [p for p, _d, e in copied if e is None]
+            bad = [(p, e) for p, _d, e in copied if e is not None]
+            if good:
+                self.notice(f"🔌 {len(good)} dosya USB belleğe kopyalandı ({copied[0][1]})" if len(good) > 1
+                            else f"🔌 “{os.path.basename(good[0])}” USB belleğe kopyalandı ({copied[0][1]})", 8)
+            if bad:
+                self.notice(f"🔌 USB belleğe kopyalayamadım: {bad[0][1]}", 12)
+
+    def set_watch_folder(self, folder):
+        """📂 Watch this folder ("" = stop watching)."""
+        self.cfg.set("watch_folder", folder or "")
+        self.watcher.watch(folder or "")
+        if folder:
+            self.notice(f"📂 “{folder}” izleniyor: oraya konan torrent ve link dosyaları iner", 8)
 
     def _check_after_all(self):
         """When the last download of a run is finished, do what the user asked (once)."""
@@ -2993,6 +3158,9 @@ class App(NostalgiaWindow, ctk.CTk):
         self.manager.shutdown()  # asks running downloads to pause; returns at once
         self.channel_watcher.stop()
         self.app_update.stop()
+        self.watcher.stop()
+        if self.phone_link is not None:
+            self.phone_link.stop()
         if self.music is not None:
             self.music.shutdown()
         self._finish_close(time.time() + CLOSE_WAIT)
@@ -3060,6 +3228,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self._check_after_all()
             self._check_schedule()
             self._drain_channels()
+            self._drain_extras()
             self._announce_app_update()
             if self._tick_no % 10 == 1:
                 self._tell_recovered()

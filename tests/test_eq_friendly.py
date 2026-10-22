@@ -29,7 +29,7 @@ def test_the_simple_controls_move_their_bands_and_keep_an_experts_shape():
 
 @pytest.mark.gui
 def test_the_window_shows_bas_orta_tiz_and_the_bands_only_in_advanced(music):  # noqa: F811
-    music.store.state["eq_advanced"] = False
+    music.store.set_state(eq_advanced=False)
     win = music.open_eq()
     win.update()
     assert not win.bands.winfo_ismapped()

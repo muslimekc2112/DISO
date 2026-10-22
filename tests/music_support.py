@@ -116,6 +116,10 @@ class FakeKeys:
         self.pressed = queue.Queue()
         self.active = False
         self.starts = 0
+        self.extra = {}
+
+    def set_extra(self, keys):
+        self.extra = {name: combo for name, combo in (keys or {}).items() if combo}
 
     def start(self):
         self.active = True
@@ -140,6 +144,13 @@ class FakeSearcher:
         self.more = more
         self.query = query
         self.busy = True
+
+    def run(self, query, work):
+        """📻 and the like: the work is done at once (it is given fakes by the test)."""
+        self.asked.append(query)
+        self.query = query
+        self.busy = True
+        self.answer = (query, work(), "")
 
     def give(self, results, error="", query=None):
         self.answer = (query or (self.asked[-1] if self.asked else ""), results, error)

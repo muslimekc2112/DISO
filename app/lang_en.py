@@ -131,7 +131,85 @@ PLAIN = {
     "Ekolayzır": "Equalizer", "Mini oynatıcı": "Mini player", "Sıradaki şarkılar": "Up next",
     "30 saniye dinle": "Listen for 30 seconds", "Şarkı sözleri": "Lyrics", "İndirilenler klasörü": "Downloads folder",
     "Bitenleri listeden kaldır": "Remove finished ones from the list",
-    "Listeyi boşalt (dosyalar kalır)": "Empty the list (files stay)", "Çal / duraklat": "Play / pause",
+    "Listeyi boşalt (dosyalar kalır)": "Empty the list (files stay)",
+    "👤 YT Music": "👤 YT Music", "Google hesabınla YouTube Music listelerin": "Your YouTube Music lists, with your Google account",
+    "Çıkış yap": "Sign out", "Bağlı değil": "Not connected", "Bağlı": "Connected", "🔑 Google ile bağlan": "🔑 Connect with Google",
+    "⬇ Seçilenleri indir": "⬇ Download selected", "Listelerin getiriliyor…": "Getting your lists…",
+    "Beğendiğim şarkılar": "Liked songs", "Hiç listen yok.": "You have no lists.",
+    "Açılan pencerede Google hesabına giriş yap. YouTube Music açılınca o pencereyi kapat; gerisini ben hallederim.":
+        "Sign in to your Google account in the window that opened. When YouTube Music opens, close that window; I'll do the rest.",
+    "Bu bilgisayarda Edge ya da Chrome bulamadım; Google'a bağlanmak için biri gerekli.":
+        "I couldn't find Edge or Chrome on this PC; one of them is needed to connect to Google.",
+    "Bu bilgisayarda Edge ya da Chrome bulamadım.": "I couldn't find Edge or Chrome on this PC.",
+    "Google hesabınla bağlan: YouTube Music'teki listelerin ve beğendiğin şarkılar burada görünür, istediklerini MP3 "
+    "olarak indirirsin.\n\nŞifreni DISO'ya yazmazsın: Edge'de Google'ın kendi sayfasında giriş yaparsın. Oturum bu "
+    "bilgisayarda şifreli saklanır, \"Çıkış yap\" ile silinir.":
+        "Connect your Google account: your YouTube Music playlists and liked songs show here, and you download the ones "
+        "you want as MP3.\n\nYou never type your password into DISO: you sign in on Google's own page in Edge. The "
+        "session is kept encrypted on this PC and deleted with \"Sign out\".",
+    "Google hesabından çıkış yapılsın mı?\nİndirdiğin şarkılar yerinde kalır.":
+        "Sign out of your Google account?\nThe songs you downloaded stay where they are.",
+    "Bağlanmadan vazgeçildi.": "Connecting was cancelled.",
+    "Giriş yapılmamış görünüyor. Tekrar dene: açılan pencerede Google'a giriş yap, YouTube Music açılınca pencereyi kapat.":
+        "It looks like you didn't sign in. Try again: sign in to Google in the window that opens, close it when YouTube Music opens.",
+    "Google oturumun sona ermiş; tekrar bağlan.": "Your Google session has ended; connect again.",
+    "Listelerine ulaşamadım: bağlantını kontrol et ve ⟳ ile tekrar dene.":
+        "I couldn't reach your lists: check your connection and try again with ⟳.",
+    "Listelerin şarkılarını alamadım: bağlantını kontrol et.": "I couldn't get the songs of the lists: check your connection.",
+    "Bu listelerin şarkıları zaten listelerinde ya da iniyor.": "The songs of these lists are already in their lists or downloading.",
+    "Listeleri yenile": "Refresh the lists",
+    "📱 Telefondan link gönder": "📱 Send a link from the phone", "Telefondan link gönder": "Send a link from the phone",
+    "Telefondan link gönder…": "Send a link from the phone…",
+    "Telefonun kamerasıyla bu kodu okut. Açılan sayfaya linki yapıştır, bilgisayarda DISO indirsin. Telefon ve "
+    "bilgisayar aynı Wi-Fi'de olmalı.": "Scan this code with your phone's camera. Paste the link on the page that "
+    "opens and DISO downloads it on the computer. The phone and the computer must be on the same Wi-Fi.",
+    "Windows izin sorarsa “Özel ağlarda izin ver” de. Bağlantıyı kapatınca bu kod bir daha çalışmaz.":
+        "If Windows asks, allow it on private networks. Once the connection is closed this code no longer works.",
+    "Bağlantıyı kapat": "Close the connection", "Bağlantıyı aç": "Open the connection", "Bağlantı kapalı": "The connection is closed",
+    "DISO • Telefondan link gönder": "DISO • Send a link from the phone",
+    "📻 Bu şarkıdan radyo": "📻 Radio from this song", "📻 Çalan şarkıdan radyo": "📻 Radio from the song playing",
+    "👤 YouTube Music hesabım…": "👤 My YouTube Music account…",
+    "🌈 Görselleştirici": "🌈 Visualizer", "Görselleştirici": "Visualizer", "DISO • Görselleştirici": "DISO • Visualizer",
+    "Çubuklar": "Bars", "Dalga": "Wave", "Halka": "Ring", "Mor": "Purple", "Gün batımı": "Sunset", "Okyanus": "Ocean",
+    "Neon": "Neon", "Tam ekran": "Full screen", "Bir şarkı çal 🎵": "Play a song 🎵", "Şarkı çözümleniyor…": "Analysing the song…",
+    "⌨ Kısayolları ayarla…": "⌨ Set the shortcuts…", "⌨ Kısayolları ayarla": "⌨ Set the shortcuts",
+    "DISO • Kısayolları ayarla": "DISO • Set the shortcuts", "Pencerede": "In the window", "Her yerde": "Everywhere",
+    "Bir tuşa bas…": "Press a key…", "Varsayılana dön": "Back to defaults", "Kısayollar varsayılana döndü": "Shortcuts are back to the defaults",
+    "Bir düğmeye bas, sonra istediğin tuşa. Esc: vazgeç, Delete: tuşu kaldır. \"Her yerde\" tuşları DISO arkadayken de "
+    "çalışır (Ctrl, Alt ya da Shift ile birlikte).": "Press a button, then the key you want. Esc: cancel, Delete: remove the key. "
+    "\"Everywhere\" keys work even when DISO is in the background (together with Ctrl, Alt or Shift).",
+    "Her yerde çalışacak tuş Ctrl, Alt ya da Shift ile birlikte olmalı (örn. Ctrl + Alt + P)":
+        "A key that works everywhere needs Ctrl, Alt or Shift with it (e.g. Ctrl + Alt + P)",
+    "5 saniye ileri": "5 seconds forward", "5 saniye geri": "5 seconds back", "Sesi kıs": "Quieter",
+    "Sesi kapat / aç": "Mute / unmute", "Tekrar modu": "Repeat mode", "Şarkı ara": "Search songs",
+    "Müzik çaların kısayollarını kendin ayarla (DISO arkadayken çalışanlar dahil)":
+        "Set the music player's shortcuts yourself (also ones that work while DISO is in the background)",
+    "📊 Dinleme istatistiklerim…": "📊 My listening statistics…", "📊 Dinleme istatistiklerim": "📊 My listening statistics",
+    "DISO • Dinleme istatistiklerim": "DISO • My listening statistics",
+    "Bu ay": "This month", "Bu yıl": "This year", "Tüm zamanlar": "All time", "dinledin": "listened",
+    "dinleme": "plays", "sanatçı": "artists", "üst üste": "in a row",
+    "🎵 En çok dinlediğin şarkılar": "🎵 Your most played songs", "🎤 En sevdiğin sanatçılar": "🎤 Your favourite artists",
+    "🕒 Günün hangi saatinde dinliyorsun": "🕒 What time of day you listen",
+    "🎧\n\nBu dönemde henüz dinleme yok.\nBiraz müzik dinle, burası dolsun.":
+        "🎧\n\nNo listening in this period yet.\nListen to some music and this fills up.",
+    "Önce bir şarkı çal ya da seç; ona benzeyenleri bulayım": "Play or select a song first; I'll find ones like it",
+    "Ekstralar": "Extras", "Klasör seç…": "Choose folder…", "Kapat": "Close", "📂 Klasör izleme": "📂 Watched folder",
+    "Yalnız şarkılar": "Songs only", "Tüm indirmeler": "All downloads",
+    "🔌 Bitince USB belleğe kopyala": "🔌 Copy to a USB stick when done",
+    "Takılı USB belleğin DISO klasörüne; takılı değilse takınca kopyalanır":
+        "Into the DISO folder of the plugged-in USB stick; if none is plugged in, when one is",
+    "🛡 Bitince virüs taraması": "🛡 Virus scan when done",
+    "İnen her dosyayı Windows Defender tarar; tehdit bulursa haber veririm (Defender karantinaya alır)":
+        "Windows Defender scans every downloaded file; if it finds a threat I tell you (Defender quarantines it)",
+    "🚀 Ölç": "🚀 Test", "Ölçülüyor…": "Testing…", "Öneriyi uygula": "Apply suggestion",
+    "🚀 İnternet hız testi": "🚀 Internet speed test",
+    "Birkaç saniye indirerek ölçer, sana uygun bağlantı sayısını önerir":
+        "Measures by downloading for a few seconds and suggests the right number of connections",
+    "Birkaç saniye sürer…": "It takes a few seconds…", "Ölçemedim: internet bağlantını kontrol et": "Could not test: check your internet connection",
+    "Kapalı. Bir klasör seç: oraya konan .torrent ve link (.txt) dosyaları kendiliğinden iner":
+        "Off. Choose a folder: .torrent and link (.txt) files put there download by themselves",
+    "İzlenecek klasörü seç": "Choose the folder to watch", "⚠ Windows Defender tehdit buldu": "⚠ Windows Defender found a threat",
+    "Virüs bulundu": "Virus found", "📂 İzlenen klasöre gelen dosyada link bulamadım": "📂 No link in the file that came into the watched folder",
     "🗑 Liste temizlendi (inen dosyalar yerinde duruyor)": "🗑 The list is cleared (downloaded files stay where they are)",
     "Torrent dosyası ekle": "Add a torrent file", "Torrent dosyası ekle…": "Add a torrent file…", "Torrent…": "Torrent…",
     "Karıştırmak için listede en az iki parça olmalı": "Shuffling needs at least two songs",
@@ -656,6 +734,33 @@ TEMPLATES = [
     ("{} video listeye eklendi", "{} videos added to the list"), (" ({} tanesi zaten listedeydi)", " ({} were already in the list)"),
     ("Listeyi okuyamadım: {}", "Could not read the playlist: {}"),
     ("{} sa {} dk", "{} h {} min"), ("{} dk", "{} min"), ("{} / {} parça", "{} / {} songs"), ("{} parça", "{} songs"),
+    ("{} şarkı", "{} songs"), ("⬇ Seçilenleri indir ({})", "⬇ Download selected ({})"),
+    ("{} liste. İşaretle ve indir: her liste aynı adlı bir çalma listesine, sırasıyla MP3 olarak iner.",
+     "{} lists. Tick and download: each list goes into a playlist of the same name, in order, as MP3."),
+    ("{} listenin şarkıları getiriliyor…", "Getting the songs of {} lists…"),
+    ("⬇ {} şarkı iniyor; bittikçe sırasıyla aynı adlı listelere giriyor.",
+     "⬇ {} songs are downloading; as they finish they go into the lists of the same name, in order."),
+    ("👤 Google hesabına bağlandın: {}", "👤 Connected to your Google account: {}"),
+    ("İzleniyor: {}\nOraya konan .torrent ve link dosyaları iner, sonra içindeki “Eklendi” klasörüne taşınır",
+     "Watching: {}\n.torrent and link files put there are downloaded, then moved into its “Eklendi” folder"),
+    ("📂 “{}” izleniyor: oraya konan torrent ve link dosyaları iner", "📂 Watching “{}”: torrent and link files put there are downloaded"),
+    ("📂 İzlenen klasörden {} indirme eklendi", "📂 {} downloads added from the watched folder"),
+    ("⚠ Windows Defender “{}” dosyasında tehdit buldu ve karantinaya aldı", "⚠ Windows Defender found a threat in “{}” and quarantined it"),
+    ("{}: Windows Defender karantinaya aldı", "{}: Windows Defender quarantined it"),
+    ("🔌 {} dosya USB belleğe kopyalandı ({})", "🔌 {} files copied to the USB stick ({})"),
+    ("🔌 “{}” USB belleğe kopyalandı ({})", "🔌 “{}” copied to the USB stick ({})"),
+    ("🔌 USB belleğe kopyalayamadım: {}", "🔌 Could not copy to the USB stick: {}"),
+    ("İndirme hızı: {} Mbit/sn  •  Gecikme: {} ms\nÖnerilen bağlantı sayısı: {}",
+     "Download speed: {} Mbit/s  •  Latency: {} ms\nSuggested connections: {}"),
+    ("🚀 Bağlantı sayısı {} yapıldı", "🚀 Connections set to {}"),
+    ("📱 Telefondan {} link geldi", "📱 {} links came from the phone"),
+    ("📻 “{}” şarkısına benzeyenleri buluyorum…", "📻 Finding songs like “{}”…"), ("📻 {} radyosu", "📻 {} radio"),
+    ("{} gün", "{} days"), ("{} kez", "{} times"), ("{} sa {} dk", "{} h {} min"),
+    ("En çok {}:00 ile {}:00 arası", "Most between {}:00 and {}:00"),
+    ("“{}” için bir tuşa bas", "Press a key for “{}”"), ("“{}” tuşsuz kaldı", "“{}” has no key now"),
+    ("{}: “{}”", "{}: “{}”"), ("{}: “{}” (“{}” tuşsuz kaldı)", "{}: “{}” (“{}” has no key now)"),
+    ("📱 Telefondan {} link geldi, {} indirme eklendi", "📱 {} links came from the phone, {} downloads added"),
+    ("Telefon bağlantısını açamadım: {}", "Could not open the phone connection: {}"), ("Açamadım: {}", "Could not open: {}"),
     ("“{}” listesinden", "from “{}”"), ("🗑 Dosyası silinen {} parça {} çıkarıldı", "🗑 {} songs whose files were deleted were removed {}"),
     ("{} indirme devam ediyor.\n\nİptal edip listeyi temizlemek istediğine emin misin?",
      "{} downloads are still going.\n\nCancel them and clear the list?"),

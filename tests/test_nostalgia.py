@@ -272,7 +272,7 @@ def test_the_settings_are_tabs_with_tick_boxes(napp):
     panel = napp.settings_panel
     assert panel.current_tab() == "Zamanlayıcı"
     assert [panel.body.tab(t, "text") for t in panel.body.tabs()] == \
-        ["İndirme", "Bildirimler", "Zamanlayıcı", "Sistem", "Yedek ve yardım", "Bitince"]
+        ["İndirme", "Bildirimler", "Zamanlayıcı", "Sistem", "Yedek ve yardım", "Ekstralar", "Bitince"]
     assert isinstance(panel.schedule_switch, customtkinter.CTkCheckBox)
     panel.schedule_switch.select()
     panel.schedule_switch.toggle()

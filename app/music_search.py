@@ -149,6 +149,28 @@ def _ytmusic():
     return YTMusic(requests_session=Session(), proxies=get_proxies())
 
 
+RADIO_SIZE = 40
+
+
+def radio(video_id="", artist="", title="", api=None, limit=RADIO_SIZE) -> Found:
+    """📻 Songs like this one (YouTube Music's own radio of it), the song itself left out. Without its video
+    the song is looked up by its name first."""
+    api = api or _ytmusic()
+    if not video_id:
+        words = " ".join(w for w in (artist, title) if w).strip()
+        if not words:
+            return Found()
+        first = next((r for r in api.search(words, filter="songs", limit=5) or [] if r.get("videoId")), None)
+        if first is None:
+            return Found()
+        video_id = first["videoId"]
+    data = api.get_watch_playlist(videoId=video_id, radio=True, limit=limit) or {}
+    results = [r for r in map(ytmusic_result, (t for t in data.get("tracks") or [] if t.get("videoId") != video_id))
+               if r]
+    name = " - ".join(w for w in (artist, title) if w) or "şarkı"
+    return Found(results, title=f"📻 {name} radyosu")
+
+
 def ytmusic_search(words: str, artist="", api=None, limit=LIMIT) -> list:
     """YouTube Music's songs for `words` (+ artist): songs only, never its videos."""
     api = api if api is not None else _ytmusic()
@@ -349,17 +371,21 @@ class Searcher:
 
     def search(self, query: str, *more):
         """`more` goes to the search after the query (the music search's artist)."""
+        self.run(query, lambda: self._find(query, *more))
+
+    def run(self, query, work):
+        """Any question whose answer is a list of songs (📻 a radio): work() on another thread."""
         with self._lock:
             self._generation += 1
             generation = self._generation
             self._answer = None
             self.busy = True
             self.query = query
-        threading.Thread(target=self._run, args=(generation, query, more), daemon=True).start()
+        threading.Thread(target=self._run, args=(generation, query, work), daemon=True).start()
 
-    def _run(self, generation, query, more=()):
+    def _run(self, generation, query, work):
         try:
-            results, error = self._find(query, *more), ""
+            results, error = work(), ""
         except Exception as e:  # noqa: BLE001 - shown to the user, the window goes on
             log.info("music search failed: %s", e)
             results, error = [], ve.pretty_error(e)

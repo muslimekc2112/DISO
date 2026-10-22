@@ -98,7 +98,7 @@ class EqualizerWindow(ctk.CTkToplevel):
 
     def _toggle_advanced(self):
         self.advanced = bool(self.advanced_var.get())
-        self.music.store.state["eq_advanced"] = self.advanced
+        self.music.store.set_state(eq_advanced=self.advanced)
         self._place_bands()
         try:
             w, h = SIZES[self.advanced]

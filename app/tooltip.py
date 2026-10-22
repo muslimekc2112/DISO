@@ -9,7 +9,7 @@ import tkinter as tk
 DELAY = 1000                   # ms the mouse rests on a button before the explanation shows
 OFFSET = (12, 20)              # px from the mouse pointer
 
-# by the button's (Turkish) text; for "📺 3" and the like the first word counts
+# by the button's (Turkish) text; for "📺 3" (an icon and a count) the icon counts
 TIPS = {
     "📋": "Panodaki linki yapıştır", "📄": "Dosyadaki linkleri ekle", "🧲": "Torrent dosyası ekle",
     "ℹ": "Linkin bilgilerini göster", "📊": "İndirme geçmişi", "📺": "Takip edilen kanallar",
@@ -20,6 +20,8 @@ TIPS = {
     "▲": "Yukarı taşı", "▼": "Aşağı taşı", "A−": "Yazıyı küçült", "A+": "Yazıyı büyüt",
     "🎛 EQ": "Ekolayzır", "🗗 Mini": "Mini oynatıcı", "📋 Sıra": "Sıradaki şarkılar",
     "🎧 Önizle": "30 saniye dinle", "🎤 Sözler": "Şarkı sözleri", "📂 İnenler": "İndirilenler klasörü",
+    "👤 YT Music": "Google hesabınla YouTube Music listelerin", "📱": "Telefondan link gönder", "🌈": "Görselleştirici",
+    "⛶": "Tam ekran",
     "🧹 Bitenleri temizle": "Bitenleri listeden kaldır",
     "🗑 Hepsini temizle": "Listeyi boşalt (dosyalar kalır)",
 }
@@ -50,7 +52,11 @@ def text_for(widget):
         except (tk.TclError, AttributeError, ValueError):
             return ""
         key = _turkish(shown)
-        own = TIPS.get(key) or TIPS.get(shown) or TIPS.get(key.split(" ")[0] if key else "", "")
+        own = TIPS.get(key) or TIPS.get(shown)
+        first, _, rest = key.partition(" ")
+        if not own and rest.strip().isdigit():               # "📺 3": a count next to the icon
+            own = TIPS.get(first)
+        own = own or ""
     return i18n.tr(own) if own else ""
 
 

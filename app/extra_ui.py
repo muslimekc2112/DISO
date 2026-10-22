@@ -34,6 +34,7 @@ SHORTCUTS = [
         ("Ctrl + Z", "Karıştırmayı geri al"),
         ("↑ / ↓ + Enter", "Arama önerilerinden birini seç"),
         ("Sağ tık", "Sıradaki olarak çal, sıraya ekle, sözler, başka listeye ekle…"),
+        ("⚙ → ⌨", "Müzik çaların kısayollarını kendin ayarla (DISO arkadayken çalışanlar dahil)"),
     ]),
     ("Her yerde", [
         ("⏯ ⏭ ⏮ (klavye)", "Müzik çalarken klavyenin medya tuşları DISO'yu yönetir"),

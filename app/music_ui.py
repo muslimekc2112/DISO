@@ -15,6 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 
 from . import equalizer, i18n, look, loudness, lyrics, mediakeys, music_search, playlists, smtc, tags
+from . import hotkeys
 from . import taskbar as taskbar_module
 from . import tooltip
 from .logs import log
@@ -273,8 +274,12 @@ class MusicWindow(ctk.CTkToplevel):
         self.mini_btn.grid(row=0, column=3, padx=(8, 0))
         self.eq_btn = ctk.CTkButton(head, text="🎛 EQ", width=64, height=32, command=self.open_eq)
         self.eq_btn.grid(row=0, column=4, padx=(8, 0))
+        self.google_btn = ctk.CTkButton(head, text="👤 YT Music", width=104, height=32, command=self.open_google)
+        self.google_btn.grid(row=0, column=5, padx=(8, 0))
+        self.vis_btn = ctk.CTkButton(head, text="🌈", width=40, height=32, command=self.open_visualizer)
+        self.vis_btn.grid(row=0, column=6, padx=(8, 0))
         self.menu_btn = ctk.CTkButton(head, text="⚙", width=40, height=32, command=self._open_player_menu)
-        self.menu_btn.grid(row=0, column=5, padx=(8, 0))
+        self.menu_btn.grid(row=0, column=7, padx=(8, 0))
 
     def player_menu_items(self):
         """The ⚙ menu: cross-fade length, the mini player, the keyboard shortcuts."""
@@ -283,6 +288,9 @@ class MusicWindow(ctk.CTkToplevel):
                  for s in FADE_CHOICES]
         level = ("✓ " if self.store.state["level"] else "   ") + "🔊 Ses seviyesini eşitle"
         items = [("🎚 Şarkılar arası geçiş", fades), ("🎛 Ekolayzır…", self.open_eq), ("🗗 Mini oynatıcı", self.open_mini),
+                 ("📻 Çalan şarkıdan radyo", self.start_radio), ("👤 YouTube Music hesabım…", self.open_google),
+                 ("📊 Dinleme istatistiklerim…", self.open_stats), ("⌨ Kısayolları ayarla…", self.open_keys),
+                 ("🌈 Görselleştirici", self.open_visualizer),
                  (level, lambda: self.set_level(not self.store.state["level"])),
                  None, ("📤 Bu listeyi dışa aktar (.m3u)…", self.export_list), ("📥 Liste içe aktar (.m3u)…", self.import_list),
                  ("🖼 Kapağı olmayanlara kapak bul", lambda: self.find_covers(self.store.tracks(self.viewed)))]
@@ -352,6 +360,81 @@ class MusicWindow(ctk.CTkToplevel):
             pass
         self.eq_window = EqualizerWindow(self)
         return self.eq_window
+
+    def start_radio(self, track=None):
+        """📻 Songs like this one (the one that plays, unless another is given), shown with the search's
+        results: listen to a bit, download one, or all of them into a list."""
+        track = track or self.controller.current_track() or self._lyrics_track()
+        if not track:
+            self.note("Önce bir şarkı çal ya da seç; ona benzeyenleri bulayım")
+            return False
+        artist, title = artist_and_title(track)
+        video = getattr(self.app, "video_id_for", lambda path: "")(track["path"])
+        name = " - ".join(w for w in (artist, title) if w)
+        self.view_switch.set(VIEW_FIND)
+        self._show_view(VIEW_FIND)
+        self.searcher.run(f"📻 {name}", lambda: music_search.radio(video, artist, title))
+        self._search_started = time.time()
+        self.search_btn.configure(state="disabled", text="Arıyor…")
+        self.find_label.configure(text=f"📻 “{name}” şarkısına benzeyenleri buluyorum…")
+        return True
+
+    def open_visualizer(self):
+        """🌈 The playing song as moving colours."""
+        from .visualizer_ui import VisualizerWindow
+        win = getattr(self, "visualizer_window", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.deiconify()
+                win.lift()
+                return win
+        except tk.TclError:
+            pass
+        self.visualizer_window = VisualizerWindow(self)
+        return self.visualizer_window
+
+    def open_keys(self):
+        """⌨ Set the shortcuts."""
+        from .hotkeys_ui import KeysWindow
+        win = getattr(self, "keys_window", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.deiconify()
+                win.lift()
+                return win
+        except tk.TclError:
+            pass
+        self.keys_window = KeysWindow(self)
+        return self.keys_window
+
+    def open_stats(self):
+        """📊 What was listened to: this month, this year, all the time."""
+        from .stats_ui import StatsWindow
+        win = getattr(self, "stats_window", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.show()
+                win.deiconify()
+                win.lift()
+                return win
+        except tk.TclError:
+            pass
+        self.stats_window = StatsWindow(self, self.store)
+        return self.stats_window
+
+    def open_google(self):
+        """👤 The Google account: YouTube Music's lists, to download as MP3."""
+        from .google_ui import GoogleWindow
+        win = getattr(self, "google_window", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.deiconify()
+                win.lift()
+                return win
+        except tk.TclError:
+            pass
+        self.google_window = GoogleWindow(self)
+        return self.google_window
 
     def set_level(self, on):
         """🔊 Even volume: a song louder than the others plays softer (its loudness is measured once)."""
@@ -579,9 +662,8 @@ class MusicWindow(ctk.CTkToplevel):
         self.dl_label.grid(row=0, column=1, sticky="e")
 
     def _bind_keys(self):
-        self.bind("<space>", self._key_space)
-        self.tree.bind("<space>", self._key_space)           # before the table's own "toggle selection"
-        self.results_tree.bind("<space>", self._key_space)
+        self._bound_keys = []
+        self.apply_keys()
         self.tree.bind("<Return>", lambda e: self._play_selected() or "break")
         self.tree.bind("<Delete>", lambda e: self._remove_selected() or "break")
         self.tree.bind("<Control-Up>", lambda e: self._move(-1) or "break")
@@ -591,6 +673,65 @@ class MusicWindow(ctk.CTkToplevel):
         self.bind("<Control-z>", lambda e: self._undo_shuffle() or "break")
         self.bind("<F1>", lambda e: getattr(self.app, "open_shortcuts", lambda: None)() or "break")
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_lyrics_button(), add="+")
+
+    # ------------------------------------------------------------------ ⌨ the user's shortcuts
+    def key_actions(self):
+        """What each shortcut does (hotkeys.ACTIONS)."""
+        c = self.controller
+        return {"toggle": self._toggle, "next": self._next, "previous": self._previous, "stop": self._stop,
+                "seek_forward": lambda: self._seek_ms(c.position_ms() + 5000),
+                "seek_back": lambda: self._seek_ms(c.position_ms() - 5000),
+                "volume_up": lambda: self.set_volume(int(self.volume.get()) + 5),
+                "volume_down": lambda: self.set_volume(int(self.volume.get()) - 5),
+                "mute": self.toggle_mute, "shuffle": lambda: self.set_shuffle(not c.shuffle),
+                "repeat": self._cycle_repeat,
+                "mini": lambda: self.close_mini() if self.mini is not None else self.open_mini(),
+                "lyrics": lambda: self.open_lyrics(), "search": self._key_search}
+
+    def _key_search(self):
+        self.view_switch.set(VIEW_FIND)
+        self._show_view(VIEW_FIND)
+        self.search_entry.focus_set()
+
+    def shortcut_keys(self):
+        """(inside the window, everywhere): {action: sequence} with the defaults where nothing was set."""
+        return (hotkeys.clean(self.store.state.get("keys"), hotkeys.DEFAULT_KEYS),
+                hotkeys.clean(self.store.state.get("global_keys"), hotkeys.DEFAULT_GLOBAL))
+
+    def set_shortcuts(self, keys, global_keys):
+        self.store.set_state(keys=dict(keys), global_keys=dict(global_keys))
+        self.apply_keys()
+
+    def apply_keys(self):
+        """Bind the shortcuts (the old ones go first) and give the global ones to the key thread."""
+        for widget, sequence in getattr(self, "_bound_keys", []):
+            try:
+                widget.unbind(sequence)
+            except tk.TclError:
+                pass
+        self._bound_keys = []
+        keys, global_keys = self.shortcut_keys()
+        actions = self.key_actions()
+        for name, seq in keys.items():
+            if not seq or name not in actions:
+                continue
+            sequence = hotkeys.tk_sequence(seq)
+            quiet = hotkeys.needs_quiet_typing(seq)
+            handler = lambda e, name=name, quiet=quiet: self._on_shortcut(e, name, quiet)   # noqa: E731
+            for widget in (self, self.tree, self.results_tree):          # the tables: before their own keys
+                try:
+                    widget.bind(sequence, handler)
+                    self._bound_keys.append((widget, sequence))
+                except tk.TclError:
+                    pass
+        self.keys.set_extra({name: hotkeys.win32(seq) for name, seq in global_keys.items() if seq})
+
+    def _on_shortcut(self, event, name, quiet):
+        if quiet and (isinstance(event.widget, (tk.Entry, tk.Text)) or "entry" in str(event.widget).lower()
+                      or "textbox" in str(event.widget).lower()):
+            return None                                      # typing in a box: the key is the box's
+        self.key_actions()[name]()
+        return "break"
 
     def _key_space(self, event):
         if isinstance(event.widget, (tk.Entry, tk.Text)) or "entry" in str(event.widget).lower():
@@ -1011,6 +1152,7 @@ class MusicWindow(ctk.CTkToplevel):
                 ("⏭ Sıradaki olarak çal", self._play_next_selected),
                 ("➕ Sıraya ekle", self._queue_selected),
                 ("📂 Klasörde göster", self._reveal_selected),
+                ("📻 Bu şarkıdan radyo", lambda: self.start_radio(first)),
                 (words, self._lyrics_for_selected), *again,
                 ("✎ Sözleri elle yaz / düzenle", lambda: self.edit_lyrics(first)),
                 ("🏷 Bilgileri düzenle (ad, sanatçı, kapak)…", lambda: self.edit_tags(first)),
@@ -1716,8 +1858,7 @@ class MusicWindow(ctk.CTkToplevel):
                 key = self.keys.pressed.get_nowait()
             except Exception:  # noqa: BLE001 - queue.Empty
                 break
-            {"toggle": self._toggle, "next": self._next, "previous": self._previous,
-             "stop": self._stop}.get(key, lambda: None)()
+            self.key_actions().get(key, lambda: None)()
 
     # ------------------------------------------------------------------ finding songs
     def _search(self):
@@ -2153,7 +2294,7 @@ class MusicWindow(ctk.CTkToplevel):
         length = c.length_ms()
         if at >= (min(playlists.PLAYED_AFTER_MS, length // 2) if length else playlists.PLAYED_AFTER_MS):
             self._listen_counted = True
-            self.store.count_play(path)
+            self.store.count_play(path, track=c.current_track())
 
     def _tick(self):
         """Four times a second: the end of a track, new answers, the clock. An error in one round

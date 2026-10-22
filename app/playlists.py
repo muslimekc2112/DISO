@@ -18,6 +18,9 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "level": False,                                           # 🔊 even volume (loudness.py)
                   "rename_pattern": "{sanatçı} - {şarkı}",                   # ✏ the file name pattern used last
                   "mini_top": True, "mini_place": "",                       # 🗗 the mini player: on top? where?
+                  "eq_advanced": False,                                     # 🎛 the eight bands shown
+                  "keys": {}, "global_keys": {},                            # ⌨ the user's shortcuts (hotkeys.py)
+                  "vis_style": "Çubuklar", "vis_palette": "Mor",            # 🌈 the visualizer's picture and colours
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
 # ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)
@@ -57,6 +60,20 @@ def _clean_stats(data) -> dict:
         if entry:
             out[key] = entry
     return out
+
+
+MAX_LOG = 20000           # listenings kept for the 📊 statistics (years of music)
+
+
+def _clean_log(data) -> list:
+    out = []
+    for e in data if isinstance(data, list) else ():
+        if (isinstance(e, dict) and isinstance(e.get("t"), (int, float)) and not isinstance(e["t"], bool)
+                and isinstance(e.get("title"), str)):
+            out.append({"t": float(e["t"]), "k": str(e.get("k") or ""), "title": e["title"],
+                        "artist": str(e.get("artist") or ""),
+                        "ms": int(e["ms"]) if isinstance(e.get("ms"), int) and e["ms"] > 0 else 0})
+    return out[-MAX_LOG:]
 
 
 def same_file(a: str, b: str) -> bool:
@@ -105,6 +122,7 @@ class PlaylistStore:
         self.lists = {}                       # name -> [track, ...]   (dict keeps the order)
         self.state = dict(STATE_DEFAULTS)
         self.stats = {}                       # file_key -> {"plays": n, "last": time, "first": time added}
+        self.log = []                         # every listening: {"t", "k", "title", "artist", "ms"} (📊)
         self._load()
         if not any(not is_smart(n) for n in self.lists):
             self.lists = {DEFAULT_NAME: [], **self.lists}
@@ -125,6 +143,7 @@ class PlaylistStore:
             if isinstance(name, str) and name.strip() and isinstance(tracks, list):
                 self.lists[name] = [t for t in map(_clean_track, tracks) if t]
         self.stats = _clean_stats(data.get("stats"))
+        self.log = _clean_log(data.get("log"))
         saved = data.get("state", {})
         if isinstance(saved, dict):
             for key, default in STATE_DEFAULTS.items():
@@ -143,7 +162,8 @@ class PlaylistStore:
     def save(self):
         with self._lock:
             try:
-                safefile.write_json(self.path, {"playlists": self.lists, "state": self.state, "stats": self.stats},
+                safefile.write_json(self.path, {"playlists": self.lists, "state": self.state, "stats": self.stats,
+                                                 "log": self.log},
                                     indent=2)
             except OSError:
                 pass
@@ -414,15 +434,74 @@ class PlaylistStore:
         for path in paths:
             self.stats.setdefault(file_key(path), {}).setdefault("first", now)
 
-    def count_play(self, path, when=None):
-        """The song was listened to (see PLAYED_AFTER_MS)."""
+    def count_play(self, path, when=None, track=None):
+        """The song was listened to (see PLAYED_AFTER_MS); `track` gives its name for the 📊 statistics."""
         import time
         now = time.time() if when is None else float(when)
-        s = self.stats.setdefault(file_key(path), {})
+        key = file_key(path)
+        s = self.stats.setdefault(key, {})
         s["plays"] = s.get("plays", 0) + 1
         s["last"] = now
         s.setdefault("first", now)
+        artist, title = artist_and_title(track or self._track_by_key(key) or
+                                         {"title": os.path.splitext(os.path.basename(path))[0]})
+        self.log.append({"t": now, "k": key, "title": title, "artist": artist,
+                         "ms": int((track or self._track_by_key(key) or {}).get("duration") or 0)})
+        del self.log[:-MAX_LOG]
         self.save()
+
+    def _track_by_key(self, key):
+        for tracks in self.lists.values():
+            for t in tracks:
+                if file_key(t["path"]) == key:
+                    return t
+        return None
+
+    def summary(self, since=0.0, until=None) -> dict:
+        """📊 What was listened to between two times (seconds since 1970): {"plays", "ms", "songs":
+        [(title, artist, plays)], "artists": [(artist, plays, ms)], "hours": [24 counts], "days": n,
+        "streak": the most days in a row}. Listenings from before the log are counted for "all time"
+        (since=0) from the songs' play counts."""
+        import datetime
+        entries = [e for e in self.log if e["t"] >= since and (until is None or e["t"] < until)]
+        songs, artists, hours, days = {}, {}, [0] * 24, set()
+        for e in entries:
+            key = (e["title"], e["artist"])
+            songs[key] = songs.get(key, 0) + 1
+            a = artists.setdefault(e["artist"] or "?", [0, 0])
+            a[0] += 1
+            a[1] += e["ms"]
+            when = datetime.datetime.fromtimestamp(e["t"])
+            hours[when.hour] += 1
+            days.add(when.date())
+        plays, ms = len(entries), sum(e["ms"] for e in entries)
+        if not since:                                    # counted before there was a log: add them
+            logged = {}
+            for e in self.log:
+                logged[e["k"]] = logged.get(e["k"], 0) + 1
+            for key, s in self.stats.items():
+                extra = s.get("plays", 0) - logged.get(key, 0)
+                track = self._track_by_key(key) if extra > 0 else None
+                if not track:
+                    continue
+                artist, title = artist_and_title(track)
+                songs[(title, artist)] = songs.get((title, artist), 0) + extra
+                a = artists.setdefault(artist or "?", [0, 0])
+                a[0] += extra
+                a[1] += extra * int(track.get("duration") or 0)
+                plays += extra
+                ms += extra * int(track.get("duration") or 0)
+        streak = best = 0
+        previous = None
+        for day in sorted(days):
+            streak = streak + 1 if previous is not None and (day - previous).days == 1 else 1
+            best = max(best, streak)
+            previous = day
+        return {"plays": plays, "ms": ms,
+                "songs": sorted(((t, a, n) for (t, a), n in songs.items()), key=lambda x: (-x[2], x[0].casefold())),
+                "artists": sorted(((a, n, m) for a, (n, m) in artists.items() if a != "?"),
+                                  key=lambda x: (-x[1], x[0].casefold())),
+                "hours": hours, "days": len(days), "streak": best}
 
     def plays(self, path) -> int:
         return self.stats.get(file_key(path), {}).get("plays", 0)

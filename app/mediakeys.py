@@ -22,10 +22,14 @@ MOD_NOREPEAT = 0x4000
 KEYS = {1: (0xB3, "toggle"), 2: (0xB0, "next"), 3: (0xB1, "previous"), 4: (0xB2, "stop")}
 
 
+EXTRA_FIRST_ID = 100
+
+
 class MediaKeys:
     def __init__(self):
         self.pressed = queue.Queue()          # "toggle" / "next" / "previous" / "stop", read on the UI thread
         self.taken = set()                    # the names of the keys this program holds
+        self.extra = {}                       # ⌨ the user's keys that work everywhere: name -> (modifiers, vk)
         self._thread = None
         self._thread_id = 0
         self._ready = threading.Event()
@@ -45,6 +49,17 @@ class MediaKeys:
         self._thread.start()
         self._ready.wait(3)
         return self.taken
+
+    def set_extra(self, keys):
+        """The user's own keys that work everywhere ({action: (modifiers, virtual key)}); taken at once if
+        the keys are being held now."""
+        keys = {name: combo for name, combo in (keys or {}).items() if combo}
+        if keys == self.extra:
+            return
+        self.extra = keys
+        if self.active:
+            self.stop()
+            self.start()
 
     def stop(self):
         """Give the keys back."""
@@ -68,6 +83,9 @@ class MediaKeys:
             for hotkey_id, (vk, name) in KEYS.items():
                 if user32.RegisterHotKey(None, hotkey_id, MOD_NOREPEAT, vk):
                     ids[hotkey_id] = name
+            for n, (name, (mods, vk)) in enumerate(sorted(self.extra.items())):
+                if user32.RegisterHotKey(None, EXTRA_FIRST_ID + n, mods | MOD_NOREPEAT, vk):
+                    ids[EXTRA_FIRST_ID + n] = name
             self.taken = set(ids.values())
         except Exception:  # noqa: BLE001 - no media keys then; the player works without them
             log.exception("media keys unavailable")
