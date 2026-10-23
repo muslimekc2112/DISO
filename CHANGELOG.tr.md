@@ -2,7 +2,7 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
-## 1.2.1
+## 1.3
 - **↑ / ↓ ile ses:** müzik çalarda ↑ sesi açar, ↓ kısar (5'er); basılı tutunca önce yavaş, sonra gittikçe hızlı.
 - **← / → yalnızca sarar:** iki kez basınca sonraki / önceki şarkıya geçme kaldırıldı; her basış 5 saniye, basılı tutunca sarmaya devam eder.
 - **🎨 Müziğin rengi:** renk artık bütün pencerede değil, şarkının olduğu blokta ve müziğin o anına göre değişiyor (YouTube'daki ışık gibi): kapağın renkleri bas, orta ve tize göre karışır, ses yükseldikçe parlar. Duraklatınca sakin, kapağın kendi renginde kalır.

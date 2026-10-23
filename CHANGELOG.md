@@ -2,7 +2,7 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
-## 1.2.1
+## 1.3
 - **↑ / ↓ for the volume:** in the music player ↑ turns it up and ↓ down (by 5); held down it goes slowly at first, then faster and faster.
 - **← / → only go back / forward:** pressing twice no longer jumps to the next / previous song; every press is 5 seconds, held down it keeps going.
 - **🎨 The colour of the music:** the colour is no longer on the whole window but on the player's block, and it follows each moment of the music (like YouTube's ambient light): the cover's colours mix by the bass, middle and treble and glow brighter as it gets louder. Paused, it stays calm in the cover's own colour.
