@@ -796,6 +796,19 @@ PLAIN = {
     'Hep üstte': 'Always on top', 'Büyük pencere': 'Big window', 'Çalmaya hazırlanıyor…': 'Getting ready to play…',
     'Uyku zamanlayıcısı': 'Sleep timer', 'Şarkı sözleri': 'Lyrics',
 
+    # ---- 1.2: Windows Defender on every download
+    "🛡 Windows Defender tarıyor…": "🛡 Windows Defender is scanning…", "🛡 Windows Defender: temiz": "🛡 Windows Defender: clean",
+    "⚠ Windows Defender tehdit buldu ve karantinaya aldı": "⚠ Windows Defender found a threat and quarantined it",
+    "🛡 Windows Defender yok ya da kapalı (başka bir antivirüs olabilir): taranamadı":
+        "🛡 Windows Defender is missing or off (maybe another antivirus): not scanned",
+    "🛡 Windows Defender bu dosyayı tarayamadı": "🛡 Windows Defender could not scan this file",
+    "🛡 Windows Defender kapalı ya da yok: indirmeler taranamıyor": "🛡 Windows Defender is off or missing: downloads cannot be scanned",
+    # ---- 1.2: downloads from any site
+    "Bu site doğrudan desteklenmiyor. Videoyu tarayıcıda oynat; DISO eklentisinin 🎞 listesinden (ya da sayfada sağ tık → MP4 indir) oynayan videoyu indir.":
+        "This site is not supported directly. Play the video in the browser, then download it from the DISO extension's 🎞 list (or right-click the page → download as MP4).",
+    "Sayfa doğrudan inmedi; sayfada oynayan videoyu indiriyorum…": "The page itself could not be downloaded; downloading the video it played…",
+    "Sayfanın altyazıları indiriliyor…": "Downloading the page's subtitles…",
+    "Sayfanın altyazıları indirilemedi": "The page's subtitles could not be downloaded",
     # ---- 1.2: speed, ordering, cover colours, the new visualizer
     "Kendi sıram": "My own order", "Son eklenen en başta": "Newest first", "Son eklenen en sonda": "Newest last",
     "En popüler en başta": "Most played first", "Sütuna göre": "By column",

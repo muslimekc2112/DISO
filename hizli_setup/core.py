@@ -704,6 +704,7 @@ def uninstall(install_dir, env: Env, remove_data=False, progress=_noop, closer=w
     try:                                              # 🧲 .torrent / magnet: the app registered them for its user
         from app import associations
         associations.unregister(winreg.HKEY_CURRENT_USER, env.reg_prefix, inside=install_dir)
+        associations.unregister_toast_identity(winreg.HKEY_CURRENT_USER, env.reg_prefix)
     except Exception:  # noqa: BLE001 - a leftover registration only points to a program that is gone
         pass
     files += [n for n in (native_host.CHROME_MANIFEST, native_host.FIREFOX_MANIFEST) if n not in files]

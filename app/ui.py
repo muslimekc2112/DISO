@@ -2645,7 +2645,7 @@ class App(NostalgiaWindow, ctk.CTk):
             path = it.final_path
             if not path or not os.path.exists(path):
                 continue
-            if self.cfg.get("defender_scan") and os.path.isfile(path):
+            if self.cfg.get("defender_scan"):              # a file, or a torrent's folder with all in it
                 self.scanner.scan(it)
             if usb == "all" and os.path.isfile(path) or usb == "songs" and player.is_audio(path):
                 self.usb.copy(path)
@@ -2654,9 +2654,13 @@ class App(NostalgiaWindow, ctk.CTk):
         """What the helpers beside the downloads found (on the window's thread)."""
         for it, verdict in self.scanner.drain():
             if verdict == "threat":
-                it.message = "⚠ Windows Defender tehdit buldu"
+                if extras.SCAN_TEXTS["threat"] not in (it.message or ""):
+                    it.message = extras.SCAN_TEXTS["threat"]
                 self.notice(f"⚠ Windows Defender “{it.display_name}” dosyasında tehdit buldu ve karantinaya aldı", 30)
                 notify.toast("Virüs bulundu", f"{it.display_name}: Windows Defender karantinaya aldı")
+            elif verdict == "missing" and not getattr(self, "_told_no_defender", False):
+                self._told_no_defender = True                # once a session is enough
+                self.notice("🛡 Windows Defender kapalı ya da yok: indirmeler taranamıyor", 12)
         found = self.watcher.drain()
         if found:
             added = self._add_from_paths(found)
@@ -2730,6 +2734,12 @@ class App(NostalgiaWindow, ctk.CTk):
                 associations.register_protocol(exe)   # the notification's "Open" / "Show in folder"
             except OSError as e:
                 log.info("could not register diso: links: %s", e)
+            try:                                      # 🔔 notifications come from "DISO", with its icon
+                from .utils import resource_path
+                icon = associations.toast_icon(resource_path(os.path.join("assets", "icon.png")), app_data_dir())
+                associations.register_toast_identity(icon)
+            except OSError as e:
+                log.info("could not register the notifications' name: %s", e)
         if exe and self.cfg.get("associate"):
             try:
                 associations.register(exe)

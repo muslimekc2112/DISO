@@ -176,6 +176,55 @@ def open_default_apps():
     return False
 
 
+# ---- 🔔 the notifications' own name and picture: "DISO" with its icon, not "Windows PowerShell" (notify.py)
+TOAST_ID = "ISO.DISO"
+
+
+def _toast_key(prefix=""):
+    return prefix + r"Software\Classes\AppUserModelId" + "\\" + TOAST_ID
+
+
+def register_toast_identity(icon, hive=None, prefix="") -> str:
+    """Tell Windows who TOAST_ID is (shown on top of every notification). Returns TOAST_ID."""
+    import winreg
+    hive = winreg.HKEY_CURRENT_USER if hive is None else hive
+    _set(hive, _toast_key(prefix), "DisplayName", APP_NAME)
+    if icon:
+        _set(hive, _toast_key(prefix), "IconUri", icon)
+    return TOAST_ID
+
+
+def unregister_toast_identity(hive=None, prefix="") -> None:
+    import winreg
+    _delete_tree(winreg.HKEY_CURRENT_USER if hive is None else hive, _toast_key(prefix))
+
+
+def toast_identity(hive=None, prefix="") -> str:
+    """TOAST_ID once it is registered for this user, else "" (the notification then comes from PowerShell)."""
+    try:
+        import winreg
+    except ImportError:
+        return ""
+    hive = winreg.HKEY_CURRENT_USER if hive is None else hive
+    return TOAST_ID if _get(hive, _toast_key(prefix), "DisplayName") else ""
+
+
+def toast_icon(source, data_dir) -> str:
+    """The icon the notifications show, copied where it stays (a portable DISO.exe unpacks itself somewhere new
+    each time). "" when there is none."""
+    import shutil
+    if not source or not os.path.isfile(source):
+        return ""
+    target = os.path.join(data_dir, "notification_icon.png")
+    try:
+        if not os.path.isfile(target) or os.path.getsize(target) != os.path.getsize(source):
+            os.makedirs(data_dir, exist_ok=True)
+            shutil.copyfile(source, target)
+        return target
+    except OSError:
+        return ""
+
+
 # ---- diso: links, used by the buttons of the "download finished" notification (notify.py)
 PROTOCOL = "diso"
 

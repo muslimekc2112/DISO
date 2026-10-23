@@ -1,6 +1,7 @@
 """Beside the downloads: 🚀 the speed test, 🛡 Windows Defender's scan, 📂 the watched folder and 🔌 copying
 onto a USB stick — on their own and in the window."""
 import os
+import sys
 import time
 from types import SimpleNamespace
 
@@ -76,6 +77,61 @@ def test_the_scanner_works_one_after_another():
         out += scanner.drain()
         time.sleep(0.02)
     assert out == [(a, "clean"), (b, "threat")] and seen == ["good.zip", "bad.exe"]
+
+
+def test_each_download_shows_what_defender_said(tmp_path):
+    scanner = extras.Scanner(scan=lambda path: {"a": "clean", "b": "threat", "c": "missing"}.get(os.path.basename(path), "unknown"))
+    items = [SimpleNamespace(final_path=str(tmp_path / n), message=m)
+             for n, m in (("a", "1 altyazı kaydedildi"), ("b", ""), ("c", ""), ("d", extras.SCAN_TEXTS["clean"]))]
+    for it in items:
+        scanner.scan(it)
+    end = time.time() + 5
+    out = []
+    while len(out) < 4 and time.time() < end:
+        out += scanner.drain()
+        time.sleep(0.02)
+    assert [v for _, v in out] == ["clean", "threat", "missing", "unknown"]
+    assert items[0].message == "1 altyazı kaydedildi  •  🛡 Windows Defender: temiz"
+    assert items[1].message.startswith("⚠ Windows Defender tehdit buldu")
+    assert "taranamadı" in items[2].message
+    assert items[3].message == extras.SCAN_TEXTS["unknown"]                     # an old verdict is replaced, not added
+    broken = extras.Scanner(scan=lambda path: 1 / 0)
+    it = SimpleNamespace(final_path="x", message="")
+    broken.scan(it)
+    end = time.time() + 5
+    got = []
+    while not got and time.time() < end:
+        got = broken.drain()
+        time.sleep(0.02)
+    assert got == [(it, "unknown")]
+
+
+def test_without_defender_nothing_is_run():
+    import app.extras as ex
+    real = ex.defender_tool
+    try:
+        ex.defender_tool = lambda: None
+        assert ex.scan_file(__file__, run=lambda *a, **k: 1 / 0) == "missing"
+    finally:
+        ex.defender_tool = real
+
+
+def test_the_service_being_off_is_told_apart():
+    def run(args, **k):
+        return SimpleNamespace(returncode=-2147023174, stdout=b"ERROR: 0x800106ba", stderr=b"")
+    assert extras.scan_file(__file__, tool="Mp.exe", run=run) == "missing"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows Defender")
+def test_the_real_defender_scans_a_file_and_a_folder(tmp_path):
+    if not extras.defender_tool():
+        pytest.skip("no Windows Defender here")
+    f = tmp_path / "film.mp4"
+    f.write_bytes(b"0" * 200000)
+    (tmp_path / "torrent").mkdir()
+    (tmp_path / "torrent" / "a.txt").write_text("merhaba", encoding="utf-8")
+    assert extras.scan_file(str(f)) == "clean"
+    assert extras.scan_file(str(tmp_path / "torrent")) == "clean"
 
 
 def test_defender_is_found_on_this_windows():

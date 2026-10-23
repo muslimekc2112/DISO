@@ -84,3 +84,31 @@ def test_the_setting_is_a_switch(app, monkeypatch):
     app.set_associate(False)
     app.set_associate(True)
     assert called == [("off",), ("on", EXE)] and app.cfg.get("associate") is True
+
+
+# ------------------------------------------------------------------------------ 🔔 the notifications' name
+def test_notifications_get_disos_name_and_icon(prefix, tmp_path):
+    from app import notify
+    assert a.toast_identity(prefix=prefix) == ""                                # not yet: PowerShell's name
+    src = tmp_path / "icon.png"
+    src.write_bytes(b"png" * 10)
+    icon = a.toast_icon(str(src), str(tmp_path / "data"))
+    assert icon.endswith("notification_icon.png") and open(icon, "rb").read() == b"png" * 10
+    assert a.toast_icon(str(tmp_path / "none.png"), str(tmp_path / "data")) == ""
+    assert a.register_toast_identity(icon, prefix=prefix) == "ISO.DISO"
+    assert get(prefix, r"Software\Classes\AppUserModelId\ISO.DISO", "DisplayName") == "DISO"
+    assert get(prefix, r"Software\Classes\AppUserModelId\ISO.DISO", "IconUri") == icon
+    assert a.toast_identity(prefix=prefix) == "ISO.DISO"
+    a.unregister_toast_identity(prefix=prefix)
+    assert a.toast_identity(prefix=prefix) == ""
+    script = notify._TOAST_PS
+    assert "$env:HI_APP" in script and "powershell.exe" in script                # PowerShell only when DISO has none
+
+
+def test_the_toast_is_sent_as_diso_when_it_is_registered(monkeypatch):
+    from app import notify
+    seen = {}
+    monkeypatch.setattr(notify, "_WIN", True)
+    monkeypatch.setattr(a, "toast_identity", lambda: "ISO.DISO")
+    monkeypatch.setattr(notify.subprocess, "run", lambda cmd, **kw: seen.update(kw["env"]) or type("R", (), {"returncode": 0})())
+    assert notify.show_toast("DISO", "bitti") == 0 and seen["HI_APP"] == "ISO.DISO"

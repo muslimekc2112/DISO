@@ -85,10 +85,19 @@ def defender_tool():
     return next((p for p in found if os.path.isfile(p)), None)
 
 
+SCAN_TEXTS = {"scanning": "🛡 Windows Defender tarıyor…", "clean": "🛡 Windows Defender: temiz",
+              "threat": "⚠ Windows Defender tehdit buldu ve karantinaya aldı",
+              "missing": "🛡 Windows Defender yok ya da kapalı (başka bir antivirüs olabilir): taranamadı",
+              "unknown": "🛡 Windows Defender bu dosyayı tarayamadı"}
+
+
 def scan_file(path, tool=None, run=subprocess.run) -> str:
-    """"clean", "threat" or "unknown" (Defender could not say)."""
+    """"clean", "threat", "missing" (no Defender here) or "unknown" (Defender could not say). A folder (a torrent
+    with several files) is scanned with everything in it."""
     tool = tool or defender_tool()
-    if not tool or not os.path.exists(path):
+    if not tool:
+        return "missing"
+    if not os.path.exists(path):
         return "unknown"
     try:
         r = run([tool, "-Scan", "-ScanType", "3", "-File", path], capture_output=True, timeout=600,
@@ -96,7 +105,13 @@ def scan_file(path, tool=None, run=subprocess.run) -> str:
     except (OSError, subprocess.SubprocessError) as e:
         log.info("defender: %s", e)
         return "unknown"
-    return {0: "clean", 2: "threat"}.get(r.returncode, "unknown")
+    verdict = {0: "clean", 2: "threat"}.get(r.returncode, "unknown")
+    if verdict == "unknown":
+        out = b"".join(getattr(r, k, None) or b"" for k in ("stdout", "stderr")).decode("utf-8", "replace")
+        log.info("defender said %s for %s: %s", r.returncode, path, out.strip()[-300:])
+        if "0x800106ba" in out.lower():                          # the Defender service is off (another antivirus)
+            verdict = "missing"
+    return verdict
 
 
 class Scanner:
@@ -121,7 +136,16 @@ class Scanner:
                 item = self._jobs.get(timeout=5)
             except queue.Empty:
                 return
-            self._done.put((item, self._scan(item.final_path)))
+            before = getattr(item, "message", "") or ""
+            before = "" if before in SCAN_TEXTS.values() else before          # ("2 altyazı kaydedildi" stays)
+            item.message = "  •  ".join(m for m in (before, SCAN_TEXTS["scanning"]) if m)
+            try:
+                verdict = self._scan(item.final_path)
+            except Exception:  # noqa: BLE001 - a scan that breaks says so, the next one still runs
+                log.exception("defender scan")
+                verdict = "unknown"
+            item.message = "  •  ".join(m for m in (before, SCAN_TEXTS.get(verdict, SCAN_TEXTS["unknown"])) if m)
+            self._done.put((item, verdict))
 
     def drain(self):
         out = []

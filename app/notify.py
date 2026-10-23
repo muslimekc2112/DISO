@@ -29,7 +29,8 @@ if ($env:HI_OPEN_LINK) {
 }
 $xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$title</text><text>$body</text></binding></visual>$actions</toast>")
 $toast = New-Object Windows.UI.Notifications.ToastNotification $xml
-$app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+$app = $env:HI_APP                                   # DISO's own name and icon (associations.TOAST_ID)
+if (-not $app) { $app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe' }
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show($toast)
 """
 
@@ -59,6 +60,14 @@ def toast_command(title: str, body: str, system=None):
     return None
 
 
+def _toast_app() -> str:
+    try:
+        from . import associations
+        return associations.toast_identity()
+    except Exception:  # noqa: BLE001 - PowerShell's name then
+        return ""
+
+
 def toast_buttons(path) -> dict:
     """The environment that puts "Open" / "Show in folder" on the toast (empty: no buttons; DISO must be
     the installed DISO.exe, which answers the diso: links)."""
@@ -83,7 +92,7 @@ def show_toast(title: str, body: str, timeout: int = 20, path=None) -> int:
         except Exception:
             return -1
     script = base64.b64encode(_TOAST_PS.encode("utf-16-le")).decode("ascii")
-    env = dict(os.environ, HI_TITLE=str(title)[:100], HI_BODY=str(body)[:240])
+    env = dict(os.environ, HI_TITLE=str(title)[:100], HI_BODY=str(body)[:240], HI_APP=_toast_app())
     env.pop("HI_OPEN_LINK", None)
     env.update(toast_buttons(path))
     try:

@@ -35,7 +35,8 @@ RULES = [
       "temporary failure in name resolution", "getaddrinfo", "network is unreachable", "connection refused",
       "bağlantı", "incomplete read", "ssl"),
      "İnternet bağlantısı koptu ya da sunucu cevap vermedi.", "retry"),
-    (("unsupported url",), "Bu linkte indirilebilecek bir video ya da dosya bulamadım.", None),
+    (("unsupported url",), "Bu site doğrudan desteklenmiyor. Videoyu tarayıcıda oynat; DISO eklentisinin "
+                           "🎞 listesinden (ya da sayfada sağ tık → MP4 indir) oynayan videoyu indir.", None),
 ]
 
 FIXES = {
