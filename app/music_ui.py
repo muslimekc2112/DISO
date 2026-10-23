@@ -46,6 +46,7 @@ SLEEP_CHOICES = [SLEEP_OFF, "15 dk", "30 dk", "45 dk", "60 dk", "90 dk", SLEEP_T
 SORT_COLUMNS = {"title": "title", "artist": "artist", "time": "time"}
 SEEK_STEP = 5000           # ms: ⏪ / ⏩ and a single ← / →
 VOLUME_STEP = 5            # ↑ / ↓ once; held down it speeds up (VOLUME_RAMP)
+COVER_MELT = 8             # frames of the old cover melting into the new one
 PULSE_MS = 130             # 🎨 how often the player's block takes the colour of the music's moment
 SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0)
 PITCHES = (-6, -4, -2, -1, 0, 1, 2, 4, 6)
@@ -241,6 +242,8 @@ class MusicWindow(ctk.CTkToplevel):
         self._tags_save = None
         self._cover_path = None                      # the track whose cover is shown (or asked for)
         self._cover_image = None
+        self._cover_pil = None                       # the cover shown, as a picture (to melt into the next one)
+        self._cover_job_token = None
         self._covers = {}                            # path -> jpeg path or None, for this session
         self._missing = None                         # deleted files found by the background check
         self._checking = False
@@ -1944,19 +1947,43 @@ class MusicWindow(ctk.CTkToplevel):
         self.store.save()
 
     def _set_cover(self, jpg, final=True):
-        """Show the cover (or the placeholder when there is none). final=False: only the old one goes, the
-        new one is being read (the window's colour waits for it)."""
+        """Show the cover (or the placeholder when there is none), the old one melting into the new one.
+        final=False: the new one is being read; the old one stays until it comes (no blink of the empty tile)."""
+        from .ui_common import animations_on
+        if not final and animations_on() and self._cover_pil is not None:
+            return
         img = square_cover(jpg) if jpg else None
         if final:
             self._ambient_from(jpg if img is not None else None)
+        self._cover_job_token = None                       # a running melt stops
         if img is None:
             self.cover_label.configure(image=self._placeholder, text="♪")
-            self._cover_image = None
+            self._cover_image = self._cover_pil = None
             return
         img = rounded(img, img.width // 8)
+        old, self._cover_pil = self._cover_pil, img
+        if old is None or old.size != img.size or not animations_on():
+            self._show_cover_picture(img)
+            return
+        token = self._cover_job_token = object()
+        frames = COVER_MELT
+
+        def step(k=1):
+            if self._cover_job_token is not token or self._closed:
+                return
+            from PIL import Image
+            try:
+                self._show_cover_picture(img if k >= frames else Image.blend(old, img, k / frames))
+            except tk.TclError:
+                return
+            if k < frames:
+                self.after(28, lambda: step(k + 1))
+        step()
+
+    def _show_cover_picture(self, img):
         new = ctk.CTkImage(light_image=img, dark_image=img, size=(COVER_PX, COVER_PX))
         self.cover_label.configure(image=new, text="")
-        self._cover_image = new
+        self._cover_image = new                             # (kept: a picture nobody holds disappears)
 
     def _show_now_playing(self):
         """Title, artist / album and the cover of the track that plays."""

@@ -34,7 +34,8 @@ from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED,
                      QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
 from .segmented_downloader import LIMITER, check_connection, set_proxy
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
-from .ui_common import guard_color_emoji, install_bring_forward, install_smooth_scrolling, install_wrap_to_fit, no_window_animation
+from .ui_common import (cross_fade, fade_in, fade_out_and, guard_color_emoji, install_bring_forward, install_smooth_scrolling,
+                        install_soft_windows, install_wrap_to_fit, no_window_animation)
 
 guard_color_emoji()                 # Linux with an old libXft: before the first window
 install_smooth_scrolling()
@@ -53,6 +54,7 @@ CONNECTIONS = ["8", "16", "32"]
 LANGUAGE_SHORT = {"TR": "Türkçe", "EN": "English"}          # the switch at the top left of the main window
 LANGUAGE_NAMES = {name: short for short, name in LANGUAGE_SHORT.items()}
 EXTENSION_OFFER_DELAY = 4000            # ms after the start: "add DISO to your browser?" (once the window is settled)
+MUSIC_PREPARE_AFTER = 3500     # ms after the start: the music window is made in the background (⚡)
 EXTENSION_LATER = 3 * 24 * 3600         # s: "remind me later" asks again after three days
 BAD = "#b23b3b"
 BAD_HOVER = "#8f2e2e"
@@ -482,7 +484,62 @@ class SettingsPanel(ctk.CTkToplevel):
             self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
             self.body.grid(row=1, column=0, sticky="nsew", padx=14, pady=4)
 
+        foot = ctk.CTkFrame(self, fg_color="transparent")
+        foot.grid(row=2, column=0, sticky="ew", padx=24, pady=(8, 14))
+        foot.columnconfigure(4, weight=1)
+        ctk.CTkButton(foot, text="🔔 Bildirimi dene", width=140, command=app.test_notification).grid(row=0, column=0)
+        self.log_button = ctk.CTkButton(foot, text="📜 Günlüğü aç", width=120, command=app.open_log)
+        self.log_button.grid(row=0, column=1, padx=8)
+        self.about_button = ctk.CTkButton(foot, text="ℹ Hakkında", width=110, command=app.open_about)
+        self.about_button.grid(row=0, column=2)
+        ctk.CTkButton(foot, text="🎉 Yenilikler", width=110, command=app.open_whats_new).grid(row=0, column=3, padx=8)
+        ctk.CTkButton(foot, text="Kapat", width=100, command=lambda: fade_out_and(self, self.destroy)).grid(row=0, column=5)
+
+        self._proxy_result = None
+        self._speed_result = None
+        # ⚡ the groups are made one after another: the window is there at once (with the first one) and
+        # stays responsive; asking for a control of a group not made yet makes the rest at once (__getattr__)
+        self._pending = [self._part_download, self._part_notifications, self._part_scheduler, self._part_system,
+                         self._part_backup, self._part_extras, self._part_finished]
+        self._build_job = None
+        self._pending.pop(0)()
+        self._build_job = self.after(1, self._build_next)
+        self.after(500, self._sync)
+
+    def _build_next(self):
+        self._build_job = None
+        pending = self.__dict__.get("_pending")
+        if not pending:
+            return
+        try:
+            pending.pop(0)()
+        except TclError:                               # closed meanwhile
+            pending.clear()
+            return
+        if pending:
+            self._build_job = self.after(1, self._build_next)
+
+    def build_rest(self):
+        """Make the groups that are not made yet, now."""
+        pending = self.__dict__.get("_pending")
+        if self.__dict__.get("_build_job") is not None:
+            try:
+                self.after_cancel(self._build_job)
+            except TclError:
+                pass
+            self._build_job = None
+        while pending:
+            pending.pop(0)()
+
+    def __getattr__(self, name):
+        if not name.startswith("_") and self.__dict__.get("_pending"):
+            self.build_rest()
+            return object.__getattribute__(self, name)
+        raise AttributeError(name)
+
+    def _part_download(self):
         # ---- general
+        app, cfg = self.app, self.app.cfg
         card = self._card("İndirme")
         self.parallel_menu = ctk.CTkOptionMenu(
             card, values=MAX_PARALLEL_CHOICES, width=150,
@@ -545,7 +602,9 @@ class SettingsPanel(ctk.CTkToplevel):
                   "MP3'ler “İndirilenler” listesine, YouTube listeleri kendi adıyla yeni bir listeye gider",
                   self.auto_music_switch)
 
+    def _part_notifications(self):
         # ---- notifications
+        app, cfg = self.app, self.app.cfg
         card = self._card("Bildirimler")
         self.sound_switch = self._switch(card, command=lambda: app.apply_setting(
             "notify_sound", bool(self.sound_switch.get())))
@@ -557,7 +616,9 @@ class SettingsPanel(ctk.CTkToplevel):
         self._set_switch(self.toast_switch, cfg.get("notify_toast"))
         self._add(card, "Windows bildirimi", "Sağ alttaki bildirim balonu", self.toast_switch)
 
+    def _part_scheduler(self):
         # ---- scheduler
+        app, cfg = self.app, self.app.cfg
         card = self._card("Zamanlayıcı")
         self.schedule_switch = self._switch(card, command=lambda: app.apply_setting(
             "schedule_on", bool(self.schedule_switch.get())))
@@ -579,7 +640,9 @@ class SettingsPanel(ctk.CTkToplevel):
         self._add(card, "Saatler (24 saat, ör. 02:00)", "Bitiş saatini boş bırakırsan başladıktan sonra hep açık kalır",
                   times)
 
+    def _part_system(self):
         # ---- system
+        app, cfg = self.app, self.app.cfg
         card = self._card("Sistem")
         self.tray_switch = self._switch(card, command=lambda: app.apply_setting(
             "tray_on_close", bool(self.tray_switch.get())))
@@ -631,7 +694,9 @@ class SettingsPanel(ctk.CTkToplevel):
         self.language_menu.set(cfg.get("language"))
         self._add(card, "Dil", "Arayüzün dili (değişince DISO yeniden açılır)", self.language_menu)
 
+    def _part_backup(self):
         # ---- backup, history, help
+        app, cfg = self.app, self.app.cfg
         card = self._card("Yedek ve yardım")
         self.backup_button = ctk.CTkButton(card, text="💾 Yedek al", width=150, command=app.make_backup)
         self._add(card, "Yedek al", "Ayarlar, çalma listeleri, indirme listesi ve geçmiş tek bir dosyaya", self.backup_button)
@@ -648,7 +713,9 @@ class SettingsPanel(ctk.CTkToplevel):
         self._add(card, "Sorun bildir", "Günlüğü ve sürümleri masaüstüne bir zip olarak koyar (listelerin, geçmişin, "
                   "çerezlerin olmadan) ve GitHub'da yeni bir sorun sayfası açar", self.report_button)
 
+    def _part_extras(self):
         # ---- the helpers beside the downloads
+        app, cfg = self.app, self.app.cfg
         card = self._card("Ekstralar")
         watch = ctk.CTkFrame(card, fg_color="transparent")
         self.watch_btn = ctk.CTkButton(watch, text="Klasör seç…", width=110, command=self._pick_watch_folder)
@@ -690,26 +757,14 @@ class SettingsPanel(ctk.CTkToplevel):
                                         "bağlantı sayısını önerir", speed)
         self._speed_result = None
 
+    def _part_finished(self):
         # ---- when everything is finished
+        app, cfg = self.app, self.app.cfg
         card = self._card("Bitince")
         self.after_menu = ctk.CTkOptionMenu(card, values=list(AFTER_ALL), width=150,
                                             command=app.set_after_all)
         self.after_menu.set(app.after_all)
         self._add(card, "Tüm indirmeler bitince", "Bir kere çalışır, kaydedilmez", self.after_menu)
-
-        foot = ctk.CTkFrame(self, fg_color="transparent")
-        foot.grid(row=2, column=0, sticky="ew", padx=24, pady=(8, 14))
-        foot.columnconfigure(4, weight=1)
-        ctk.CTkButton(foot, text="🔔 Bildirimi dene", width=140, command=app.test_notification).grid(row=0, column=0)
-        self.log_button = ctk.CTkButton(foot, text="📜 Günlüğü aç", width=120, command=app.open_log)
-        self.log_button.grid(row=0, column=1, padx=8)
-        self.about_button = ctk.CTkButton(foot, text="ℹ Hakkında", width=110, command=app.open_about)
-        self.about_button.grid(row=0, column=2)
-        ctk.CTkButton(foot, text="🎉 Yenilikler", width=110, command=app.open_whats_new).grid(row=0, column=3, padx=8)
-        ctk.CTkButton(foot, text="Kapat", width=100, command=self.destroy).grid(row=0, column=5)
-
-        self._proxy_result = None
-        self.after(500, self._sync)
 
     # ---- 📂 watched folder, 🚀 speed test
     def _show_watch(self):
@@ -797,6 +852,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def show_tab(self, title):
         """Show one group: its tab ("Nostalji"), or scroll the list down to it."""
+        self.build_rest()
         card = self._cards.get(title)
         if card is None:
             return
@@ -1268,6 +1324,7 @@ class App(NostalgiaWindow, ctk.CTk):
     def __init__(self, minimized=False, links=()):
         tooltip.install()                # every button explains itself when the mouse rests on it
         install_bring_forward()          # a window that opens comes in front (not behind this one)
+        install_soft_windows()           # ✨ ... softly: windows fade in and out
         self.cfg = Config()
         ctk.set_appearance_mode(look.appearance(THEMES.get(self.cfg.get("theme"), "dark")))
         super().__init__()
@@ -1388,6 +1445,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self._started_hidden = minimized
         if not minimized:
             self.after(EXTENSION_OFFER_DELAY, self._maybe_offer_extension)
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            self.after(MUSIC_PREPARE_AFTER, self._prepare_music)       # ⚡ the first switch to the player is instant
         if self.cfg.get("tray_on_close") or minimized:
             self._ensure_tray()
         if minimized:
@@ -2916,7 +2975,10 @@ class App(NostalgiaWindow, ctk.CTk):
         """Bring up the window of the mode we are in (tray icon, second launch)."""
         win = self.music if self.mode == MODE_MUSIC and self.music is not None else self
         try:
+            hidden = win.state() != "normal"
             win.deiconify()
+            if hidden:
+                fade_in(win)                                   # ✨ back from the tray softly
             win.lift()
             win.attributes("-topmost", True)
             win.after(300, lambda: win.attributes("-topmost", False))
@@ -3117,6 +3179,34 @@ class App(NostalgiaWindow, ctk.CTk):
                     else f"Bu şarkılar “{name}” listesinde zaten var")
         return added
 
+    def _prepare_music(self):
+        """⚡ Make the (hidden) music player window while nothing else happens, so switching to it the first
+        time is as quick as every other time. Waits while the user is busy in the window."""
+        if self.music is not None or self._closing:
+            return
+        try:
+            if self.mode == MODE_DOWNLOAD and self.focus_displayof() is not None and self._recent_input():
+                self.after(2000, self._prepare_music)
+                return
+        except TclError:
+            return
+        self._ensure_music()
+
+    def _recent_input(self) -> bool:
+        """True when the user pressed a key / clicked in the last second (Windows' own idle clock)."""
+        if not WINDOWS:
+            return False
+        try:
+            import ctypes
+
+            class LASTINPUTINFO(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+            info = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
+            ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info))
+            return (ctypes.windll.kernel32.GetTickCount() - info.dwTime) < 1000
+        except Exception:  # noqa: BLE001
+            return False
+
     def _ensure_music(self):
         if self.music is not None:
             return True
@@ -3157,20 +3247,9 @@ class App(NostalgiaWindow, ctk.CTk):
 
     @staticmethod
     def _hand_over_window(old, new):
-        """The other window takes the place (and size) of this one and is drawn before this one goes: no
-        moment with no window, nothing that jumps or is drawn bit by bit in front of the user."""
-        try:
-            if old.winfo_viewable():
-                if old.state() == "zoomed":
-                    new.state("zoomed")
-                else:
-                    new.geometry(old.geometry())         # (customtkinter's own units: the screen's scale stays right)
-        except tk.TclError:
-            pass
-        new.deiconify()
-        new.lift()
-        new.update_idletasks()
-        old.withdraw()
+        """The other window takes the place (and size) of this one, is drawn unseen and then fades in over it;
+        this one goes once it is covered: no moment with no window, nothing drawn bit by bit, no jump."""
+        cross_fade(old, new)
 
     def _on_window_x(self):
         """The window's own close button: go to the tray if the user wants that, else quit."""

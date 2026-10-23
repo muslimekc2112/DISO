@@ -263,6 +263,214 @@ def install_bring_forward():
     ctk.CTkToplevel.__init__ = __init__
 
 
+# ------------------------------------------------------------------------------ ✨ soft transitions
+FRAME_MS = 15                 # ~60 frames a second
+OPEN_MS = 190                 # a window fades in
+CLOSE_MS = 130                # ... and out
+SWITCH_MS = 210               # the download window and the music player cross-fade
+
+
+def animations_on() -> bool:
+    """Off in the tests (their windows are looked at at once), unless a test turns them on (DISO_ANIMATE=1)."""
+    import os
+    return os.environ.get("DISO_ANIMATE") == "1" or not os.environ.get("PYTEST_CURRENT_TEST")
+
+
+def ease_out(t: float) -> float:
+    """Fast at first, softly to the end (cubic)."""
+    t = max(0.0, min(1.0, t))
+    return 1 - (1 - t) ** 3
+
+
+def ease_in_out(t: float) -> float:
+    t = max(0.0, min(1.0, t))
+    return 4 * t * t * t if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
+
+
+def fade(win, start, end, ms, done=None, curve=ease_out, clock=None):
+    """Change the window's opacity from `start` to `end` over `ms` (frames by the clock, so a busy moment skips
+    a frame instead of making it slower). done() is called at the end (also when it cannot fade)."""
+    import time
+    clock = clock or time.perf_counter
+    began = []                                               # the clock starts at the first frame shown
+    token = object()
+    win._fade_token = token                                  # a newer fade of this window stops this one
+    _fine_timer(True)
+
+    def frame():
+        try:
+            if getattr(win, "_fade_token", None) is not token or not win.winfo_exists():
+                _fine_timer(False)
+                return
+            if not began:
+                began.append(clock())
+            t = min(1.0, (clock() - began[0]) * 1000 / max(1, ms))
+            win.attributes("-alpha", start + (end - start) * curve(t))
+            if t < 1.0:
+                win.after(FRAME_MS, frame)
+                return
+        except Exception:  # noqa: BLE001 - a window that went away
+            pass
+        _fine_timer(False)
+        if getattr(win, "_fade_token", None) is token:
+            win._fade_token = None
+        if done:
+            done()
+    try:
+        win.attributes("-alpha", start)
+    except Exception:  # noqa: BLE001
+        _fine_timer(False)
+        if done:
+            done()
+        return
+    frame()
+
+
+_fine = [0]
+
+
+def _fine_timer(on):
+    """While something moves, Windows' timer ticks every 1 ms instead of every 15.6 ms: the frames come evenly.
+    Counted, so overlapping fades end it only once the last one is over."""
+    import sys
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+        if on:
+            _fine[0] += 1
+            if _fine[0] == 1:
+                ctypes.windll.winmm.timeBeginPeriod(1)
+        elif _fine[0] > 0:
+            _fine[0] -= 1
+            if _fine[0] == 0:
+                ctypes.windll.winmm.timeEndPeriod(1)
+    except Exception:  # noqa: BLE001 - frames a little less even
+        pass
+
+
+def fade_in(win, ms=OPEN_MS):
+    if not animations_on():
+        return False
+    try:
+        if win.state() != "normal":
+            win.attributes("-alpha", 1.0)                     # stays hidden: whole again for when it is shown
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    fade(win, 0.0, 1.0, ms)
+    return True
+
+
+def fade_out_and(win, then, ms=CLOSE_MS):
+    """Fade the window out, then then() (destroy / withdraw); at once when animations are off."""
+    if not animations_on():
+        then()
+        return
+
+    def finish():
+        try:
+            then()
+        finally:
+            try:
+                if win.winfo_exists():
+                    win.attributes("-alpha", 1.0)             # (a withdrawn window is whole when it comes back)
+            except Exception:  # noqa: BLE001
+                pass
+    try:
+        if win.state() != "normal":
+            finish()
+            return
+    except Exception:  # noqa: BLE001
+        finish()
+        return
+    fade(win, float(win.attributes("-alpha") or 1.0), 0.0, ms, done=finish, curve=ease_in_out)
+
+
+def cross_fade(old, new, place=True, ms=SWITCH_MS):
+    """`new` takes the place (and size) of `old` and fades in over it; `old` goes once it is covered."""
+    try:
+        if place and old.winfo_viewable():
+            if old.state() == "zoomed":
+                new.state("zoomed")
+            else:
+                new.geometry(old.geometry())                  # (customtkinter's own units: the screen's scale stays right)
+    except Exception:  # noqa: BLE001
+        pass
+    if not animations_on():
+        new.deiconify()
+        new.lift()
+        new.update_idletasks()
+        old.withdraw()
+        return
+    new._shown_softly = True                                  # (its own first fade must not cut this one off)
+    try:
+        new.attributes("-alpha", 0.0)
+    except Exception:  # noqa: BLE001
+        pass
+    new.deiconify()
+    new.lift()
+    try:
+        new.update_idletasks()                                # laid out and drawn (unseen) before it fades in:
+        new.update()                                          # nothing pops up, no frame of the fade is skipped
+    except Exception:  # noqa: BLE001
+        pass
+
+    def covered():
+        try:
+            old.withdraw()
+            old.attributes("-alpha", 1.0)
+            new.attributes("-alpha", 1.0)
+        except Exception:  # noqa: BLE001
+            pass
+    fade(new, 0.0, 1.0, ms, done=covered, curve=ease_in_out)
+
+
+_fade_installed = False
+
+
+def install_soft_windows():
+    """Every customtkinter window opened from now on fades in, and fades out when its × is pressed."""
+    global _fade_installed
+    if _fade_installed:
+        return
+    _fade_installed = True
+    import customtkinter as ctk
+    orig = ctk.CTkToplevel.__init__
+
+    def __init__(self, *args, **kw):
+        orig(self, *args, **kw)
+        if not animations_on():
+            return
+        try:
+            self.attributes("-alpha", 0.0)                    # unseen until customtkinter has finished drawing it
+        except Exception:  # noqa: BLE001
+            return
+        self.after(40, lambda: _first_fade(self))
+        # the × fades it out first (a window that sets its own close action keeps it)
+        self.protocol("WM_DELETE_WINDOW", lambda: fade_out_and(self, self.destroy))
+
+    ctk.CTkToplevel.__init__ = __init__
+
+
+def _first_fade(win):
+    """The fade a new window gets when it first shows (not when it was already shown softly, e.g. cross_fade)."""
+    if getattr(win, "_shown_softly", False) or getattr(win, "_fade_token", None) is not None:
+        return
+    win._shown_softly = True
+    if not fade_in(win):
+        _whole(win)
+
+
+def _whole(win):
+    """A window that did not fade in (it stays hidden for now) must not stay invisible."""
+    try:
+        if win.winfo_exists() and getattr(win, "_fade_token", None) is None:
+            win.attributes("-alpha", 1.0)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def no_window_animation(win):
     """Windows' open / close animation off for this window: switching between the download and the music
     window then shows the other one at once, not a shrinking and a growing window for a moment."""
