@@ -24,4 +24,13 @@
       a.click();
     }
   }, true);
+
+  // 🎞 a playlist hidden behind another name, found by sniff.js (which runs in the page itself)
+  window.addEventListener("message", (e) => {
+    const d = e.data;
+    if (e.source !== window || !d || d.__diso !== "stream" || typeof d.url !== "string" || !/^https?:\/\//i.test(d.url)) return;
+    try {
+      api.runtime.sendMessage({ type: "stream", url: d.url }, () => void api.runtime.lastError);
+    } catch (err) { /* the extension is gone from this page */ }
+  });
 })();

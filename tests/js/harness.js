@@ -22,6 +22,11 @@ const PAGE_LINKS = ["http://shop.example/a.zip", "http://shop.example/page.html"
                     "http://shop.example/a.zip", "http://shop.example/p.jpg", "javascript:void(0)",
                     "magnet:?xt=urn:btih:AAA&dn=one", "http://shop.example/two.torrent", "magnet:?xt=urn:btih:aaa&dn=again"];
 const store = { port };
+const SERIES_LINKS = [{ href: "http://dizi.example/kurulus-osman/3-sezon-2-bolum", text: "2. Bölüm" },
+                      { href: "http://dizi.example/kurulus-osman/3-sezon-1-bolum", text: "1. Bölüm" },
+                      { href: "http://dizi.example/kurulus-osman/3-sezon-3-bolum", text: "3. Bölüm" },
+                      { href: "http://dizi.example/iletisim", text: "İletişim" },
+                      { href: "http://other.example/3-sezon-4-bolum", text: "4. Bölüm" }];
 const cookieJar = { [SESSION_URL]: [{ name: "sid", value: "1" }, { name: "theme", value: "dark" }] };
 
 // like a browser: every request from the extension carries its chrome-extension:// Origin
@@ -55,7 +60,16 @@ const chrome = {
     },
   },
   scripting: {
-    executeScript: async ({ target }) => { log.scripted.push(target.tabId); return [{ result: PAGE_LINKS }]; },
+    executeScript: async ({ target, func }) => {
+      log.scripted.push(target.tabId);
+      if (target.allFrames) { log.poked = (log.poked || 0) + 1; return []; }         // 📺 the players are started
+      if (String(func).includes("textContent")) return [{ result: SERIES_LINKS }];
+      return [{ result: PAGE_LINKS }];
+    },
+  },
+  windows: {
+    create: async (o) => { log.windows = (log.windows || []).concat([o]); return { id: 500, tabs: [{ id: 77 }] }; },
+    remove: async (id) => { log.closed = (log.closed || []).concat([id]); },
   },
   downloads: {
     onCreated: { addListener: (f) => listeners.created.push(f) },
@@ -81,7 +95,19 @@ const chrome = {
     onErrorOccurred: { addListener: () => {} },
   },
   tabs: {
-    get: async (id) => ({ id, url: "http://films.example/watch/film-1", title: "Güzel Bir Film İzle" }),
+    get: async (id) => (id === 12 ? { id, url: "http://dizi.example/kurulus-osman", title: "Kuruluş Osman 3. Sezon İzle | Dizi Sitesi" }
+                                  : { id, url: "http://films.example/watch/film-1", title: "Güzel Bir Film İzle" }),
+    update: async (id, o) => {
+      log.tabUpdates = (log.tabUpdates || []).concat([o]);
+      if (o.url) {
+        for (const f of listeners.tabUpdated) f(id, { status: "loading", url: o.url });
+        if (!/2-bolum/.test(o.url)) {                     // episodes 1 and 3 play a stream; 2 never does
+          setTimeout(() => played(o.url.replace("http://dizi.example/", "http://cdn.example/") + "/master.m3u8",
+                                  "xmlhttprequest", "application/vnd.apple.mpegurl", 900, id), 30);
+        }
+      }
+      return { id };
+    },
     onUpdated: { addListener: (f) => listeners.tabUpdated.push(f) },
     onRemoved: { addListener: (f) => listeners.tabRemoved.push(f) },
   },
@@ -96,6 +122,7 @@ for (const file of ["lib.js", "background.js"]) {
 }
 
 const ask = (msg) => new Promise((resolve) => listeners.message[0](msg, {}, resolve));
+const askFrom = (msg, sender) => new Promise((resolve) => listeners.message[0](msg, sender, resolve));
 const click = (info, tab) => listeners.menu[0](info, tab);
 // the page in tab 9 plays: what its player asks for, with the headers the browser sends
 let reqId = 0;
@@ -209,6 +236,42 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
     for (const f of listeners.tabUpdated) f(9, { status: "loading", url: "http://films.example/watch/film-2" });
     const after = await ask({ type: "found", tabId: 9 });
     answer = { found, sent, page, after };
+  } else if (scenario === "series") {
+    context.setTimeout = setTimeout;                      // real time: the runner waits for each episode
+    context.DISO_SERIES_WAIT = 600;
+    context.DISO_SERIES_SETTLE = 40;
+    const list = await ask({ type: "episodes", tabId: 12 });
+    const start = await ask({ type: "series-start", tabId: 12, urls: list.episodes.map((e) => e.url), kind: "video",
+                              quality: "720p", withSubs: true });
+    const again = await ask({ type: "series-start", tabId: 12, urls: list.episodes.map((e) => e.url), kind: "video" });
+    let status = await ask({ type: "series-status" });
+    for (let i = 0; i < 100 && status.running; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      status = await ask({ type: "series-status" });
+    }
+    answer = { list, start, again, status };
+  } else if (scenario === "series-stop") {
+    context.setTimeout = setTimeout;
+    context.DISO_SERIES_WAIT = 3000;
+    const list = await ask({ type: "episodes", tabId: 12 });
+    await ask({ type: "series-start", tabId: 12, urls: list.episodes.map((e) => e.url), kind: "video" });
+    await new Promise((r) => setTimeout(r, 100));
+    await ask({ type: "series-stop" });
+    let status = await ask({ type: "series-status" });
+    for (let i = 0; i < 100 && status.running; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      status = await ask({ type: "series-status" });
+    }
+    answer = { status };
+  } else if (scenario === "hidden") {
+    // the playlist answers as "text/plain" under a ".txt" name: only its content says what it is (sniff.js)
+    await played("http://cdn.example/v/list.txt?t=1", "xmlhttprequest", "text/plain", 700);
+    const before = await ask({ type: "found", tabId: 9 });
+    const told = await askFrom({ type: "stream", url: "http://cdn.example/v/list.txt?t=1" },
+                               { tab: { id: 9 }, url: "http://player.example/embed/77" });
+    const fake = await askFrom({ type: "stream", url: "javascript:alert(1)" }, { tab: { id: 9 } });
+    const after = await ask({ type: "found", tabId: 9 });
+    answer = { before, told, fake, after };
   } else if (scenario === "sniff-off") {
     store.sniff = false;
     await played("http://cdn.example/hls/master.m3u8", "xmlhttprequest", "application/vnd.apple.mpegurl", 900);

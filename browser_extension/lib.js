@@ -64,6 +64,12 @@
       sniffOption: "Sayfalarda oynayan videoları bul",
       sniffHint: "Sayfada oynayan video ve sesleri (gizli oynatıcıların içindekiler de) bulur; simgede kaç tane olduğunu gösterir. Site kendisi desteklenmese bile video böylece iner.",
       sentFound: "{0} video DISO'ya gönderildi", menuFound: "🎞 Bu sayfada bulunan videoları DISO ile indir",
+      seriesTitle: "📺 Dizi modu: {0} bölüm bulundu", seriesGo: "📺 Seçilen bölümleri sırayla indir",
+      seriesBusy: "📺 {0}/{1}: {2} — açılıyor, video bekleniyor… (küçük pencereyi kapatma)",
+      seriesDone: "📺 Bitti: {0} bölüm DISO'ya gönderildi ({1} tanesinde video bulunamadı, sayfası gönderildi)",
+      seriesDoneAll: "📺 Bitti: {0} bölümün hepsi DISO'ya gönderildi", seriesStop: "Durdur",
+      seriesStopped: "📺 Durduruldu", menuSeries: "📺 Bu dizinin bölümlerini DISO ile indir",
+      noEpisodes: "Bu sayfada bölüm linki bulamadım", episode: "Bölüm", season: "Sezon",
     },
     en: {
       checking: "Checking…", sendTabVideo: "🎬 Download as MP4 (video)", sendTabAudio: "🎵 Download as MP3 (sound)",
@@ -104,6 +110,12 @@
       sniffOption: "Find the videos pages play",
       sniffHint: "Finds the videos and sounds a page plays (also inside hidden players) and shows how many on the button. So a video downloads even when the site itself is not supported.",
       sentFound: "{0} videos sent to DISO", menuFound: "🎞 Download the videos found on this page with DISO",
+      seriesTitle: "📺 Series mode: {0} episodes found", seriesGo: "📺 Download the chosen episodes one by one",
+      seriesBusy: "📺 {0}/{1}: {2} — opening, waiting for the video… (do not close the small window)",
+      seriesDone: "📺 Done: {0} episodes sent to DISO (no video found in {1}; their pages were sent)",
+      seriesDoneAll: "📺 Done: all {0} episodes sent to DISO", seriesStop: "Stop",
+      seriesStopped: "📺 Stopped", menuSeries: "📺 Download this series' episodes with DISO",
+      noEpisodes: "No episode links on this page", episode: "Episode", season: "Season",
     },
   };
 
@@ -471,11 +483,82 @@
     return n <= 0 ? "" : n > 9 ? "9+" : String(n);
   }
 
+  // ------------------------------------------------------------------ 📺 series mode
+  // An episode of a series by its link: {season, episode} from "3. Bölüm", "Bölüm 3", "Episode 3", "S02E03",
+  // "2-sezon-3-bolum", "/episode-3" …; null for anything else.
+  function episodeOf(href, text) {
+    let words = String(text || "").toLowerCase();
+    let url = String(href || "").toLowerCase();
+    try { url = decodeURIComponent(url); } catch (e) { /* as it is */ }
+    url = url.split("#")[0].split("?")[0];
+    const plain = (t) => t.replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g");
+    const sources = [plain(words), plain(url)];
+    const withSeason = [/s(\d{1,2})[\s._-]*e(\d{1,4})(?!\d)/,
+                        /(\d{1,2})[\s._-]*\.?[\s._-]*sezon[\s._-]*(\d{1,4})[\s._-]*\.?[\s._-]*bolum/,
+                        /(?:season|sezon)[\s._-]*(\d{1,2})[\s._/-]+(?:episode|bolum|ep)[\s._-]*(\d{1,4})/];
+    const alone = [/(\d{1,4})[\s._-]*\.?[\s._-]*(?:bolum|episode)(?![a-z])/, /(?:bolum|episode|ep)[\s._-]*(\d{1,4})(?!\d)/];
+    for (const re of withSeason) {                       // a season anywhere (the text or the address) first
+      for (const t of sources) {
+        const m = re.exec(t);
+        if (m) return { season: Number(m[1]), episode: Number(m[2]) };
+      }
+    }
+    for (const re of alone) {
+      for (const t of sources) {
+        const m = re.exec(t);
+        if (m) return { season: 0, episode: Number(m[1]) };
+      }
+    }
+    return null;
+  }
+
+  // The episodes a page links to (once each, in order), only on the page's own site; the page itself is left out.
+  function episodeLinks(links, pageUrl) {
+    let site = "";
+    try { site = new URL(pageUrl).hostname.replace(/^www\./, ""); } catch (e) { return []; }
+    const here = String(pageUrl || "").split("#")[0];
+    const seen = new Map();
+    (links || []).forEach((l) => {
+      const href = l && String(l.href || "").split("#")[0];
+      if (!isHttpUrl(href) || href === here) return;
+      let host = "";
+      try { host = new URL(href).hostname.replace(/^www\./, ""); } catch (e) { return; }
+      if (host !== site) return;
+      const ep = episodeOf(href, l.text);
+      if (!ep) return;
+      const key = ep.season + ":" + ep.episode;
+      if (!seen.has(key)) seen.set(key, { url: href, season: ep.season, episode: ep.episode });
+    });
+    const out = Array.from(seen.values()).sort((a, b) => (a.season - b.season) || (a.episode - b.episode));
+    return out.length >= 2 ? out : [];                    // one link to "episode 5" is no series
+  }
+
+  // "Bölüm 03" / "S02 Bölüm 03" (the number padded so the files sort right).
+  function episodeName(ep, total, lang) {
+    const width = Math.max(2, String(total || ep.episode).length);
+    const num = String(ep.episode).padStart(width, "0");
+    const name = t("episode", [], lang) + " " + num;
+    return ep.season ? "S" + String(ep.season).padStart(2, "0") + " " + name : name;
+  }
+
+  // The series' name from the page's title: "Kuruluş Osman 3. Sezon İzle | Site" -> "Kuruluş Osman".
+  function seriesName(title) {
+    let s = " " + String(title || "").split(/\s[|–—]\s|\s-\s/)[0] + " ";
+    const gone = [String.raw`full\s*hd`, "hd", "1080p", "720p", String.raw`t[üu]rk[çc]e\s*dublaj`,
+                  String.raw`t[üu]rk[çc]e\s*altyaz[ıi]l[ıi]`, "altyaz[ıi]l[ıi]", "[iİI]zle", "[iİI]ZLE", "watch", "online",
+                  "free", "bedava", String.raw`\d{1,2}\.?\s*(sezon|season)`, String.raw`(sezon|season)\s*\d{1,2}`,
+                  String.raw`\d{1,4}\.?\s*(b[öo]l[üu]m|B[ÖO]L[ÜU]M|episode)`, String.raw`(b[öo]l[üu]m|B[ÖO]L[ÜU]M|episode)\s*\d{1,4}`];
+    for (const g of gone) s = s.replace(new RegExp(String.raw`(^|\s)` + g + String.raw`(?=\s|$)`, "gi"), " ");
+    s = s.replace(/[\s\-–—|:]+$/g, "").replace(/\s+/g, " ").trim();
+    return s.slice(0, 120) || "Dizi";
+  }
+
   const HOST = "com.iso.diso";       // the native host (app/native_host.py) that starts DISO when it is closed
 
   return { APP_ID, HOST, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
            extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult, pageFileLinks, sizeText, statusText,
            linkKind, isSendable, pickLanguage, setLanguage, currentLanguage, isTorrentLink, magnetHash,
            pageTorrentLinks, downloadRows, mediaKind, responseSize, headerValue, subtitleLanguage, qualityOf, rankMedia,
-           addFound, mediaLine, mediaTitles, buildMediaPayload, alternatesOf, badgeCount };
+           addFound, mediaLine, mediaTitles, buildMediaPayload, alternatesOf, badgeCount, episodeOf, episodeLinks,
+           episodeName, seriesName };
 });

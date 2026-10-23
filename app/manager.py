@@ -23,7 +23,7 @@ from .logs import log
 from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED, PROCESSING,
                      QUEUED, RESOLVING, RESTARTABLE_STATES, WAITING, Item, Settings)
 from .segmented_downloader import DownloadStopped, FastDownloader, is_transient
-from .utils import app_data_dir, default_download_dir, normalize_url
+from .utils import app_data_dir, default_download_dir, normalize_url, sanitize_filename
 
 MAX_PARALLEL = 3
 MAX_RETRIES = 3
@@ -140,6 +140,8 @@ class DownloadManager:
     @staticmethod
     def _make_item(url, s: Settings, folder, title="", kind=None, extra=None, group="") -> Item:
         extra = extra or {}
+        if extra.get("subdir"):                                    # 📺 a series: its episodes in a folder of its own
+            folder = os.path.join(folder, sanitize_filename(extra["subdir"], 80))
         item = Item(url, kind or s.kind, extra.get("quality") or s.quality, s.bitrate, s.connections, folder,
                     s.cookies, title or extra.get("title", ""),
                     subs=s.subs, cover=s.cover, sort_folders=s.sort_folders,

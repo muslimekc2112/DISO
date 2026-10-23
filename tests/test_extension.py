@@ -171,7 +171,7 @@ PAGE = "http://shop.example/page"
 @needs_node
 def test_the_context_menu_entries_are_created(app):
     api, b = app
-    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page-video", "hi-page-audio", "hi-found",
+    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page-video", "hi-page-audio", "hi-found", "hi-series",
                                                     "hi-all-links", "hi-torrents", "hi-selection"]
 
 
@@ -401,8 +401,8 @@ def test_the_popup_says_when_diso_cannot_be_opened(app):
 # ------------------------------------------------------------------------ 🧲 torrents and the language
 def test_magnet_clicks_are_caught_by_a_content_script_in_every_page():
     for m in (manifest(), firefox_manifest()):
-        assert m["content_scripts"] == [{"matches": ["<all_urls>"], "js": ["catch.js"], "run_at": "document_start",
-                                         "all_frames": True}]
+        assert m["content_scripts"][0] == {"matches": ["<all_urls>"], "js": ["catch.js"], "run_at": "document_start",
+                                           "all_frames": True}
     code = open(os.path.join(EXT, "catch.js"), encoding="utf-8").read()
     assert '"magnet"' in code and "preventDefault" in code and "a.click()" in code     # given back if DISO cannot
 

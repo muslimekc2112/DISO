@@ -173,6 +173,7 @@ function createMenus() {
     api.contextMenus.create({ id: "hi-page-video", title: HI.t("menuPageVideo"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-page-audio", title: HI.t("menuPageAudio"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-found", title: HI.t("menuFound"), contexts: ["page", "video", "audio"] });
+    api.contextMenus.create({ id: "hi-series", title: HI.t("menuSeries"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-all-links", title: HI.t("menuAllLinks"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-torrents", title: HI.t("menuTorrents"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-selection", title: HI.t("menuSelection"), contexts: ["selection"] });
@@ -193,6 +194,12 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "hi-media") return sendAndShow([info.srcUrl], { referer });
   if (info.menuItemId === "hi-page-video") return sendPage(tab, info.pageUrl || referer, "video");
   if (info.menuItemId === "hi-page-audio") return sendPage(tab, info.pageUrl || referer, "audio");
+  if (info.menuItemId === "hi-series") {
+    const list = tab ? await episodesOf(tab) : { episodes: [] };
+    if (!list.episodes.length) { await flash("0", false); return { ok: false, text: HI.t("noEpisodes") }; }
+    const opts = await getOptions();
+    return startSeries(tab, list.episodes.map((e) => e.url), "video", opts.quality, opts.withSubs);
+  }
   if (info.menuItemId === "hi-found") {
     const found = tab ? await foundOn(tab.id) : null;
     if (!found || !found.media.length) { await flash("0", false); return { ok: false, text: HI.t("foundNone") }; }
@@ -306,6 +313,7 @@ async function openApp() {
 // player sent (Referer, Origin, cookies): many servers only answer the player. The toolbar button counts them.
 const found = new Map();          // tabId -> {page, title, media: [...], subs: [...]}
 const sentHeaders = new Map();    // requestId -> the request's headers, until its answer comes
+const recentHeaders = new Map();  // url -> the headers of a recent request that looked like nothing (see "stream")
 const MAX_PENDING = 600;
 const TYPES = ["media", "xmlhttprequest", "other", "object"];
 
@@ -358,7 +366,11 @@ async function onResponse(details) {
   if (details.tabId < 0 || (details.statusCode && details.statusCode >= 400)) return;
   const headers = details.responseHeaders || [];
   const kind = HI.mediaKind(details.url, HI.headerValue(headers, "content-type"), HI.responseSize(headers));
-  if (!kind) return;
+  if (!kind) {                                     // may still be a playlist with another name: sniff.js will say
+    if (recentHeaders.size > MAX_PENDING) recentHeaders.delete(recentHeaders.keys().next().value);
+    recentHeaders.set(details.url, { sent, documentUrl: details.documentUrl || details.initiator || "" });
+    return;
+  }
   const opts = await getOptions();
   if (!opts.sniff) return;
   let f = await foundOn(details.tabId);
@@ -385,6 +397,34 @@ async function onResponse(details) {
   keepFound();
 }
 
+// 🎞 sniff.js found a playlist hidden behind another name ("#EXTM3U" at its start): it is an HLS stream
+async function hiddenStream(url, sender) {
+  const tabId = sender && sender.tab ? sender.tab.id : -1;
+  if (tabId < 0 || !HI.isHttpUrl(url)) return { ok: false };
+  const opts = await getOptions();
+  if (!opts.sniff) return { ok: false };
+  const seen = recentHeaders.get(url) || { sent: [], documentUrl: "" };
+  let f = await foundOn(tabId);
+  if (!f) {
+    f = { page: "", title: "", media: [], subs: [] };
+    found.set(tabId, f);
+  }
+  const entry = { url, kind: "hls", size: 0, time: Date.now(),
+                  referer: HI.headerValue(seen.sent, "referer") || (sender.url || seen.documentUrl || ""),
+                  origin: HI.headerValue(seen.sent, "origin"), userAgent: HI.headerValue(seen.sent, "user-agent"),
+                  cookies: HI.headerValue(seen.sent, "cookie") };
+  if (HI.addFound(f.media, entry, 40)) {
+    try {
+      const tab = await api.tabs.get(tabId);
+      f.page = tab.url || f.page;
+      f.title = tab.title || f.title;
+    } catch (e) { /* the tab is gone */ }
+    showCount(tabId);
+    keepFound();
+  }
+  return { ok: true };
+}
+
 if (api.webRequest && api.webRequest.onSendHeaders) {
   const filter = { urls: ["<all_urls>"], types: TYPES };
   const extra = ["requestHeaders"];
@@ -402,6 +442,133 @@ if (api.tabs && api.tabs.onUpdated) {
   });
 }
 if (api.tabs && api.tabs.onRemoved) api.tabs.onRemoved.addListener((tabId) => forget(tabId));
+
+// ------------------------------------------------------------------ 📺 series mode
+// The episodes of a series are opened one by one in a small, muted window of their own; each one's player is
+// started, the stream it plays is caught (as above) and sent to DISO as "<series> - S01 Episode 02" (in the
+// extension's language), into a folder named after the series. An episode whose video does not show up in time goes to DISO as its page (DISO tries).
+const SERIES_WAIT = () => Number(globalThis.DISO_SERIES_WAIT) || 40000;    // ms for an episode's video to show up
+const SETTLE_MS = () => Number(globalThis.DISO_SERIES_SETTLE) || 1500;      // ... and for its other qualities
+let series = { running: false };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// every link of the page with its words (the episode lists say "Episode 12" in the text, not in the address)
+async function linksWithText(tab) {
+  try {
+    const results = await api.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => Array.from(document.links, (a) => ({ href: a.href, text: (a.textContent || a.title || "").trim().slice(0, 120) })),
+    });
+    return [].concat(...(results || []).map((r) => r.result || []));
+  } catch (e) {
+    return [];
+  }
+}
+
+async function episodesOf(tab) {
+  const episodes = HI.episodeLinks(await linksWithText(tab), tab.url || "");
+  return { episodes, series: HI.seriesName(tab.title || "") };
+}
+
+// runs in the episode's page (every frame): start the players, muted (a muted video may start by itself)
+function startPlayers() {
+  document.querySelectorAll("video, audio").forEach((v) => {
+    try { v.muted = true; const p = v.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* not this one */ }
+  });
+  const buttons = [".vjs-big-play-button", ".jw-icon-display", ".jw-display-icon-container", ".plyr__control--overlaid",
+                   ".ytp-large-play-button", "[class*='play-button']", "[class*='playButton']", "[class*='btn-play']",
+                   "button[aria-label*='Play' i]", "button[title*='Play' i]", "button[aria-label*='Oynat' i]"];
+  for (const sel of buttons) {
+    const el = document.querySelector(sel);
+    if (el) { try { el.click(); } catch (e) { /* not clickable */ } break; }
+  }
+}
+
+async function waitForMedia(tabId, job) {
+  const end = Date.now() + SERIES_WAIT();
+  let poked = 0;
+  while (Date.now() < end && !job.stop) {
+    const f = await foundOn(tabId);
+    if (f && f.media.length) {
+      await sleep(SETTLE_MS());                                  // the master playlist / other qualities come along
+      return HI.rankMedia(((await foundOn(tabId)) || f).media)[0];
+    }
+    if (Date.now() - poked > 3000) {
+      poked = Date.now();
+      try { await api.scripting.executeScript({ target: { tabId, allFrames: true }, func: startPlayers }); } catch (e) { /* loading */ }
+    }
+    try { await api.tabs.get(tabId); } catch (e) { return null; }   // (also keeps the extension awake)
+    await sleep(500);
+  }
+  return null;
+}
+
+async function runSeries(job) {
+  let win = null;
+  try {
+    win = await api.windows.create({ url: "about:blank", type: "popup", width: 560, height: 360, focused: false });
+  } catch (e) {
+    Object.assign(series, { running: false, error: String(e && e.message || e) });
+    return;
+  }
+  const tabId = win.tabs && win.tabs[0] ? win.tabs[0].id : null;
+  job.windowId = win.id;
+  try { await api.tabs.update(tabId, { muted: true }); } catch (e) { /* plays silently anyway: muted video */ }
+  for (let i = 0; i < job.episodes.length && !job.stop; i++) {
+    const ep = job.episodes[i];
+    const label = HI.episodeName(ep, job.episodes.length);
+    Object.assign(series, { index: i + 1, label });
+    forget(tabId);
+    try { await api.tabs.update(tabId, { url: ep.url }); } catch (e) { break; }      // the window was closed
+    const media = await waitForMedia(tabId, job);
+    if (job.stop) break;
+    const title = job.name + " - " + label;
+    let payload;
+    if (media) {
+      const f = await foundOn(tabId);
+      payload = HI.buildMediaPayload([media], { kind: job.kind, quality: job.quality, title,
+        subs: job.withSubs && job.kind !== "audio" && f ? f.subs : [], userAgent: navigator.userAgent });
+    } else {
+      series.missed += 1;
+      payload = HI.buildPayload({ urls: [ep.url], kind: job.kind, userAgent: navigator.userAgent, cookies: await cookiesFor(ep.url) });
+      payload.title = title;
+      if (job.quality && job.quality !== "En iyi" && job.kind !== "audio") payload.quality = job.quality;
+    }
+    payload.folder = job.name;
+    try {
+      await postToApp(payload);
+      series.sent += 1;
+    } catch (e) {
+      series.error = String(e && e.message || e);
+    }
+  }
+  try { if (job.windowId !== undefined) await api.windows.remove(job.windowId); } catch (e) { /* closed by hand */ }
+  forget(tabId);
+  Object.assign(series, { running: false, stopped: !!job.stop });
+
+}
+
+async function startSeries(tab, urls, kind, quality, withSubs) {
+  if (series.running) return { ok: false, text: HI.t("seriesBusy", [series.index, series.total, series.label]) };
+  const list = await episodesOf(tab);
+  const episodes = list.episodes.filter((e) => urls.includes(e.url));
+  if (!episodes.length) return { ok: false, text: HI.t("noEpisodes") };
+  const job = { episodes, name: list.series, kind: kind === "audio" ? "audio" : "video", quality, withSubs, stop: false };
+  series = { running: true, index: 0, total: episodes.length, label: "", sent: 0, missed: 0, job };
+  await api.storage.local.set({ quality: quality || "En iyi", withSubs: !!withSubs });
+  runSeries(job);                                              // goes on by itself; the popup asks how far it is
+  return { ok: true, text: HI.t("seriesBusy", [1, episodes.length, HI.episodeName(episodes[0], episodes.length)]) };
+}
+
+function seriesStatus() {
+  const s = series;
+  let text = "";
+  if (s.running) text = HI.t("seriesBusy", [s.index || 1, s.total, s.label || ""]);
+  else if (s.stopped) text = HI.t("seriesStopped");
+  else if (s.total) text = s.missed ? HI.t("seriesDone", [s.sent, s.missed]) : HI.t("seriesDoneAll", [s.sent]);
+  return { running: !!s.running, index: s.index || 0, total: s.total || 0, sent: s.sent || 0, missed: s.missed || 0, text };
+}
 
 // The chosen found videos of a tab (by address) as downloads: MP4 or MP3, in a quality, with the subtitles.
 async function sendFound(tabId, urls, kind, quality, withSubs) {
@@ -454,7 +621,23 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return { media: f ? HI.rankMedia(f.media) : [], subs: f ? f.subs : [], title: f ? f.title : "",
                quality: opts.quality, withSubs: opts.withSubs, sniff: opts.sniff };
     }
+    if (msg && msg.type === "stream") return hiddenStream(msg.url, sender);
     if (msg && msg.type === "send-found") return sendFound(msg.tabId, msg.urls || [], msg.kind, msg.quality, msg.withSubs);
+    if (msg && msg.type === "episodes") {
+      let tab = null;
+      try { tab = await api.tabs.get(msg.tabId); } catch (e) { return { episodes: [], series: "" }; }
+      return episodesOf(tab);
+    }
+    if (msg && msg.type === "series-start") {
+      let tab = null;
+      try { tab = await api.tabs.get(msg.tabId); } catch (e) { return { ok: false, text: HI.t("noEpisodes") }; }
+      return startSeries(tab, msg.urls || [], msg.kind, msg.quality, msg.withSubs);
+    }
+    if (msg && msg.type === "series-status") return seriesStatus();
+    if (msg && msg.type === "series-stop") {
+      if (series.job) series.job.stop = true;
+      return seriesStatus();
+    }
     if (msg && msg.type === "send-page") {
       let tab = null;
       try { tab = await api.tabs.get(msg.tabId); } catch (e) { /* only the address then */ }

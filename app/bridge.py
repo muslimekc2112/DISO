@@ -7,6 +7,7 @@ A tiny HTTP server on 127.0.0.1 only. The extension sends it the links it catche
   GET  /status  -> {"active": n, "queued": n, "speed": bytes/s ...}
   POST /add     -> {"urls": [...], "referer", "userAgent", "cookies", "kind"}
                    optional: "title", "quality", "headers" {name: value}, "subs" [{"url", "lang", "ext"}],
+                   "folder" (a folder of its own inside the download folder: 📺 a series' episodes),
                    "alternates" [{"url", "referer", "userAgent", "cookies", "headers"}] (streams the page played:
                    tried when the page itself cannot be downloaded), or "media" [{"url", "title", "referer",
                    "userAgent", "cookies", "headers", "subs"}] (🎞 several videos found on a page, one download each)
@@ -213,6 +214,7 @@ def media_extra(entry: dict, common: dict) -> dict:
     quality = entry.get("quality") or common.get("quality")
     extra = {"referer": pick("referer", 2000), "user_agent": pick("userAgent", 500), "cookie": pick("cookies", 8000),
              "title": " ".join(pick("title", 300).split()), "headers": _headers(entry.get("headers") or common.get("headers")),
+             "subdir": " ".join(pick("folder", 120).split()),          # 📺 a series' own folder
              "quality": quality if quality in QUALITIES else "",
              "sub_urls": _subs(entry.get("subs") or common.get("subs"))}
     alternates = []

@@ -6,6 +6,8 @@ let lastStatus = null;
 let foundMedia = [];                     // 🎞 the videos the page played (background.js found them)
 let foundSubs = [];
 const chosen = new Set();
+let episodes = [];                       // 📺 the episodes the page links to
+const chosenEps = new Set();
 
 function ask(message) {
   return new Promise((resolve) => api.runtime.sendMessage(message, resolve));
@@ -25,6 +27,7 @@ async function useLanguage(code) {
   $("lang-en").className = HI.currentLanguage() === "en" ? "on" : "";
   showTorrents();
   showFound();
+  showSeries();
   if (lastStatus) show(lastStatus);
 }
 
@@ -126,6 +129,55 @@ async function findVideos() {
   showFound();
 }
 
+// ------------------------------------------------------------------ 📺 series mode
+function showSeries(status) {
+  const box = $("series");
+  box.hidden = episodes.length < 2 && !(status && (status.running || status.total));
+  $("seriesTitle").textContent = HI.t("seriesTitle", [episodes.length]);
+  const list = $("eps");
+  list.textContent = "";
+  episodes.forEach((ep) => {
+    const row = document.createElement("label");
+    row.className = "ep-row";
+    const tick = document.createElement("input");
+    tick.type = "checkbox";
+    tick.checked = chosenEps.has(ep.url);
+    tick.addEventListener("change", () => { if (tick.checked) chosenEps.add(ep.url); else chosenEps.delete(ep.url); });
+    const text = document.createElement("span");
+    text.textContent = HI.episodeName(ep, episodes.length);
+    text.title = ep.url;
+    row.append(tick, text);
+    list.append(row);
+  });
+  if (status) {
+    $("seriesProgress").textContent = status.text || "";
+    $("seriesGo").hidden = !!status.running;
+    $("seriesStop").hidden = !status.running;
+  }
+}
+
+async function findEpisodes() {
+  const tab = await activeTab();
+  const r = tab && tab.id !== undefined ? await ask({ type: "episodes", tabId: tab.id }) : null;
+  episodes = (r && r.episodes) || [];
+  episodes.forEach((ep) => chosenEps.add(ep.url));             // all of them, unless some are taken out
+  showSeries(await ask({ type: "series-status" }));
+}
+
+async function seriesProgress() {
+  const s = await ask({ type: "series-status" });
+  if (s && (s.running || s.total)) showSeries(s);
+}
+
+async function startSeries() {
+  const tab = await activeTab();
+  if (!chosenEps.size) { $("msg").textContent = HI.t("noEpisodes"); return; }
+  const r = await ask({ type: "series-start", tabId: tab.id, urls: episodes.filter((e) => chosenEps.has(e.url)).map((e) => e.url),
+                        kind: "video", quality: $("quality").value, withSubs: $("withSubs").checked });
+  $("msg").textContent = r ? r.text : HI.t("noAnswer");
+  seriesProgress();
+}
+
 let pickedQuality = false;
 let pickedSubs = false;
 async function sendFound(kind) {
@@ -194,6 +246,13 @@ $("foundVideo").addEventListener("click", () => sendFound("video"));
 $("foundAudio").addEventListener("click", () => sendFound("audio"));
 $("quality").addEventListener("change", () => { pickedQuality = true; });
 $("withSubs").addEventListener("change", () => { pickedSubs = true; });
+$("seriesGo").addEventListener("click", startSeries);
+$("seriesStop").addEventListener("click", async () => showSeries(await ask({ type: "series-stop" })));
+$("seriesAll").addEventListener("click", () => {
+  if (chosenEps.size === episodes.length) chosenEps.clear();
+  else episodes.forEach((e) => chosenEps.add(e.url));
+  showSeries();
+});
 $("allNone").addEventListener("click", () => {
   if (chosen.size === foundMedia.length) chosen.clear();
   else foundMedia.forEach((m) => chosen.add(m.url));
@@ -206,6 +265,8 @@ $("allNone").addEventListener("click", () => {
   refresh();
   findTorrents();
   findVideos();
+  findEpisodes();
   setInterval(refresh, 2000);            // the downloads stay live while the popup is open
+  setInterval(seriesProgress, 1000);     // 📺 … and how far the series has come
   setInterval(findVideos, 1500);         // ... and so do the videos the page plays
 })();

@@ -307,3 +307,40 @@ test("every new text is there in both languages", () => {
     assert.ok(HI.TEXTS.tr[key] && HI.TEXTS.en[key], key);
   }
 });
+
+// ------------------------------------------------------------------ 📺 series mode
+test("an episode is read from its words or its address, with its season", () => {
+  const cases = [
+    ["https://x.com/dizi/osman-3-sezon-12-bolum", "12. Bölüm", { season: 3, episode: 12 }],
+    ["https://x.com/a", "Bölüm 4", { season: 0, episode: 4 }],
+    ["https://x.com/show/s02e07", "", { season: 2, episode: 7 }],
+    ["https://x.com/ep/episode-15", "Ep", { season: 0, episode: 15 }],
+    ["https://x.com/izle/bolum-3-izle", "", { season: 0, episode: 3 }],
+    ["https://x.com/x", "Season 1 Episode 9", { season: 1, episode: 9 }],
+    ["https://x.com/x", "Hakkında", null],
+    ["https://x.com/kategori/aksiyon", "Aksiyon", null],
+  ];
+  for (const [href, text, want] of cases) assert.deepEqual(HI.episodeOf(href, text), want, href + " " + text);
+});
+
+test("a page's episodes: in order, once each, only its own site, at least two", () => {
+  const eps = HI.episodeLinks([{ href: "https://www.x.com/d/2-bolum", text: "2. Bölüm" }, { href: "https://x.com/d/1-bolum", text: "1. Bölüm" },
+                               { href: "https://y.com/d/3-bolum", text: "3. Bölüm" }, { href: "https://x.com/d/2-bolum#c", text: "yorum" },
+                               { href: "https://x.com/d", text: "Bölüm 9" }, { href: "javascript:void(0)", text: "Bölüm 5" }],
+                              "https://x.com/d");
+  assert.deepEqual(eps.map((e) => e.episode), [1, 2]);
+  assert.deepEqual(HI.episodeLinks([{ href: "https://x.com/d/1-bolum", text: "1. Bölüm" }], "https://x.com/d"), []);
+  assert.deepEqual(HI.episodeLinks([], "not a url"), []);
+});
+
+test("episode names sort right and the series' name is cleaned up", () => {
+  assert.equal(HI.episodeName({ season: 2, episode: 3 }, 24, "tr"), "S02 Bölüm 03");
+  assert.equal(HI.episodeName({ season: 0, episode: 7 }, 120, "en"), "Episode 007");
+  assert.equal(HI.seriesName("Kuruluş Osman 3. Sezon 12. Bölüm İzle | DiziSite"), "Kuruluş Osman");
+  assert.equal(HI.seriesName("İstanbul Hikayeleri Full HD izle"), "İstanbul Hikayeleri");
+  assert.equal(HI.seriesName("Breaking Bad - Watch Online Free"), "Breaking Bad");
+  assert.equal(HI.seriesName(""), "Dizi");
+  for (const key of ["seriesTitle", "seriesGo", "seriesBusy", "seriesDone", "seriesDoneAll", "menuSeries", "noEpisodes"]) {
+    assert.ok(HI.TEXTS.tr[key] && HI.TEXTS.en[key], key);
+  }
+});

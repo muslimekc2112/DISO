@@ -221,3 +221,83 @@ def test_the_end_of_the_list_and_short_songs_have_nothing_waiting(songs):
     c2.backend.position = 2500
     c2.tick()
     assert c2.ready_next() is None
+
+
+# ------------------------------------------------------------------------------ 📺 series mode
+from test_extension import app as bridge_app, needs_node, run  # noqa: E402,F401 - the bridge fixture
+
+
+@needs_node
+def test_series_mode_opens_each_episode_catches_its_video_and_sends_it_named(bridge_app):  # noqa: F811
+    api, b = bridge_app
+    data = run(b.port, "series")
+    answer, log = data["answer"], data["log"]
+    assert [e["episode"] for e in answer["list"]["episodes"]] == [1, 2, 3]        # in order, only this site's
+    assert answer["list"]["series"] == "Kuruluş Osman"
+    assert answer["start"]["ok"] and not answer["again"]["ok"]                    # one series at a time
+    status = answer["status"]
+    assert not status["running"] and status["sent"] == 3 and status["missed"] == 1
+    assert "1" in status["text"]                                                   # "… (1 without a video)"
+    win = log["windows"][0]
+    assert win["type"] == "popup" and win["focused"] is False and log["closed"] == [500]
+    assert {"muted": True} in log["tabUpdates"] and log["poked"] >= 1           # muted; the players were started
+    titles = [a["extra"].get("title") for a in api.added]
+    assert titles == ["Kuruluş Osman - S03 Bölüm 01", "Kuruluş Osman - S03 Bölüm 02", "Kuruluş Osman - S03 Bölüm 03"]
+    assert all(a["extra"].get("subdir") == "Kuruluş Osman" for a in api.added)    # a folder of its own
+    first, second = api.added[0], api.added[1]
+    assert first["urls"] == ["http://cdn.example/kurulus-osman/3-sezon-1-bolum/master.m3u8"]
+    assert first["extra"]["referer"] == PLAYER and first["extra"]["quality"] == "720p"
+    assert second["urls"] == ["http://dizi.example/kurulus-osman/3-sezon-2-bolum"]  # no video came: its page
+    assert first["kind"] == second["kind"] == "video"
+
+
+@needs_node
+def test_series_mode_can_be_stopped(bridge_app):  # noqa: F811
+    api, b = bridge_app
+    status = run(b.port, "series-stop")["answer"]["status"]
+    assert not status["running"] and status["sent"] < 3 and "Durduruldu" in status["text"]
+
+
+PLAYER = "http://player.example/embed/77"
+
+
+def test_an_episode_goes_into_the_series_folder(tmp_path):
+    from app.manager import DownloadManager
+    from app.models import Settings
+    item = DownloadManager._make_item("http://x/1", Settings(), str(tmp_path), extra={"subdir": "Kuruluş: Osman?"})
+    assert item.folder.startswith(str(tmp_path)) and "Kuruluş" in item.folder and "?" not in item.folder
+
+
+# ------------------------------------------------------------------------------ 🎞 a playlist behind another name
+@needs_node
+def test_a_playlist_with_another_name_is_found_by_what_it_starts_with(bridge_app):  # noqa: F811
+    api, b = bridge_app
+    answer = run(b.port, "hidden")["answer"]
+    assert answer["before"]["media"] == []                                        # ".txt", "text/plain": not by its name
+    assert answer["told"]["ok"] and not answer["fake"]["ok"]
+    m = answer["after"]["media"]
+    assert len(m) == 1 and m[0]["kind"] == "hls" and m[0]["url"] == "http://cdn.example/v/list.txt?t=1"
+    assert m[0]["referer"] == PLAYER and m[0]["origin"] == "http://player.example" and m[0]["cookies"] == "pl=1"
+
+
+@needs_node
+def test_the_page_script_and_the_new_helpers_pass_their_node_tests():
+    import os
+    import subprocess
+    from test_extension import JS, NODE
+    for name in ("sniff.test.js", "lib.test.js"):
+        r = subprocess.run([NODE, "--test", os.path.join(JS, name)], capture_output=True, text=True, timeout=60)
+        assert r.returncode == 0 and "fail 0" in r.stdout, r.stdout + r.stderr
+
+
+def test_the_page_script_runs_in_the_page_itself_in_both_browsers():
+    import json
+    import os
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "browser_extension")
+    for name in ("manifest.json", "manifest.firefox.json"):
+        m = json.load(open(os.path.join(root, name), encoding="utf-8"))
+        scripts = {tuple(c["js"]): c for c in m["content_scripts"]}
+        sniff = scripts[("sniff.js",)]
+        assert sniff["world"] == "MAIN" and sniff["all_frames"] and sniff["run_at"] == "document_start"
+    firefox = json.load(open(os.path.join(root, "manifest.firefox.json"), encoding="utf-8"))
+    assert firefox["browser_specific_settings"]["gecko"]["strict_min_version"] == "128.0"   # (the page's own world)
