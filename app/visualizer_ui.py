@@ -95,7 +95,9 @@ class VisualizerWindow(ctk.CTkToplevel):
         super().__init__(music)
         set_window_icon(self)
         self.music = music
-        self.analyzer = analyzer or visualizer.Analyzer()
+        self.analyzer = analyzer or getattr(music, "analyzer", None) or visualizer.Analyzer()
+        if getattr(music, "analyzer", None) is None and analyzer is None:
+            music.analyzer = self.analyzer                   # one analysis of a song for the window and the player
         self.title("DISO • Görselleştirici")
         fit_geometry(self, 960, 620)
         self.minsize(520, 380)
@@ -148,8 +150,8 @@ class VisualizerWindow(ctk.CTkToplevel):
         self.bind("<F11>", lambda e: self.toggle_full())
         self.bind("<Escape>", lambda e: self.toggle_full() if self.full else self.destroy())
         self.bind("<space>", lambda e: self.music._toggle() or "break")
-        self.bind("<Right>", lambda e: self.music.tap("seek_forward", "Right") and "break")
-        self.bind("<Left>", lambda e: self.music.tap("seek_back", "Left") and "break")
+        for key, action in (("Right", "seek_forward"), ("Left", "seek_back"), ("Up", "volume_up"), ("Down", "volume_down")):
+            self.bind(f"<{key}>", lambda e, k=key, a=action: self.music.tap(a, k) and "break")
         self.bind("<KeyRelease>", lambda e: self.music._on_key_release(e), add="+")
 
         self._build_controls()
@@ -189,9 +191,9 @@ class VisualizerWindow(ctk.CTkToplevel):
         self.forward_btn = ctk.CTkButton(row, text="5 ⏩", width=56, height=34, command=lambda: m.seek_by(SEEK_STEP))
         self.next_btn = ctk.CTkButton(row, text="⏭", width=46, height=34, command=m._next)
         tooltip.set(self.prev_btn, "Önceki şarkı")
-        tooltip.set(self.back_btn, "5 saniye geri  (←; iki kez: önceki şarkı)")
+        tooltip.set(self.back_btn, "5 saniye geri  (←)")
         tooltip.set(self.play_btn, "Çal / duraklat  (Boşluk)")
-        tooltip.set(self.forward_btn, "5 saniye ileri  (→; iki kez: sonraki şarkı)")
+        tooltip.set(self.forward_btn, "5 saniye ileri  (→)")
         tooltip.set(self.next_btn, "Sonraki şarkı")
         for col, b in enumerate((self.prev_btn, self.back_btn, self.play_btn, self.forward_btn, self.next_btn)):
             b.grid(row=0, column=col, padx=5)

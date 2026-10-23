@@ -57,10 +57,10 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarıyla ayr
 - **Birden fazla çalma listesi** yapabilirsin (`＋` yeni, `✎` ad değiştir, `🗑` sil). Listeler kapanınca kaybolmaz (`%LOCALAPPDATA%\DISO\playlists.json`).
 - `＋ Dosya` ve `📁 Klasör` ile müzik eklersin; parçaları `▲` `▼` (ya da `Ctrl+↑/↓`) ile istediğin sıraya dizersin, `Delete` ile çıkarırsın. Dosyalar silinmez.
 - Çift tıklayınca o parçadan başlar. Çal/duraklat, önceki/sonraki, ilerleme çubuğu, ses, **🔀 Karışık** ve **🔁 Tekrar** (kapalı / liste / tek) var. `Boşluk` çal/duraklat.
-- **⏪5 / 5⏩** 5 saniye geri / ileri sarar. Klavyede **→ bir kez: 5 sn ileri, iki kez art arda: sonraki şarkı**; **← bir kez: 5 sn geri, iki kez: önceki şarkı** (basılı tutunca sarmaya devam eder).
+- **⏪5 / 5⏩** ve klavyede **→ / ←** 5 saniye ileri / geri sarar (basılı tutunca devam eder). **↑ / ↓** sesi açar / kısar, basılı tutunca hızlanır.
 - **⏩ Çalma hızı** (`1x` düğmesi): 0.25x'ten 4x'e, **perde** ±6 yarım ses.
 - **⇅ Listeyi sırala** (listenin yanındaki menü): kendi sıram, son eklenen başta / sonda, A → Z, Z → A, en popüler başta; kendi sıran hep saklı kalır.
-- **🎨** Arka plan çalan şarkının kapağının rengini hafifçe alır (⚙ menüsünden kapatılır).
+- **🎨** Çaların bloğu, YouTube'daki ışık gibi, müziğin her anına göre kapağın renklerinde parlar (⚙ menüsünden kapatılır).
 - **🌌 Görselleştirici:** çubuklar, dalga ya da halka; halkada kapak ortada ritimle atar, renkler kapaktan gelebilir; altta ⏮ ⏪5 ⏯ 5⏩ ⏭, F11 tam ekran.
 - Parça tablosunda **sanatçı, başlık ve süre** görünür (dosyanın etiketlerinden, arka planda okunur; etiketi olmayan dosya adıyla görünür). Listenin toplam süresi altta yazar. Çalan parçanın **kapak resmi** ve albümü çalar kutusunda görünür.
 - Biten müzik indirmeleri **kendiliğinden çalma listesine girer**: YouTube oynatma listesi kendi adıyla bir listeye (sırası korunarak), tek başına inen MP3 "İndirilenler" listesine. Kapatmak için Ayarlar → "Biten müzikleri çalma listesine ekle". Bir indirmenin **sağ tık menüsünden → Müzik listesine ekle** ile istediğin listeye de koyabilirsin.

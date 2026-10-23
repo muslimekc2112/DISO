@@ -2,6 +2,12 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 1.2.1
+- **↑ / ↓ for the volume:** in the music player ↑ turns it up and ↓ down (by 5); held down it goes slowly at first, then faster and faster.
+- **← / → only go back / forward:** pressing twice no longer jumps to the next / previous song; every press is 5 seconds, held down it keeps going.
+- **🎨 The colour of the music:** the colour is no longer on the whole window but on the player's block, and it follows each moment of the music (like YouTube's ambient light): the cover's colours mix by the bass, middle and treble and glow brighter as it gets louder. Paused, it stays calm in the cover's own colour.
+- **Fixed:** in the equalizer, turning "Advanced" on and off made the window wider and wider (with display scaling above 100%).
+
 ## 1.2
 - **🎞 Videos and MP3s from any site:** the browser extension finds the videos a page plays by itself (also in hidden players inside the page: HLS `.m3u8`, DASH `.mpd`, plain video and sound files) and shows how many on its toolbar button. Click it: choose from **🎞 Videos found on this page**, pick the **quality** (Best, 2160p … 360p), **download the subtitles** the player loaded too, and send them as **🎬 MP4** or **🎵 MP3**. The headers the player sent (Referer, Origin, cookies) go along, so servers that only answer their own player download too. The file is named after the page's title (not "index.m3u8"). Right-click the page → **🎞 Download the videos found on this page with DISO** works too. Copy-protected (DRM) streams cannot be downloaded.
 - **Downloads even when the site is not supported:** a page sent with "🎬 Download as MP4" or right-click → MP4/MP3 is tried by DISO first; if that does not work it goes on with the video the page played ("The page itself could not be downloaded; downloading the video it played…").

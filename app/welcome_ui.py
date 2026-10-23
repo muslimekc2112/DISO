@@ -13,11 +13,12 @@ WHATS_NEW = [
      "Seç, kaliteyi ve altyazıyı belirle, indir; site desteklenmese bile.", "extension"),
     ("🌌", "Yeni görselleştirici", "Halkanın ortasında şarkının kapağı ritimle atar, renkler kapaktan gelir; ⏮ ⏪ ⏯ ⏩ ⏭ "
      "düğmeleri de orada.", "visualizer"),
-    ("⏩", "Çalma hızı ve ⏪5 / 5⏩", "0.25x'ten 4x'e hız, istersen perde. → bir kez: 5 sn ileri, iki kez: sonraki şarkı "
-     "(← de geri ve önceki).", "speed"),
+    ("⏩", "Çalma hızı ve ⏪5 / 5⏩", "0.25x'ten 4x'e hız, istersen perde. → / ← 5 saniye sarar, ↑ / ↓ sesi açar "
+     "ve kısar (basılı tutunca hızlanır).", "speed"),
     ("⇅", "Listeyi sırala", "Kendi sıran, son eklenen başta ya da sonda, A → Z, Z → A, en popüler başta. Kendi sıran hep "
      "saklı kalır.", "order"),
-    ("🎨", "Şarkının rengi", "Müzik çaların arka planı çalan şarkının kapağının rengini hafifçe alır.", None),
+    ("🎨", "Müziğin rengi", "Çaların bloğu, YouTube'daki ışık gibi, şarkının o anına göre kapağın renklerinde "
+     "parlar: bas, orta ve tiz her an rengi değiştirir.", None),
     ("🛡", "Her indirmede Defender", "İnen her dosya (torrent klasörleri dahil) Windows Defender ile taranır; sonucu "
      "indirmenin altında yazar.", "extras"),
     ("🔔", "Bildirimler DISO'dan", "Bildirimler artık “Windows PowerShell” adıyla değil, DISO'nun adı ve simgesiyle gelir.",

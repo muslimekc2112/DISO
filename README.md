@@ -57,10 +57,10 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 - Make **as many playlists as you like** (`＋` new, `✎` rename, `🗑` delete). They survive closing DISO (`%LOCALAPPDATA%\DISO\playlists.json`).
 - Add music with `＋ File` and `📁 Folder`, put the songs in any order with `▲` `▼` (or `Ctrl+↑/↓`), take them out with `Delete`. The files themselves are never deleted.
 - Double-click a song to start from it. There is play/pause, previous/next, a progress bar, volume, **🔀 Shuffle** and **🔁 Repeat** (off / list / one song). `Space` plays/pauses.
-- **⏪5 / 5⏩** go 5 seconds back / forward. On the keyboard **→ once: 5 s forward, twice quickly: the next song**; **← once: 5 s back, twice: the song before** (held down it keeps going).
+- **⏪5 / 5⏩** go 5 seconds back / forward, and so do **→ / ←** on the keyboard (held down they keep going). **↑ / ↓** turn the volume up / down, faster while held.
 - **⏩ Playing speed** (the `1x` button): 0.25x to 4x, and the **pitch** ±6 semitones.
 - **⇅ Order a list** (the menu next to the list): my own order, newest first / last, A → Z, Z → A, most played first; your own order is always kept.
-- **🎨** The background takes on a little of the playing song's cover colour (⚙ menu to turn it off).
+- **🎨** The player's block glows in the cover's colours with every moment of the music, like YouTube's ambient light (⚙ menu to turn it off).
 - **🌌 Visualizer:** bars, wave or ring; in the ring the cover beats in the middle, the colours can come from the cover; ⏮ ⏪5 ⏯ 5⏩ ⏭ at the bottom, F11 for full screen.
 - The song table shows **artist, title and length** (read from the file's tags in the background; a file without tags shows its file name). The list's total length is shown below it. The playing song's **cover art** and album appear in the player box.
 - Finished music downloads **go into a playlist by themselves**: a YouTube playlist into a list with its own name (in its order), a single MP3 into the "Downloaded" list. To turn this off: Settings → "Put finished music into a playlist". From a download's **right-click menu → Add to a playlist** you can also put it into any list.

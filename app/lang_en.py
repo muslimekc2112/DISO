@@ -804,14 +804,14 @@ PLAIN = {
     "Halkanın ortasında şarkının kapağı ritimle atar, renkler kapaktan gelir; ⏮ ⏪ ⏯ ⏩ ⏭ düğmeleri de orada.":
         "The song's cover beats in the middle of the ring, the colours come from the cover; ⏮ ⏪ ⏯ ⏩ ⏭ are there too.",
     "Çalma hızı ve ⏪5 / 5⏩": "Playing speed and ⏪5 / 5⏩",
-    "0.25x'ten 4x'e hız, istersen perde. → bir kez: 5 sn ileri, iki kez: sonraki şarkı (← de geri ve önceki).":
-        "Speed from 0.25x to 4x, and the pitch if you like. → once: 5 s forward, twice: the next song (← back and the one before).",
+    "0.25x'ten 4x'e hız, istersen perde. → / ← 5 saniye sarar, ↑ / ↓ sesi açar ve kısar (basılı tutunca hızlanır).":
+        "Speed from 0.25x to 4x, and the pitch if you like. → / ← go 5 seconds, ↑ / ↓ turn the volume up and down (faster while held).",
     "Listeyi sırala": "Order a list",
     "Kendi sıran, son eklenen başta ya da sonda, A → Z, Z → A, en popüler başta. Kendi sıran hep saklı kalır.":
         "Your own order, newest first or last, A → Z, Z → A, most played first. Your own order is always kept.",
-    "Şarkının rengi": "The song's colour",
-    "Müzik çaların arka planı çalan şarkının kapağının rengini hafifçe alır.":
-        "The music player's background takes on a little of the playing song's cover colour.",
+    "Müziğin rengi": "The colour of the music",
+    "Çaların bloğu, YouTube'daki ışık gibi, şarkının o anına göre kapağın renklerinde parlar: bas, orta ve tiz her an rengi değiştirir.":
+        "Like YouTube's ambient light, the player's block glows in the cover's colours with every moment of the song: bass, middle and treble change it all the time.",
     "Her indirmede Defender": "Defender on every download",
     "İnen her dosya (torrent klasörleri dahil) Windows Defender ile taranır; sonucu indirmenin altında yazar.":
         "Every downloaded file (torrent folders too) is scanned with Windows Defender; the result is written under the download.",
@@ -835,19 +835,16 @@ PLAIN = {
     "Kendi sıram": "My own order", "Son eklenen en başta": "Newest first", "Son eklenen en sonda": "Newest last",
     "En popüler en başta": "Most played first", "Sütuna göre": "By column",
     "Listeyi sırala: senin sıran hep saklı kalır": "Order the list: your own order is always kept",
-    "5 saniye geri  (←; iki kez: önceki şarkı)": "5 seconds back  (←; twice: the song before)",
-    "5 saniye ileri  (→; iki kez: sonraki şarkı)": "5 seconds forward  (→; twice: the next song)",
-    "5 saniye ileri (iki kez: sonraki şarkı)": "5 seconds forward (twice: next song)",
-    "5 saniye geri (iki kez: önceki şarkı)": "5 seconds back (twice: song before)",
+    "5 saniye geri  (←)": "5 seconds back  (←)", "5 saniye ileri  (→)": "5 seconds forward  (→)",
     "Çalma hızı ve perde": "Playing speed and pitch", "⏩ Çalma hızı ve perde": "⏩ Playing speed and pitch",
     "🌌 Görselleştirici": "🌌 Visualizer", "🌌🎤 Görselleştirici + şarkıyla akan sözler": "🌌🎤 Visualizer + lyrics flowing with the song",
-    "🎨 Arka plan şarkının renginde": "🎨 Background in the song's colours",
+    "🎨 Çalar bloğu müziğe göre renk alsın": "🎨 The player's block takes the music's colours",
+    "🎨 Çaların bloğu müziğin o anına göre renk alacak": "🎨 The player's block will glow with every moment of the music",
+    "🎨 Çaların bloğu hep kendi renginde kalacak": "🎨 The player's block will keep its own colour",
     "🎵 Perde (ses inceliği)": "🎵 Pitch (how high the voice is)", "↺ Normale döndür": "↺ Back to normal",
     "Normal perde": "Normal pitch", "1x  (normal)": "1x  (normal)",
     "⏩ Hız burada değiştirilemiyor: ses çıkışı bulunamadı": "⏩ The speed cannot be changed here: no sound output was found",
     "⏩ Normal hızda çalıyor": "⏩ Playing at normal speed",
-    "🎨 Pencere çalan şarkının kapağının renklerini alacak": "🎨 The window will take on the colours of the playing song's cover",
-    "🎨 Pencere hep kendi renginde kalacak": "🎨 The window will keep its own colours",
     "✨ Bu liste kendiliğinden dolar; sırası değiştirilemez": "✨ This list fills itself; its order cannot be changed",
     "⇅ Liste kendi sıranda": "⇅ The list is in your own order",
     "🎨 Kapaktan": "🎨 From the cover", "Tam ekran (F11)": "Full screen (F11)", "Önceki şarkı": "Previous song",

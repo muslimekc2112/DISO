@@ -51,43 +51,49 @@ def test_the_arrows_are_the_default_keys_for_five_seconds():
     assert hotkeys.needs_quiet_typing("Right")                      # typing in a box keeps its arrows
 
 
-def test_right_once_is_five_seconds_twice_is_the_next_song(music_app, songs):
+def test_right_and_left_are_five_seconds_and_pressing_twice_is_no_new_song(music_app, songs):
     _, music = music_app
     add(music, songs)
     backend = playing(music, 1)
     backend.position = 60000
-    assert music.tap("seek_forward", "Right", now=100.0) == "seek"
-    assert backend.position == 60000 + SEEK_STEP
-    music._on_key_release(Key(music, "Right"))
-    assert music.tap("seek_forward", "Right", now=100.3) == "song"
-    assert music.controller.current_title() == "Akşam"
-    music._on_key_release(Key(music, "Right"))
-    backend = music.controller.backend.active
-    backend.length = 200000
-    assert music.tap("seek_forward", "Right", now=105.0) == "seek"     # long after: just 5 s again
-    assert music.controller.current_title() == "Akşam" and backend.position == SEEK_STEP
+    for _ in range(2):                                           # twice quickly: still the same song
+        music.tap("seek_forward", "Right")
+        music._on_key_release(Key(music, "Right"))
+    assert backend.position == 60000 + 2 * SEEK_STEP and music.controller.current_title() == "Öğle"
+    for _ in range(2):
+        music.tap("seek_back", "Left")
+        music._on_key_release(Key(music, "Left"))
+    assert backend.position == 60000 and music.controller.current_title() == "Öğle"
 
 
-def test_left_once_is_five_seconds_back_twice_is_the_song_before(music_app, songs):
-    _, music = music_app
-    add(music, songs)
-    backend = playing(music, 2)
-    backend.position = 50000
-    music.tap("seek_back", "Left", now=10.0)
-    assert backend.position == 50000 - SEEK_STEP
-    music._on_key_release(Key(music, "Left"))
-    music.tap("seek_back", "Left", now=10.2)
-    assert music.controller.current_title() == "Öğle"           # not the start of "Akşam": the one before
-
-
-def test_holding_the_key_keeps_seeking_and_is_no_double_press(music_app, songs):
+def test_holding_the_key_keeps_seeking(music_app, songs):
     _, music = music_app
     add(music, songs)
     backend = playing(music, 0)
     backend.position = 10000
-    for k in range(4):                                           # the key's own repeats, no release between
-        assert music.tap("seek_forward", "Right", now=1.0 + k * 0.03) == "seek"
+    for _ in range(4):                                           # the key's own repeats, no release between
+        music.tap("seek_forward", "Right")
     assert backend.position == 10000 + 4 * SEEK_STEP and music.controller.current_title() == "Sabah"
+
+
+def test_up_and_down_change_the_volume_faster_when_held(music_app, songs):
+    _, music = music_app
+    assert hotkeys.DEFAULT_KEYS["volume_up"] == "Up" and hotkeys.DEFAULT_KEYS["volume_down"] == "Down"
+    music.set_volume(50)
+    assert music.tap("volume_up", "Up") == 5 and int(music.volume.get()) == 55
+    music._on_key_release(Key(music, "Up"))
+    music.tap("volume_down", "Down")
+    music._on_key_release(Key(music, "Down"))
+    assert int(music.volume.get()) == 50
+    steps = [music.tap("volume_up", "Up") for _ in range(20)]  # held: 5 at first, then slow and faster and faster
+    assert steps[0] == 5 and steps[1] == 1 and steps[-1] > steps[2] and steps == steps[:1] + sorted(steps[1:])
+    assert int(music.volume.get()) == 100                        # never over 100
+    music._on_key_release(Key(music, "Up"))
+    for _ in range(40):
+        music.tap("volume_down", "Down")
+    assert int(music.volume.get()) == 0
+    entry = music.filter_entry._entry                            # typing in a box: the arrows are the box's
+    assert music._on_shortcut(Key(entry, "Up"), "volume_up", True) is None
 
 
 def test_the_key_goes_through_the_shortcut_binding_but_not_while_typing(music_app, songs):
@@ -221,38 +227,104 @@ def test_the_main_colour_of_a_cover_is_the_lively_one(tmp_path):
     r, g, b = ambient._hex(red)
     assert r > 150 and g < 80 and b < 90
     assert ambient.main_colour(str(tmp_path / "none.jpg")) is None
-    light, dark = ambient.background(red, ("#f0f0f0", "#202020"))
-    assert light != "#f0f0f0" and dark != "#202020"
-    assert ambient._hex(dark)[0] > ambient._hex(dark)[2]                     # a hint of red in the dark one
-    assert ambient.background(None, ("#f0f0f0", "#202020")) == ("#f0f0f0", "#202020")
     pal = ambient.palette([red, "#ffcc00"])
     assert len(pal) == 5 and all(p.startswith("#") and len(p) == 7 for p in pal)
 
 
-def test_the_window_takes_the_covers_colour_and_gives_it_back(music_app, songs, tmp_path):
+class LoudAnalyzer:
+    """A song whose sound is known: the first half deep and loud, the second half high and soft."""
+
+    def __init__(self):
+        import numpy as np
+        frames = np.zeros((600, 64), dtype=np.uint8)
+        level = np.zeros(600, dtype=np.uint8)
+        frames[:300, :8], level[:300] = 255, 255
+        frames[300:, 40:], level[300:] = 200, 40
+        self.result = (frames, level)
+
+    def want(self, path):
+        pass
+
+    def get(self, path):
+        return self.result
+
+    def busy(self, path):
+        return False
+
+
+def test_the_players_block_glows_with_the_music_and_the_window_stays_plain(music_app, songs, tmp_path):
+    from PIL import Image
     _, music = music_app
     add(music, songs)
-    playing(music, 0)
-    plain = music._ambient_target(None)
-    music._covers[music.controller.current_path()] = jpg = _cover(tmp_path, "#2050e0")
+    backend = playing(music, 0)
+    jpg = str(tmp_path / "cover.jpg")
+    img = Image.new("RGB", (90, 90), "#e02020")                  # red, blue and green parts
+    img.paste(Image.new("RGB", (30, 90), "#2040e0"), (30, 0))
+    img.paste(Image.new("RGB", (30, 90), "#20c040"), (60, 0))
+    img.save(jpg)
+    window_before = music.cget("fg_color")
+    music.analyzer = LoudAnalyzer()
+    music._covers[music.controller.current_path()] = jpg
     music._set_cover(jpg)
-    for _ in range(20):
-        music.update()
-        time.sleep(0.03)
-    tinted = music._ambient_now
-    assert tinted is not None and tinted != plain
-    assert music.cget("fg_color") == (tinted[0], tinted[1])
+    assert len(music._ambient_colours) == 3
+
+    def settle(ms):
+        backend.position = ms
+        for _ in range(12):
+            music._paint_pulse()
+        return music._ambient_now
+    loud = settle(2000)                                          # deep and loud
+    soft = settle(15000)                                         # high and soft
+    assert loud is not None and soft is not None and loud != soft
+    card = music._hex_pair(__import__("customtkinter").ThemeManager.theme["CTkFrame"]["fg_color"])
+    far = lambda pair: ambient.distance(pair[1], card[1])         # noqa: E731
+    assert far(loud) > far(soft)                                 # louder: a stronger colour
+    assert music.player_box.cget("fg_color") == soft
+    assert music.cget("fg_color") == window_before               # only the player's block, not the window
+    painted = []
+    real = music.player_box.configure
+    music.player_box.configure = lambda **k: painted.append(k) or real(**k)
+    for _ in range(5):
+        music._paint_pulse()                                     # nothing changed: nothing is painted again
+    assert painted == []
+    music.player_box.configure = real
+    music.controller.toggle()                                    # paused: the cover's own colour, calm
+    paused = settle(2000)
+    assert paused is not None
     music.set_ambient(False)
-    for _ in range(20):
-        music.update()
-        time.sleep(0.03)
-    assert music._ambient_now == plain
+    assert music._ambient_now is None and music.player_box.cget("fg_color") == card
     music.set_ambient(True)
-    music._set_cover(None)                                                    # a song without a cover: plain
-    for _ in range(20):
-        music.update()
-        time.sleep(0.03)
-    assert music._ambient_now == plain
+    music._stop()
+    music._paint_pulse()
+    assert music._ambient_now is None                            # nothing plays: its own colour
+
+
+def test_the_colour_of_a_moment_follows_the_bass_middle_and_treble():
+    red, blue, green = "#e02020", "#2040e0", "#20c040"
+    deep = ambient.moment([red, blue, green], 1.0, 0.1, 0.0)
+    high = ambient.moment([red, blue, green], 0.0, 0.1, 1.0)
+    assert ambient._hex(deep)[0] > ambient._hex(deep)[2] and ambient._hex(high)[1] > ambient._hex(high)[0]
+    assert ambient.moment([], 1, 1, 1) is None
+    assert ambient.moment([red], 0.5, 0.5, 0.5).startswith("#")
+    base = ("#f0f0f0", "#202020")
+    assert ambient.pulse(base, None, 1) == base
+    quiet, loud = ambient.pulse(base, red, 0.0), ambient.pulse(base, red, 1.0)
+    assert ambient.distance(loud[1], base[1]) > ambient.distance(quiet[1], base[1])
+
+
+@pytest.mark.gui
+def test_turning_advanced_on_and_off_does_not_make_the_equalizer_wider(music_app):
+    _, music = music_app
+    win = music.open_eq()
+    win.update()
+    widths = []
+    for _ in range(6):
+        win.advanced_var.set(not win.advanced_var.get())
+        win._toggle_advanced()
+        win.update()
+        widths.append(win.winfo_width())
+    assert max(widths) - min(widths) <= 2, widths
+    win.destroy()
 
 
 # ------------------------------------------------------------------------------ 🌌 the visualizer

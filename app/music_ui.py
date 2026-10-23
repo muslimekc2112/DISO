@@ -45,7 +45,8 @@ SLEEP_TRACK = "Parça bitince"
 SLEEP_CHOICES = [SLEEP_OFF, "15 dk", "30 dk", "45 dk", "60 dk", "90 dk", SLEEP_TRACK]
 SORT_COLUMNS = {"title": "title", "artist": "artist", "time": "time"}
 SEEK_STEP = 5000           # ms: ⏪ / ⏩ and a single ← / →
-DOUBLE_TAP = 0.4           # s: ← / → twice within this: the song before / after
+VOLUME_STEP = 5            # ↑ / ↓ once; held down it speeds up (VOLUME_RAMP)
+PULSE_MS = 130             # 🎨 how often the player's block takes the colour of the music's moment
 SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0)
 PITCHES = (-6, -4, -2, -1, 0, 1, 2, 4, 6)
 # ⇅ how a list can be shown (playlists.ORDERS), in the menu's words
@@ -53,6 +54,11 @@ ORDER_NAMES = {playlists.ORDER_OWN: "Kendi sıram", playlists.ORDER_NEW_FIRST: "
                playlists.ORDER_NEW_LAST: "Son eklenen en sonda", playlists.ORDER_AZ: "A → Z",
                playlists.ORDER_ZA: "Z → A", playlists.ORDER_POPULAR: "En popüler en başta"}
 ORDER_COLUMN_NAME = "Sütuna göre"
+
+
+def volume_step(repeats) -> int:
+    """How much ↑ / ↓ moves the volume at the n-th repeat of a key held down: slow at first, then fast."""
+    return min(6, 1 + int(repeats) // 4)
 
 
 def speed_text(speed) -> str:
@@ -243,11 +249,13 @@ class MusicWindow(ctk.CTkToplevel):
         self.sleep_at = None                         # time.time() when the music stops by itself
         self.sleep_after_track = False
         self._resume = self._saved_place()           # (list, index, ms) to go on from, or None
-        self._last_tap = None                        # (action, time) of the last ← / → (twice: next / previous)
-        self._held = None                            # the ← / → that is held down (its repeats only seek)
-        self._ambient = None                         # 🎨 the cover colour the window shows (None: none)
-        self._ambient_job = None
-        self._ambient_now = None                     # (window light, window dark, panel light, panel dark)
+        self._held = None                            # the ← / → / ↑ / ↓ that is held down, and its repeats so far
+        self._repeats = 0
+        self._ambient_colours = []                   # 🎨 the playing song's cover colours
+        self._ambient_now = None                     # (light, dark) the player's block shows now
+        self._pulse_level = 0.0
+        self._pulse_rgb = None
+        self.analyzer = None                         # the song's sound, frame by frame (shared with the visualizer)
 
         controller.shuffle = bool(store.state["shuffle"])
         controller.repeat = store.state["repeat"]
@@ -277,6 +285,7 @@ class MusicWindow(ctk.CTkToplevel):
         self._show_view(VIEW_LISTS)
         self._update_status()                        # "Kaldığın yer: …" at once, not a quarter second later
         self.after(250, self._tick)
+        self.after(PULSE_MS, self._pulse)
 
     # ------------------------------------------------------------------ layout
     def _build_top(self):
@@ -320,7 +329,7 @@ class MusicWindow(ctk.CTkToplevel):
                  ("🌌🎤 Görselleştirici + şarkıyla akan sözler", lambda: self.open_visualizer(lyrics_on=True)),
                  ("⏩ Çalma hızı ve perde", self.speed_menu_items()),
                  (level, lambda: self.set_level(not self.store.state["level"])),
-                 ((("✓ " if self.store.state["ambient"] else "   ") + "🎨 Arka plan şarkının renginde"),
+                 ((("✓ " if self.store.state["ambient"] else "   ") + "🎨 Çalar bloğu müziğe göre renk alsın"),
                   lambda: self.set_ambient(not self.store.state["ambient"])),
                  None, ("📤 Bu listeyi dışa aktar (.m3u)…", self.export_list), ("📥 Liste içe aktar (.m3u)…", self.import_list),
                  ("🖼 Kapağı olmayanlara kapak bul", lambda: self.find_covers(self.store.tracks(self.viewed)))]
@@ -735,12 +744,12 @@ class MusicWindow(ctk.CTkToplevel):
         ctl.columnconfigure(6, weight=1)
         self.prev_btn = ctk.CTkButton(ctl, text="⏮", width=44, command=self._previous)
         self.back_btn = ctk.CTkButton(ctl, text="⏪ 5", width=52, command=lambda: self.seek_by(-SEEK_STEP))
-        tooltip.set(self.back_btn, "5 saniye geri  (←; iki kez: önceki şarkı)")
+        tooltip.set(self.back_btn, "5 saniye geri  (←)")
         self.play_btn = ctk.CTkButton(ctl, text=PLAY_ICON, width=60, font=ctk.CTkFont(size=18),
                                       command=self._toggle)
         tooltip.set(self.play_btn, "Çal / duraklat")
         self.forward_btn = ctk.CTkButton(ctl, text="5 ⏩", width=52, command=lambda: self.seek_by(SEEK_STEP))
-        tooltip.set(self.forward_btn, "5 saniye ileri  (→; iki kez: sonraki şarkı)")
+        tooltip.set(self.forward_btn, "5 saniye ileri  (→)")
         self.next_btn = ctk.CTkButton(ctl, text="⏭", width=44, command=self._next)
         self.stop_btn = ctk.CTkButton(ctl, text="⏹", width=44, command=self._stop)
         for col, b in enumerate((self.prev_btn, self.back_btn, self.play_btn, self.forward_btn, self.next_btn,
@@ -846,35 +855,29 @@ class MusicWindow(ctk.CTkToplevel):
         if quiet and (isinstance(event.widget, (tk.Entry, tk.Text)) or "entry" in str(event.widget).lower()
                       or "textbox" in str(event.widget).lower()):
             return None                                      # typing in a box: the key is the box's
-        if name in ("seek_forward", "seek_back"):
+        if name in ("seek_forward", "seek_back", "volume_up", "volume_down"):
             self.tap(name, getattr(event, "keysym", ""))
             return "break"
         self.key_actions()[name]()
         return "break"
 
-    def tap(self, name, key="", now=None):
-        """→ / ← (whatever key "5 saniye ileri / geri" has): once = 5 s forward / back, twice quickly = the
-        next / previous song. Held down, it keeps going 5 s at a time (the key's repeats are no double press)."""
-        now = time.monotonic() if now is None else now
-        last, self._last_tap = self._last_tap, (name, now)
-        if self._held == (name, key):                        # the key's own repeat while it is held
-            self._last_tap = None
-            self.seek_by(SEEK_STEP if name == "seek_forward" else -SEEK_STEP)
-            return "seek"
+    def tap(self, name, key=""):
+        """→ / ← : 5 s forward / back (held down: on and on, 5 s at a time). ↑ / ↓ : the volume up / down by 5;
+        held down it goes faster and faster. Returns how much it moved."""
+        repeat = self._held == (name, key)                   # the key's own repeat while it is held
+        self._repeats = self._repeats + 1 if repeat else 0
         self._held = (name, key)
-        if last and last[0] == name and now - last[1] <= DOUBLE_TAP and self.controller.state != "stopped":
-            self._last_tap = None
-            if name == "seek_forward":
-                self._next()
-            else:
-                self._previous_song()
-            return "song"
-        self.seek_by(SEEK_STEP if name == "seek_forward" else -SEEK_STEP)
-        return "seek"
+        if name in ("seek_forward", "seek_back"):
+            self.seek_by(SEEK_STEP if name == "seek_forward" else -SEEK_STEP)
+            return SEEK_STEP
+        step = volume_step(self._repeats) if repeat else VOLUME_STEP
+        self.set_volume(int(self.volume.get()) + (step if name == "volume_up" else -step))
+        return step
 
     def _on_key_release(self, event):
         if self._held and self._held[1] in ("", getattr(event, "keysym", "")):
             self._held = None
+            self._repeats = 0
 
     def seek_by(self, ms):
         """⏪ / ⏩: move in the song (at the end: the next song, as if it had played out)."""
@@ -888,14 +891,6 @@ class MusicWindow(ctk.CTkToplevel):
             return True
         self._seek_ms(max(0, target))
         return True
-
-    def _previous_song(self):
-        """The song before this one (not the start of this one, as ⏮ does after 3 seconds)."""
-        self._resume = None
-        if not self.controller.tracks:
-            self._load_viewed()
-        self.controller.previous(0)
-        self._after_action()
 
     # ------------------------------------------------------------------ ⏩ speed and pitch
     def set_tempo(self, speed=None, pitch=None, remember=True, quiet=False) -> bool:
@@ -947,18 +942,78 @@ class MusicWindow(ctk.CTkToplevel):
         y = self.speed_btn.winfo_rooty() + self.speed_btn.winfo_height()
         self._popup(menu, type("E", (), {"x_root": x, "y_root": y})())
 
-    # ------------------------------------------------------------------ 🎨 the cover's colours
+    # ------------------------------------------------------------------ 🎨 the colour of the music
     def set_ambient(self, on):
         self.store.set_state(ambient=bool(on))
-        self._ambient_to(self._ambient if on else None, force=True)
-        self.note("🎨 Pencere çalan şarkının kapağının renklerini alacak" if on
-                  else "🎨 Pencere hep kendi renginde kalacak")
+        self._pulse()
+        self.note("🎨 Çaların bloğu müziğin o anına göre renk alacak" if on
+                  else "🎨 Çaların bloğu hep kendi renginde kalacak")
 
     def _ambient_from(self, jpg):
-        """The cover changed: the window slowly takes on its colour (or goes back to its own)."""
-        colour = ambient.main_colour(jpg) if jpg else None
-        self._ambient = colour
-        self._ambient_to(colour)
+        """The cover changed: its colours are what the player's block glows in while the song plays."""
+        self._ambient_colours = ambient.cover_colours(jpg, 3) if jpg else []
+
+    def _sound_now(self):
+        """(bass, middle, high, loudness) of the playing moment, 0..1 each; None while it is not known."""
+        c = self.controller
+        path = c.current_path() if c.state == "playing" else None
+        if not path:
+            return None
+        if self.analyzer is None:
+            try:
+                from . import visualizer
+                self.analyzer = visualizer.Analyzer()
+            except Exception:  # noqa: BLE001 - no numpy: the block keeps the cover's colour
+                return None
+        self.analyzer.want(path)
+        result = self.analyzer.get(path)
+        if result is None:
+            return None
+        from . import visualizer
+        bands, loud = visualizer.frame_at(result, c.position_ms())
+        n = len(bands)
+        part = lambda a, b: sum(bands[a:b]) / max(1, b - a)          # noqa: E731
+        return part(0, n // 8), part(n // 8, n // 2), part(n // 2, n), loud
+
+    def _pulse(self):
+        """🎨 The player's block in the colour of this moment of the song (like YouTube's ambient light): the
+        cover's colours, mixed by what sounds now, brighter when it is loud. Painted only when it really changes."""
+        if self._closed:
+            return
+        try:
+            self._paint_pulse()
+        except tk.TclError:
+            return
+        except Exception:  # noqa: BLE001 - a colour is never worth stopping the player
+            log.exception("music colour")
+        self.after(PULSE_MS, self._pulse)
+
+    def _paint_pulse(self):
+        card = self._hex_pair(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
+        if card is None:
+            return
+        on = self.store.state["ambient"] and self._ambient_colours and not look.is_nostalgia() \
+            and self.controller.state in ("playing", "paused")
+        if not on:
+            target = card
+            self._pulse_rgb, self._pulse_level = None, 0.0
+        else:
+            sound = self._sound_now()
+            if sound is None:                                  # paused / not analysed yet: the cover's own colour
+                colour, level = self._ambient_colours[0], 0.25
+            else:
+                bass, mid, high, loud = sound
+                colour, level = ambient.moment(self._ambient_colours, bass, mid, high), loud
+            self._pulse_level += (level - self._pulse_level) * (0.6 if level > self._pulse_level else 0.25)
+            old = self._pulse_rgb or colour
+            self._pulse_rgb = ambient.mix(old, colour, 0.35)    # (the hue glides, it does not jump)
+            target = ambient.pulse(card, self._pulse_rgb, self._pulse_level)
+        if self._ambient_now is None and target == card:
+            return
+        if self._ambient_now is not None and max(ambient.distance(a, b) for a, b in zip(self._ambient_now, target)) < 4:
+            return
+        self._ambient_now = None if target == card else tuple(target)
+        self.player_box.configure(fg_color=target)
 
     def _hex_pair(self, value):
         """(light, dark) "#rrggbb" of a theme colour (a pair or one colour, a name like "gray14" too)."""
@@ -971,47 +1026,6 @@ class MusicWindow(ctk.CTkToplevel):
                 return None
             out.append("#%02x%02x%02x" % (r >> 8, g >> 8, b >> 8))
         return tuple(out)
-
-    def _ambient_target(self, colour):
-        theme = ctk.ThemeManager.theme
-        window = self._hex_pair(theme["CTkToplevel"]["fg_color"])
-        card = self._hex_pair(theme["CTkFrame"]["fg_color"])
-        if window is None or card is None:
-            return None
-        on = colour and self.store.state["ambient"] and not look.is_nostalgia()
-        return ambient.background(colour if on else None, window) + ambient.background(colour if on else None, card)
-
-    def _ambient_to(self, colour, force=False):
-        target = self._ambient_target(colour)
-        if target is None:
-            return
-        if self._ambient_job is not None:
-            try:
-                self.after_cancel(self._ambient_job)
-            except tk.TclError:
-                pass
-            self._ambient_job = None
-        start = self._ambient_now or self._ambient_target(None)
-        if start == target and not force:
-            return
-        frames = list(zip(*(ambient.steps(a, b, 8) for a, b in zip(start, target))))
-
-        def step(i=0):
-            self._ambient_job = None
-            if self._closed:
-                return
-            try:
-                self._paint_ambient(frames[i])
-            except tk.TclError:
-                return
-            if i + 1 < len(frames):
-                self._ambient_job = self.after(45, lambda: step(i + 1))
-        step()
-
-    def _paint_ambient(self, colours):
-        self._ambient_now = tuple(colours)
-        self.configure(fg_color=(colours[0], colours[1]))
-        self.player_box.configure(fg_color=(colours[2], colours[3]))
 
     # ------------------------------------------------------------------ ⇅ the order of a list
     def _choose_order(self, label):

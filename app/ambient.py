@@ -85,6 +85,34 @@ def palette(colours):
             _with(second, lightness=0.88, saturation=0.6)]
 
 
+def moment(colours, bass, mid, treble):
+    """🎨 The colour of this moment of the song: the cover's colours mixed by what sounds now (the deep notes
+    bring the first colour, the middle the second, the high ones the third)."""
+    colours = list(colours or [])
+    if not colours:
+        return None
+    while len(colours) < 3:
+        colours.append(_with(colours[-1], lightness=0.6))
+    weights = [max(0.0, float(v)) ** 2 + 0.02 for v in (bass, mid, treble)]       # (the loudest part leads)
+    total = sum(weights)
+    rgb = [sum(_hex(c)[k] * w for c, w in zip(colours, weights)) / total for k in range(3)]
+    h, l, s = colorsys.rgb_to_hls(*(v / 255 for v in rgb))
+    return to_hex(v * 255 for v in colorsys.hls_to_rgb(h, min(0.62, max(0.38, l)), max(0.5, s)))
+
+
+def pulse(base, colour, level):
+    """(light, dark) of a panel (`base`) with this colour, stronger the louder the music is (`level` 0..1)."""
+    light, dark = base
+    if not colour:
+        return light, dark
+    level = max(0.0, min(1.0, float(level)))
+    return mix(light, colour, 0.10 + 0.30 * level), mix(dark, colour, 0.14 + 0.46 * level)
+
+
+def distance(a, b) -> int:
+    return max(abs(x - y) for x, y in zip(_hex(a), _hex(b)))
+
+
 def steps(old, new, count=STEPS):
     """The colours in between, for a soft change (the last one is `new`)."""
     return [mix(old, new, (i + 1) / count) for i in range(count)]

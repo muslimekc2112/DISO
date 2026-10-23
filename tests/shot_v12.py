@@ -83,7 +83,16 @@ def test_shots(app, monkeypatch, tmp_path):
     while time.time() < end and not music._covers.get(songs[0]):
         music.update()
         time.sleep(0.05)
+    from app import visualizer
+    music.analyzer = visualizer.Analyzer()
+    end = time.time() + 10
+    while time.time() < end and music.analyzer.get(songs[0]) is None:
+        music.analyzer.want(songs[0])
+        music.update()
+        time.sleep(0.05)
     _grab(music, "music")
+    time.sleep(0.4)
+    _grab(music, "music2")
     win = music.open_visualizer()
     win.geometry("960x620")
     end = time.time() + 8

@@ -102,7 +102,12 @@ class EqualizerWindow(ctk.CTkToplevel):
         self._place_bands()
         try:
             w, h = SIZES[self.advanced]
-            self.geometry(f"{max(w, self.winfo_width())}x{h}")
+            try:
+                scale = float(self._get_window_scaling())
+            except Exception:  # noqa: BLE001
+                scale = 1.0
+            now = int(round(self.winfo_width() / scale))      # (winfo is in screen pixels, geometry() in the app's units)
+            self.geometry(f"{max(w, now)}x{h}")
         except TclError:
             pass
 

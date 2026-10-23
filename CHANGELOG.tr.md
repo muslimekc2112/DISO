@@ -2,6 +2,12 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 1.2.1
+- **↑ / ↓ ile ses:** müzik çalarda ↑ sesi açar, ↓ kısar (5'er); basılı tutunca önce yavaş, sonra gittikçe hızlı.
+- **← / → yalnızca sarar:** iki kez basınca sonraki / önceki şarkıya geçme kaldırıldı; her basış 5 saniye, basılı tutunca sarmaya devam eder.
+- **🎨 Müziğin rengi:** renk artık bütün pencerede değil, şarkının olduğu blokta ve müziğin o anına göre değişiyor (YouTube'daki ışık gibi): kapağın renkleri bas, orta ve tize göre karışır, ses yükseldikçe parlar. Duraklatınca sakin, kapağın kendi renginde kalır.
+- **Düzeltildi:** ekolayzırda "Gelişmiş"i açıp kapattıkça pencere sağa doğru uzuyordu (ekran ölçeklemesi %100'den büyükken).
+
 ## 1.2
 - **🎞 Her siteden video ve MP3:** tarayıcı eklentisi sayfada oynayan videoları kendisi bulur (sayfanın içindeki gizli oynatıcılardakiler de: HLS `.m3u8`, DASH `.mpd`, düz video ve ses dosyaları) ve araç çubuğundaki simgesinde kaç tane bulduğunu yazar. Simgeye tıkla: **🎞 Bu sayfada bulunan videolar** listesinden istediklerini seç, **kaliteyi** (En iyi, 2160p … 360p) belirle, oynatıcının yüklediği **altyazıları da indir**, **🎬 MP4** ya da **🎵 MP3** olarak gönder. Oynatıcının gönderdiği başlıklar (Referer, Origin, çerezler) indirmeye eşlik eder; yalnız kendi oynatıcısına cevap veren sunucular da böylece iner. Dosya adı sayfanın başlığı olur ("index.m3u8" değil). Sayfada sağ tık → **🎞 Bu sayfada bulunan videoları DISO ile indir** de var. Kopya korumalı (DRM) yayınlar indirilemez.
 - **Site desteklenmese de iner:** "🎬 MP4 olarak indir" ya da sağ tık → MP4/MP3 ile gönderilen bir sayfayı DISO önce kendisi dener; olmazsa sayfanın oynattığı videoya geçer ("Sayfa doğrudan inmedi; sayfada oynayan videoyu indiriyorum…").
