@@ -58,6 +58,7 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 - Add music with `＋ File` and `📁 Folder`, put the songs in any order with `▲` `▼` (or `Ctrl+↑/↓`), take them out with `Delete`. The files themselves are never deleted.
 - Double-click a song to start from it. There is play/pause, previous/next, a progress bar, volume, **🔀 Shuffle** and **🔁 Repeat** (off / list / one song). `Space` plays/pauses.
 - **⏪5 / 5⏩** go 5 seconds back / forward, and so do **→ / ←** on the keyboard (held down they keep going). **↑ / ↓** turn the volume up / down, faster while held.
+- **〰 The progress bar is the song's wave** (click or drag to jump; hovering shows the time). The next song waits ready, so there is **no gap between songs**; the sleep timer **fades the music out**.
 - **⏩ Playing speed** (the `1x` button): 0.25x to 4x, and the **pitch** ±6 semitones.
 - **⇅ Order a list** (the menu next to the list): my own order, newest first / last, A → Z, Z → A, most played first; your own order is always kept.
 - **🎨** The player's block glows in the cover's colours with every moment of the music, like YouTube's ambient light (⚙ menu to turn it off).
@@ -105,6 +106,7 @@ Turn on Settings → Scheduler and type the start time (and, if you like, the en
 ## 🧩 Browser extension
 DISO has a browser extension for **Chrome, Edge, Brave, Opera, Vivaldi** (and Firefox, see below), like IDM's:
 - **Right-click a link → "Download with DISO"**: the download starts in DISO at once. Also on a video / sound / picture, on selected text (every link in it), and **"Download all file links on this page with DISO"** (only links to file types such as zip, exe, mp4, mp3, pdf … — the list is in the extension's settings).
+- **📺 Series mode:** on a series page the extension lists its episodes; the chosen ones are opened one by one in a small muted window, their videos caught and sent to DISO as "Series - S01 Episode 02" into the series' folder.
 - **🎞 Videos from any site:** the extension finds the videos (HLS / DASH streams, video and sound files) a page plays, also inside hidden players, and shows how many on its button. In its window choose them, the quality and the subtitles, and download as MP4 or MP3. The player's headers go along, so even sites DISO cannot read download; a page sent with "MP4" falls back to the video it played. Copy-protected (DRM) streams cannot be downloaded.
 - **DISO opens by itself when it is closed.** The extension starts it (through the browser's "native messaging", the way IDM does it), waits until it is ready and hands the link over. No need to keep DISO running.
 - **Catching the browser's own downloads** (optional, in the extension's settings): files of the chosen types or above a size go to DISO instead. While DISO is starting the browser's download waits; if DISO cannot start, the browser simply goes on.

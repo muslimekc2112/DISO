@@ -796,6 +796,17 @@ PLAIN = {
     'Hep üstte': 'Always on top', 'Büyük pencere': 'Big window', 'Çalmaya hazırlanıyor…': 'Getting ready to play…',
     'Uyku zamanlayıcısı': 'Sleep timer', 'Şarkı sözleri': 'Lyrics',
 
+    "Dalga çubuğu": "Wave bar",
+    "İlerleme çubuğu şarkının ses dalgası oldu: tıkla, oraya atla. Şarkılar arasında boşluk da kalmadı.":
+        "The progress bar is now the song's wave: click to jump there. And no more gaps between songs.",
+    "Dizi modu": "Series mode",
+    "Dizi sayfasındaki bölümleri eklenti bulur, sırayla açıp videolarını yakalar ve dizinin klasörüne “Bölüm 01, 02 …” diye indirir.":
+        "The extension finds a series page's episodes, opens them one by one, catches their videos and downloads them into the series' folder as “Episode 01, 02 …”.",
+    "Yumuşak geçişler": "Soft transitions",
+    "Pencereler belirerek açılır, müzik çalara geçiş kararak olur, kapaklar birbirine dönüşür. Ayarlar da anında açılıyor.":
+        "Windows fade in, switching to the music player cross-fades, covers melt into each other. And the settings open at once.",
+    # ---- after 1.2: sleep fade
+    "😴 Uyumaya hazırlan: müzik yavaşça kısılıyor…": "😴 Time to sleep: the music is slowly getting quieter…",
     # ---- 1.2: what is new
     "Her siteden video": "Videos from any site",
     "Tarayıcıda oynayan videoyu eklenti kendisi bulur, simgesinde kaç tane olduğu yazar. Seç, kaliteyi ve altyazıyı belirle, indir; site desteklenmese bile.":

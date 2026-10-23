@@ -9,6 +9,12 @@ from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
 # (icon, title, text, what "Dene" opens — see App.try_feature)
 WHATS_NEW = [
+    ("〰", "Dalga çubuğu", "İlerleme çubuğu şarkının ses dalgası oldu: tıkla, oraya atla. Şarkılar arasında boşluk da "
+     "kalmadı.", "visualizer_bar"),
+    ("📺", "Dizi modu", "Dizi sayfasındaki bölümleri eklenti bulur, sırayla açıp videolarını yakalar ve dizinin "
+     "klasörüne “Bölüm 01, 02 …” diye indirir.", "extension"),
+    ("✨", "Yumuşak geçişler", "Pencereler belirerek açılır, müzik çalara geçiş kararak olur, kapaklar birbirine "
+     "dönüşür. Ayarlar da anında açılıyor.", None),
     ("🎞", "Her siteden video", "Tarayıcıda oynayan videoyu eklenti kendisi bulur, simgesinde kaç tane olduğu yazar. "
      "Seç, kaliteyi ve altyazıyı belirle, indir; site desteklenmese bile.", "extension"),
     ("🌌", "Yeni görselleştirici", "Halkanın ortasında şarkının kapağı ritimle atar, renkler kapaktan gelir; ⏮ ⏪ ⏯ ⏩ ⏭ "

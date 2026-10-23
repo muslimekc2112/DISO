@@ -2248,6 +2248,10 @@ class App(NostalgiaWindow, ctk.CTk):
                 return None
             fn = getattr(self.music, music[action])
             return fn(lyrics_on=True) if action == "visualizer" else fn()
+        if action == "visualizer_bar":                       # 〰 the music player itself
+            if self.mode != MODE_MUSIC:
+                self._switch_mode(MODE_MUSIC)
+            return self.music
         if action in ("speed", "order"):                    # ⏩ / ⇅ in the music player
             if self.mode != MODE_MUSIC:
                 self._switch_mode(MODE_MUSIC)

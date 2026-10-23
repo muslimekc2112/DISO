@@ -58,6 +58,7 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarıyla ayr
 - `＋ Dosya` ve `📁 Klasör` ile müzik eklersin; parçaları `▲` `▼` (ya da `Ctrl+↑/↓`) ile istediğin sıraya dizersin, `Delete` ile çıkarırsın. Dosyalar silinmez.
 - Çift tıklayınca o parçadan başlar. Çal/duraklat, önceki/sonraki, ilerleme çubuğu, ses, **🔀 Karışık** ve **🔁 Tekrar** (kapalı / liste / tek) var. `Boşluk` çal/duraklat.
 - **⏪5 / 5⏩** ve klavyede **→ / ←** 5 saniye ileri / geri sarar (basılı tutunca devam eder). **↑ / ↓** sesi açar / kısar, basılı tutunca hızlanır.
+- **〰 İlerleme çubuğu şarkının dalgası** (tıkla ya da sürükle, oraya atlar; üzerine gelince saniyeyi yazar). Sonraki şarkı hazır bekler, **şarkılar arasında boşluk kalmaz**; uyku zamanlayıcısı **müziği yavaşça kısarak** durdurur.
 - **⏩ Çalma hızı** (`1x` düğmesi): 0.25x'ten 4x'e, **perde** ±6 yarım ses.
 - **⇅ Listeyi sırala** (listenin yanındaki menü): kendi sıram, son eklenen başta / sonda, A → Z, Z → A, en popüler başta; kendi sıran hep saklı kalır.
 - **🎨** Çaların bloğu, YouTube'daki ışık gibi, müziğin her anına göre kapağın renklerinde parlar (⚙ menüsünden kapatılır).
@@ -106,6 +107,7 @@ Ayarlar → Zamanlayıcı'yı aç, başlangıç (ve istersen bitiş) saatini yaz
 DISO'nun IDM'deki gibi bir tarayıcı eklentisi var: **Chrome, Edge, Brave, Opera, Vivaldi** (Firefox için aşağıya bak).
 - **Linke sağ tık → "DISO ile indir"**: indirme hemen DISO'da başlar. Video / ses / resmin üstünde, seçili metinde (içindeki bütün linkler) ve **"Bu sayfadaki tüm dosya linklerini DISO ile indir"** ile de çalışır (yalnızca zip, exe, mp4, mp3, pdf … gibi dosya türlerine giden linkler; liste eklentinin ayarlarında).
 - **DISO kapalıysa kendisi açılır.** Eklenti onu başlatır (tarayıcının "native messaging" kanalıyla, IDM'in yaptığı gibi), hazır olmasını bekler ve linki verir. DISO'yu açık tutman gerekmez.
+- **📺 Dizi modu:** dizi sayfasında eklenti bölümleri listeler; seçtiklerin küçük, sessiz bir pencerede sırayla açılır, videoları yakalanır ve DISO'ya "Dizi - S01 Bölüm 02" adıyla, dizinin klasörüne gönderilir.
 - **🎞 Her siteden video:** eklenti sayfada oynayan videoları (HLS / DASH akışları, video ve ses dosyaları), gizli oynatıcıların içindekiler dahil bulur ve simgesinde kaç tane olduğunu yazar. Penceresinden seç, kaliteyi ve altyazıyı belirle, MP4 ya da MP3 indir. Oynatıcının başlıkları da gider; DISO'nun okuyamadığı siteler bile iner, "MP4" ile gönderilen sayfa olmazsa oynattığı videoya geçer. Kopya korumalı (DRM) yayınlar indirilemez.
 - **Tarayıcının kendi indirmelerini yakalama** (isteğe bağlı, eklentinin ayarlarında): seçilen türdeki ya da belli boyutun üstündeki dosyalar DISO'ya gider. DISO açılırken tarayıcının indirmesi bekler; DISO açılamazsa tarayıcı normal şekilde devam eder.
 - Araç çubuğundaki düğme DISO'nun çalışıp çalışmadığını, **şu an ne indirdiğini** (sayı ve hız) gösterir; **▶ DISO'yu aç**, "bu sekmeyi indir" ve "bu sekmeyi MP3 olarak indir" düğmeleri vardır.

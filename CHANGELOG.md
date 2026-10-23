@@ -6,6 +6,13 @@
 - **↑ / ↓ for the volume:** in the music player ↑ turns it up and ↓ down (by 5); held down it goes slowly at first, then faster and faster.
 - **← / → only go back / forward:** pressing twice no longer jumps to the next / previous song; every press is 5 seconds, held down it keeps going.
 - **🎨 The colour of the music:** the colour is no longer on the whole window but on the player's block, and it follows each moment of the music (like YouTube's ambient light): the cover's colours mix by the bass, middle and treble and glow brighter as it gets louder. Paused, it stays calm in the cover's own colour.
+- **〰 Wave bar:** the music player's progress bar is now the song's wave: loud parts are tall bars, quiet ones short. What has played is in the accent colour; hovering shows the time there, click or drag to jump there.
+- **⏭ No gap between songs:** in the last seconds of a song the next one opens on the second player and waits ready (with the equalizer / another speed it is already being decoded) and starts the very moment this one ends; no silence between songs.
+- **😴 The sleep timer fades out:** the music no longer stops all at once; over the last minutes (the last 2 of 15) the volume goes softly down to nothing, then it stops and your volume is as it was. With "When the song ends" its last 10 seconds fade out.
+- **📺 Series mode:** the extension finds the episode links of a series page (Episode 1, S02E03, 3-sezon-12-bolum …). The chosen episodes are opened one by one in a small, muted window, the player is started, the video is caught and sent to DISO as "Series Name - S03 Episode 01", into the series' own folder. An episode whose video does not show up is sent as its page (DISO tries it). Right-click the page → "📺 Download this series' episodes with DISO" works too; progress and Stop are in the extension's window.
+- **🎞 Streams behind another name:** some sites hand out their video playlist as `.txt`, `.png` …; the extension now recognises them by their content (`#EXTM3U`).
+- **✨ Soft transitions:** windows fade in and out; switching Download ↔ Music player fades the new window in over the old one (no gap, no jump); the cover melts into the next one when the song changes; a window coming back from the tray fades in.
+- **⚡ Faster:** the settings open at once (723 → ~140 ms; the groups come one after another while the window is open), and the music player window is made in the background a few seconds after the start, so the first switch does not wait either.
 - **Fixed:** in the equalizer, turning "Advanced" on and off made the window wider and wider (with display scaling above 100%).
 
 ## 1.2

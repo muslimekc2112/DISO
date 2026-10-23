@@ -6,6 +6,13 @@
 - **↑ / ↓ ile ses:** müzik çalarda ↑ sesi açar, ↓ kısar (5'er); basılı tutunca önce yavaş, sonra gittikçe hızlı.
 - **← / → yalnızca sarar:** iki kez basınca sonraki / önceki şarkıya geçme kaldırıldı; her basış 5 saniye, basılı tutunca sarmaya devam eder.
 - **🎨 Müziğin rengi:** renk artık bütün pencerede değil, şarkının olduğu blokta ve müziğin o anına göre değişiyor (YouTube'daki ışık gibi): kapağın renkleri bas, orta ve tize göre karışır, ses yükseldikçe parlar. Duraklatınca sakin, kapağın kendi renginde kalır.
+- **〰 Dalga çubuğu:** müzik çaların ilerleme çubuğu artık şarkının ses dalgası: yüksek yerler uzun, sessiz yerler kısa çubuk. Çalınan kısım vurgu renginde; üzerine gelince o saniye yazar, tıkla ya da sürükle, oraya atlar.
+- **⏭ Boşluksuz geçiş:** şarkının son saniyelerinde sonraki şarkı ikinci çalarda açılıp hazır bekler (ekolayzır / hız açıkken çözülmeye de başlar) ve bu şarkı biterken tam o anda başlar; şarkılar arasında sessizlik kalmaz.
+- **😴 Uykuda yavaşça kısılır:** uyku zamanlayıcısı müziği birden kesmez; son dakikalarda (15 dakikada son 2 dakika) ses yumuşakça sıfıra iner, sonra durur ve ses ayarın eski haline döner. "Parça bitince" seçiliyse şarkının son 10 saniyesi kısılarak biter.
+- **📺 Dizi modu:** eklenti bir dizi sayfasındaki bölüm linklerini bulur (Bölüm 1, 2. Bölüm, S02E03, 3-sezon-12-bolum …). Seçtiğin bölümleri küçük, sessiz bir pencerede sırayla açar, oynatıcıyı başlatır, videoyu yakalar ve DISO'ya "Dizi Adı - S03 Bölüm 01" adıyla, dizinin kendi klasörüne gönderir. Videosu çıkmayan bölümün sayfası gönderilir (DISO kendisi dener). Sayfada sağ tık → "📺 Bu dizinin bölümlerini DISO ile indir" de var; ilerleme ve Durdur eklenti penceresinde.
+- **🎞 Adı gizlenmiş akışlar:** bazı siteler video listesini `.txt`, `.png` gibi adlarla veriyor; eklenti artık bunları da içeriğinden (`#EXTM3U`) tanır.
+- **✨ Yumuşak geçişler:** pencereler kararıp belirerek açılır ve kapanır; İndirme ↔ Müzik çalar geçişi yeni pencere eskisinin üstünde belirerek olur (boşluk, zıplama yok); şarkı değişince kapak bir sonrakine yumuşakça döner; tepsiden dönen pencere belirerek gelir.
+- **⚡ Daha hızlı:** Ayarlar anında açılır (723 → ~140 ms; gruplar pencere açıkken arka arkaya gelir), müzik çalar penceresi açılıştan birkaç saniye sonra arka planda hazırlanır, böylece ilk geçiş de bekletmez.
 - **Düzeltildi:** ekolayzırda "Gelişmiş"i açıp kapattıkça pencere sağa doğru uzuyordu (ekran ölçeklemesi %100'den büyükken).
 
 ## 1.2
