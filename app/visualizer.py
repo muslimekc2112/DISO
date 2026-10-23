@@ -77,17 +77,26 @@ def analyse_samples(samples):
     return (out * 255).astype(np.uint8), (level * 255).astype(np.uint8)
 
 
-def decode(path, ffmpeg=None):
-    """The song as mono float samples at RATE (numpy array)."""
+def decode(path, ffmpeg=None, started=None):
+    """The song as mono float samples at RATE (numpy array). started(proc): the ffmpeg reading it (to be stopped
+    when the file must be let go of: Windows does not delete / rename a file that is open)."""
     import numpy as np
     ffmpeg = ffmpeg or find_ffmpeg()
     if not ffmpeg:
         raise FileNotFoundError("ffmpeg")
-    r = subprocess.run([ffmpeg, "-v", "error", "-nostdin", "-i", path, "-vn", "-ac", "1", "-ar", str(RATE),
-                        "-f", "f32le", "pipe:1"], capture_output=True, timeout=600, **subprocess_flags())
-    if r.returncode != 0 and not r.stdout:
-        raise OSError(r.stderr.decode("utf-8", "replace")[-300:])
-    return np.frombuffer(r.stdout, dtype=np.float32)
+    proc = subprocess.Popen([ffmpeg, "-v", "error", "-nostdin", "-i", path, "-vn", "-ac", "1", "-ar", str(RATE),
+                             "-f", "f32le", "pipe:1"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, **subprocess_flags())
+    if started:
+        started(proc)
+    try:
+        out, err = proc.communicate(timeout=600)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        raise
+    if proc.returncode != 0 and not out:
+        raise OSError(err.decode("utf-8", "replace")[-300:])
+    return np.frombuffer(out, dtype=np.float32)
 
 
 class Analyzer:
@@ -98,6 +107,8 @@ class Analyzer:
         self._decode = decode_fn or decode
         self._done = OrderedDict()
         self._busy = set()
+        self._procs = {}                 # path -> the ffmpeg reading it now
+        self._let_go = set()             # paths whose reading was stopped: their (partial) result is thrown away
         self._lock = threading.Lock()
 
     def get(self, path):
@@ -120,14 +131,38 @@ class Analyzer:
             self._busy.add(path)
         threading.Thread(target=self._work, args=(path,), daemon=True, name="visualizer").start()
 
+    def release(self, paths):
+        """Stop reading these files now (they are about to be deleted, renamed or rewritten)."""
+        import os
+        keys = {os.path.normcase(os.path.abspath(p)) for p in paths if p}
+        with self._lock:
+            procs = [(p, proc) for p, proc in self._procs.items() if os.path.normcase(os.path.abspath(p)) in keys]
+            for p, _proc in procs:
+                self._let_go.add(p)
+        for _p, proc in procs:
+            try:
+                proc.kill()
+                proc.wait(3)
+            except Exception:  # noqa: BLE001 - already over
+                pass
+        return len(procs)
+
     def _work(self, path):
+        def started(proc):
+            with self._lock:
+                self._procs[path] = proc
         try:
-            result = analyse_samples(self._decode(path))
+            samples = self._decode(path, started=started) if self._decode is decode else self._decode(path)
+            result = analyse_samples(samples)
         except Exception as e:  # noqa: BLE001 - the picture just stays quiet
             log.info("visualizer could not read %s: %s", path, e)
             result = None
         with self._lock:
+            self._procs.pop(path, None)
             self._busy.discard(path)
+            if path in self._let_go:
+                self._let_go.discard(path)
+                result = None                                   # stopped half way: asked again when it plays
             if result is not None:
                 self._done[path] = result
                 while len(self._done) > KEEP:

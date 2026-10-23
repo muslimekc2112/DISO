@@ -301,3 +301,27 @@ def test_the_page_script_runs_in_the_page_itself_in_both_browsers():
         assert sniff["world"] == "MAIN" and sniff["all_frames"] and sniff["run_at"] == "document_start"
     firefox = json.load(open(os.path.join(root, "manifest.firefox.json"), encoding="utf-8"))
     assert firefox["browser_specific_settings"]["gecko"]["strict_min_version"] == "128.0"   # (the page's own world)
+
+
+def test_the_sound_analysis_lets_go_of_a_file_that_is_to_be_deleted(tmp_path):
+    import os
+    import subprocess
+    import time
+    from app import utils, visualizer
+    if not utils.find_ffmpeg():
+        pytest.skip("needs ffmpeg")
+    song = str(tmp_path / "uzun.flac")
+    subprocess.run([utils.find_ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", "anoisesrc=d=600", song],
+                   check=True, **utils.subprocess_flags())
+    a = visualizer.Analyzer()
+    a.want(song)
+    end = time.time() + 5
+    while time.time() < end and song not in a._procs:                # ffmpeg is reading it
+        time.sleep(0.01)
+    assert song in a._procs
+    assert a.release([song]) == 1
+    os.remove(song)                                                    # Windows lets it go now
+    end = time.time() + 5
+    while time.time() < end and a.busy(song):
+        time.sleep(0.01)
+    assert a.get(song) is None and not a.busy(song)                   # the half result is thrown away

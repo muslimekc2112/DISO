@@ -270,6 +270,7 @@ class MusicWindow(ctk.CTkToplevel):
         controller.set_volume(store.state["volume"])
         controller.fade_ms = int(store.state["fade"]) * 1000
         controller.gain = self.leveler.gain if store.state["level"] else None
+        controller.on_let_go = lambda path: self._release_files([path])
         self.eq_window = None
         if not equalizer.is_flat(store.state["eq"]):
             self.apply_eq(store.state["eq"], remember=False)
@@ -965,6 +966,11 @@ class MusicWindow(ctk.CTkToplevel):
         """The cover changed: its colours are what the player's block glows in while the song plays."""
         self._ambient_colours = ambient.cover_colours(jpg, 3) if jpg else []
 
+    def _release_files(self, paths):
+        """These files are about to be deleted / renamed / rewritten: the sound analysis stops reading them."""
+        if self.analyzer is not None and hasattr(self.analyzer, "release"):
+            self.analyzer.release(list(paths))
+
     def _get_analyzer(self):
         if self.analyzer is None:
             try:
@@ -1436,6 +1442,7 @@ class MusicWindow(ctk.CTkToplevel):
         if not self._confirm(text):
             return 0
         c = self.controller
+        self._release_files(t["path"] for t in tracks)
         playing = c.current_path()
         asked = {playlists.file_key(t["path"]) for t in tracks}
         place = c.let_go(playing) if playing and playlists.file_key(playing) in asked else None
@@ -1753,6 +1760,7 @@ class MusicWindow(ctk.CTkToplevel):
         """Rename files while the lists, the queue and the song that plays follow them."""
         playing = self.controller.current_path()
         place = None
+        self._release_files(a for a, _ in moves)
         if playing and any(playlists.same_file(a, playing) for a, _ in moves):
             place = self.controller.let_go(playing)              # Windows does not rename an open file
         result = []

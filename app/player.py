@@ -439,6 +439,7 @@ class Controller:
         self._history = []            # indexes already played (for "previous" in shuffle mode)
         self._played = set()          # indexes played in this shuffle round
         self.gain = None              # 🔊 even volume: path -> share of the volume (None: every song as it is)
+        self.on_let_go = None         # called with a path before its file is let go of (others reading it stop too)
         self.gapless = True           # ⏭ the next song waits ready on `spare` and starts the moment this one ends
         self._ready = None            # (kind, what, path) of the song waiting on spare
 
@@ -638,6 +639,8 @@ class Controller:
         """The file of the song that sounds now is about to be rewritten (🏷 its tags): close it and say
         where it was, for take_back(). None when that file is not open."""
         current = self.current_path()
+        if self.on_let_go is not None:
+            self.on_let_go(path)
         if self.state not in ("playing", "paused") or not current or not os.path.isfile(path)                 or os.path.normcase(os.path.abspath(current)) != os.path.normcase(os.path.abspath(path)):
             return None
         self._end_fade()
