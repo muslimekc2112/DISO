@@ -35,6 +35,18 @@
     .lang { position:absolute; top:12px; right:14px; display:flex; gap:2px; }
     .lang button { width:auto; margin:0; padding:2px 7px; font-size:11px; background:var(--card); color:var(--muted); border-radius:6px; }
     .lang button.on { background:var(--accent); color:#fff; }
+    .found { background:var(--card); border-radius:8px; padding:8px 10px; margin:0 0 8px; }
+    .found h2 { font-size:13px; margin:0 0 6px; display:flex; justify-content:space-between; align-items:center; }
+    .found h2 a { font-size:11px; font-weight:normal; color:var(--accent); cursor:pointer; }
+    .found .none { color:var(--muted); }
+    .found .media { max-height:150px; overflow:auto; margin:0 0 6px; }
+    .found label.media-row { display:flex; gap:6px; align-items:flex-start; margin:3px 0; }
+    .found label.media-row span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--fg); }
+    .found .opts { display:flex; gap:8px; align-items:center; margin:2px 0 4px; flex-wrap:wrap; }
+    .found .opts label { margin:0; }
+    .found select { padding:3px 4px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--fg); font:inherit; }
+    .found .subs { color:var(--muted); font-size:12px; }
+    button.found-go { background:#7b3fa0; }
   </style>
 </head>
 <body>
@@ -43,6 +55,19 @@
   <div class="status"><span id="dot" class="dot"></span><span id="state" data-i18n="checking">Kontrol ediliyor…</span></div>
   <div id="downloads" class="downloads"></div>
   <div id="list" class="list"></div>
+  <div id="found" class="found" hidden>
+    <h2><span id="foundTitle" data-i18n="foundTitle">🎞 Bu sayfada bulunan videolar</span><a id="allNone" data-i18n="allNone">Hepsi / hiçbiri</a></h2>
+    <div id="foundNone" class="none" data-i18n="foundNone">Bu sayfada henüz video bulunmadı.</div>
+    <div id="media" class="media"></div>
+    <div class="opts">
+      <span data-i18n="qualityLabel">Kalite</span>
+      <select id="quality"><option value="En iyi" data-i18n="qualityBest">En iyi</option><option>2160p</option><option>1440p</option><option>1080p</option><option>720p</option><option>480p</option><option>360p</option></select>
+      <label id="subsRow"><input type="checkbox" id="withSubs"> <span data-i18n="withSubs">Altyazıları da indir</span></label>
+    </div>
+    <div id="subsFound" class="subs"></div>
+    <button id="foundVideo" class="found-go" data-i18n="sendFoundVideo">🎬 Seçilenleri MP4 indir</button>
+    <button id="foundAudio" class="found-go" data-i18n="sendFoundAudio">🎵 Seçilenleri MP3 indir</button>
+  </div>
   <button id="torrents" class="torrent" hidden></button>
   <button id="video" data-i18n="sendTabVideo">🎬 MP4 olarak indir (video)</button>
   <button id="audio" data-i18n="sendTabAudio">🎵 MP3 olarak indir (ses)</button>

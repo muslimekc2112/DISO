@@ -6,6 +6,10 @@ A tiny HTTP server on 127.0.0.1 only. The extension sends it the links it catche
   GET  /ping    -> {"app": "DISO", "version": ...}         (is the app running?)
   GET  /status  -> {"active": n, "queued": n, "speed": bytes/s ...}
   POST /add     -> {"urls": [...], "referer", "userAgent", "cookies", "kind"}
+                   optional: "title", "quality", "headers" {name: value}, "subs" [{"url", "lang", "ext"}],
+                   "alternates" [{"url", "referer", "userAgent", "cookies", "headers"}] (streams the page played:
+                   tried when the page itself cannot be downloaded), or "media" [{"url", "title", "referer",
+                   "userAgent", "cookies", "headers", "subs"}] (🎞 several videos found on a page, one download each)
   POST /show    -> brings the window to the front (a second launch uses this)
 
 Safety: a web page must not be able to start downloads. Browsers always put an Origin header on
@@ -28,6 +32,10 @@ APP_ID = "DISO"
 DEFAULT_PORT = 17653
 MAX_BODY = 1_000_000
 MAX_URLS = 500
+MAX_MEDIA = 60
+QUALITIES = ("En iyi", "2160p", "1440p", "1080p", "720p", "480p", "360p")
+# headers of the browser that may go along with a found stream (never Host / Content-Length ...)
+PASSED_HEADERS = ("origin", "accept-language", "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site", "x-requested-with")
 KINDS = ("auto", "video", "audio", "file")
 _EXTENSION_ORIGINS = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
 
@@ -141,17 +149,26 @@ class Bridge:
                 if not bridge.api.add_enabled:
                     return self._send(403, {"error": "disabled"})
                 data = self._json_body()
+                kind = data.get("kind") if data and data.get("kind") in KINDS else None
+                media = data.get("media") if data else None
+                if isinstance(media, list) and media:          # 🎞 videos found on a page: each with its own headers
+                    total = {"added": 0, "duplicates": 0}
+                    for entry in media[:MAX_MEDIA]:
+                        if not (isinstance(entry, dict) and isinstance(entry.get("url"), str) and is_url(entry["url"])):
+                            continue
+                        got = bridge.api.add([entry["url"]], media_extra(entry, data), kind)
+                        total["added"] += got.get("added", 0)
+                        total["duplicates"] += got.get("duplicates", 0)
+                    if not (total["added"] or total["duplicates"]):
+                        return self._send(400, {"error": "no valid http(s) link"})
+                    return self._send(200, total)
                 urls = data.get("urls") if data else None
                 if not isinstance(urls, list):
                     return self._send(400, {"error": "urls required"})
                 urls = [u for u in urls[:MAX_URLS] if isinstance(u, str) and is_url(u)]
                 if not urls:
                     return self._send(400, {"error": "no valid http(s) link"})
-                kind = data.get("kind") if data.get("kind") in KINDS else None
-                extra = {"referer": _text(data.get("referer"), 2000),
-                         "user_agent": _text(data.get("userAgent"), 500),
-                         "cookie": _text(data.get("cookies"), 8000)}
-                self._send(200, bridge.api.add(urls, extra, kind))
+                self._send(200, bridge.api.add(urls, media_extra(data, {}), kind))
 
         try:
             self._httpd = _Server(("127.0.0.1", self.port), Handler)
@@ -170,6 +187,43 @@ class Bridge:
 
 def _text(value, limit):
     return value[:limit] if isinstance(value, str) else ""
+
+
+def _headers(value) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    return {k.title(): _text(v, 2000) for k, v in value.items()
+            if isinstance(k, str) and k.lower() in PASSED_HEADERS and isinstance(v, str) and v}
+
+
+def _subs(value) -> list:
+    out = []
+    for s in value[:20] if isinstance(value, list) else ():
+        if isinstance(s, dict) and isinstance(s.get("url"), str) and is_url(s["url"]):
+            out.append({"url": s["url"][:4000], "lang": _text(s.get("lang"), 20),
+                        "ext": "srt" if str(s.get("ext")).lower() == "srt" else "vtt"})
+    return out
+
+
+def media_extra(entry: dict, common: dict) -> dict:
+    """What goes with one link to the download: the browser's headers, the name, the quality, subtitles and
+    other streams of the page (each part checked: it comes from outside)."""
+    def pick(key, limit):
+        return _text(entry.get(key), limit) or _text(common.get(key), limit)
+    quality = entry.get("quality") or common.get("quality")
+    extra = {"referer": pick("referer", 2000), "user_agent": pick("userAgent", 500), "cookie": pick("cookies", 8000),
+             "title": " ".join(pick("title", 300).split()), "headers": _headers(entry.get("headers") or common.get("headers")),
+             "quality": quality if quality in QUALITIES else "",
+             "sub_urls": _subs(entry.get("subs") or common.get("subs"))}
+    alternates = []
+    for alt in (entry.get("alternates") or [])[:10] if isinstance(entry.get("alternates"), list) else ():
+        if isinstance(alt, dict) and isinstance(alt.get("url"), str) and is_url(alt["url"]):
+            alternates.append({"url": alt["url"][:4000], "referer": _text(alt.get("referer"), 2000),
+                               "user_agent": _text(alt.get("userAgent"), 500), "cookie": _text(alt.get("cookies"), 8000),
+                               "headers": _headers(alt.get("headers"))})
+    extra["alternates"] = alternates
+    base = ("referer", "user_agent", "cookie")
+    return {k: v for k, v in extra.items() if k in base or v}          # (only what was given)
 
 
 # ----------------------------------------------------------- "is the app already running?"

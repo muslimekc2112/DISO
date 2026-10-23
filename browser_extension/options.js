@@ -11,6 +11,7 @@ async function load() {
   $("badge").checked = o.badge;
   $("launchApp").checked = o.launchApp;
   $("torrents").checked = o.torrents;
+  $("sniff").checked = o.sniff;
   $("lang").value = o.lang;
   return o;
 }
@@ -32,6 +33,7 @@ async function save() {
     badge: $("badge").checked,
     launchApp: $("launchApp").checked,
     torrents: $("torrents").checked,
+    sniff: $("sniff").checked,
     lang: $("lang").value,
   });
   translate(Object.assign({}, HI.DEFAULTS, await api.storage.local.get(HI.DEFAULTS)));

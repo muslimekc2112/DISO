@@ -22,7 +22,7 @@ from .models import Item
 from .logs import log
 from .segmented_downloader import (LIMITER, TIMEOUT, DownloadStopped, build_headers, get_proxies,
                                    get_proxy)
-from .utils import clip_text, find_ffmpeg, media_folder, subprocess_flags
+from .utils import clip_text, find_ffmpeg, media_folder, sanitize_filename, subprocess_flags
 
 QUALITIES = ["En iyi", "2160p", "1440p", "1080p", "720p", "480p", "360p"]
 BITRATES = ["320", "256", "192", "128"]
@@ -72,7 +72,7 @@ def format_selector(kind: str, quality: str) -> str:
     return f"bv*[height<=?{h}]+ba/b[height<=?{h}]/b"
 
 
-def base_opts(cookies=None) -> dict:
+def base_opts(cookies=None, headers=None) -> dict:
     o = {
         "quiet": True, "no_warnings": True, "noprogress": True,
         "socket_timeout": 30, "retries": 10, "fragment_retries": 10, "extractor_retries": 3,
@@ -80,6 +80,8 @@ def base_opts(cookies=None) -> dict:
     }
     if cookies and cookies != "Yok":
         o["cookiesfrombrowser"] = (cookies.lower(),)
+    if headers:                        # what the browser sent (Referer, Origin, cookies): many players check them
+        o["http_headers"] = dict(headers)
     if get_proxy():
         o["proxy"] = get_proxy()
     ff = find_ffmpeg()
@@ -99,10 +101,10 @@ def is_fast(f: dict) -> bool:
     )
 
 
-def resolve(url, kind, quality, cookies=None) -> dict:
+def resolve(url, kind, quality, cookies=None, headers=None) -> dict:
     """Ask yt-dlp for the video info (title, chosen formats, direct URLs, headers)."""
     yt_dlp = _yt_dlp()
-    opts = base_opts(cookies)
+    opts = base_opts(cookies, headers)
     opts.update({"format": format_selector(kind, quality), "skip_download": True,
                  "socket_timeout": LOOKUP_TIMEOUT})
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -483,8 +485,8 @@ def fetch_info(url: str, cookies=None) -> dict:
 # --------------------------------------------------------------------- yt-dlp fallback
 def ydl_options(item: Item, hook=None) -> dict:
     """The yt-dlp options for downloading + post-processing one item with yt-dlp itself."""
-    opts = base_opts(item.cookies)
-    name = "%(title).150B"
+    opts = base_opts(item.cookies, item.request_headers())
+    name = sanitize_filename(item.name_hint, 120).replace("%", "%%") if item.name_hint else "%(title).150B"
     if item.clip:            # ✂ only this part; the cuts are made exact (not at the nearest keyframe)
         start, end = item.clip
         opts["download_ranges"] = _yt_dlp().utils.download_range_func(None, [(float(start), float(end))])
@@ -515,6 +517,24 @@ def ydl_options(item: Item, hook=None) -> dict:
     return opts
 
 
+def close_left_open(folder) -> int:
+    """Close the files in `folder` that a stopped yt-dlp left open (its .part / .part-Frag pieces). Returns how many."""
+    import gc
+    import io
+    where = os.path.normcase(os.path.abspath(folder)) + os.sep
+    closed = 0
+    for obj in gc.get_objects():
+        if isinstance(obj, io.IOBase):
+            try:
+                name = obj.name if isinstance(getattr(obj, "name", None), str) else ""
+                if name and not obj.closed and ".part" in name                         and os.path.normcase(os.path.abspath(name)).startswith(where):
+                    obj.close()
+                    closed += 1
+            except (OSError, ValueError, AttributeError):
+                pass
+    return closed
+
+
 def ydl_download(item: Item):
     """Let yt-dlp download + post-process everything itself (16 parallel fragments)."""
     yt_dlp = _yt_dlp()
@@ -533,15 +553,21 @@ def ydl_download(item: Item):
             item.fraction = 1.0
 
     opts = ydl_options(item, hook)
+    stopped = None
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(item.url, download=True)
     except DownloadCancelled:
-        raise DownloadStopped(item.stop_reason or "cancel")
+        stopped = item.stop_reason or "cancel"
     except Exception:
-        if item.stop_reason:
-            raise DownloadStopped(item.stop_reason)
-        raise
+        if not item.stop_reason:
+            raise
+        stopped = item.stop_reason
+    if stopped:
+        # yt-dlp keeps the .part of a stopped stream open (its context stays referenced): closed here, so ▶ again
+        # can go on writing it and rename it at the end (Windows refuses both while it is open)
+        close_left_open(media_folder(item.folder, item.kind, item.sort_folders))
+        raise DownloadStopped(stopped)
     if info and info.get("_type") == "playlist":
         info = next((e for e in info.get("entries") or [] if e), info)
     rd = (info or {}).get("requested_downloads") or [{}]

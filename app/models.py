@@ -43,7 +43,7 @@ class Item:
     PERSISTED = ("id", "url", "kind", "quality", "bitrate", "connections", "folder",
                  "cookies", "title", "state", "dest", "final_path", "error", "added",
                  "subs", "cover", "sort_folders", "referer", "user_agent", "group", "origin", "clip",
-                 "torrent_select")
+                 "torrent_select", "name_hint", "header_extra", "alternates", "sub_urls")
 
     def __init__(self, url, kind="auto", quality="En iyi", bitrate="320", connections=16,
                  folder="", cookies="Yok", title="", *, subs="Yok", cover=True,
@@ -67,6 +67,11 @@ class Item:
         self.origin = origin            # "music": found in the music player (asks for a list when done)
         self.clip = list(clip) if clip else None   # [start, end] seconds: only this part of the video (✂)
         self.torrent_select = None      # 🧲 the files of a torrent to download (aria2's 1-based indexes; None: ask)
+        # 🎞 a video the browser extension found playing on a page:
+        self.name_hint = ""             # the name it should get (the page's title: the stream itself is "index.m3u8")
+        self.header_extra = {}          # more headers the player sent (Origin ...): some servers want them
+        self.alternates = []            # streams of the page to try when the page itself cannot be downloaded
+        self.sub_urls = []              # subtitles the player loaded: [{"url", "lang", "ext"}]
         self.state = QUEUED
         self.dest = ""             # final path of a plain file download (kept for resume)
         self.final_path = ""
@@ -97,7 +102,9 @@ class Item:
 
     # ---------------------------------------------------------------- persistence
     def to_dict(self):
-        return {k: getattr(self, k) for k in self.PERSISTED}
+        d = {k: getattr(self, k) for k in self.PERSISTED}
+        d["alternates"] = [{k: v for k, v in a.items() if k != "cookie"} for a in self.alternates]   # (a login)
+        return d
 
     @classmethod
     def from_dict(cls, d):
@@ -105,6 +112,10 @@ class Item:
         for k in cls.PERSISTED:
             if k in d:
                 setattr(it, k, d[k])
+        it.header_extra = {k: v for k, v in it.header_extra.items() if isinstance(k, str) and isinstance(v, str)}             if isinstance(it.header_extra, dict) else {}
+        it.alternates = [a for a in it.alternates if isinstance(a, dict) and isinstance(a.get("url"), str)]             if isinstance(it.alternates, list) else []
+        it.sub_urls = [u for u in it.sub_urls if isinstance(u, dict) and isinstance(u.get("url"), str)]             if isinstance(it.sub_urls, list) else []
+        it.name_hint = it.name_hint if isinstance(it.name_hint, str) else ""
         if it.state in ACTIVE_STATES:      # app was closed while it was running
             it.state = PAUSED
         if it.state == DONE:
@@ -124,9 +135,24 @@ class Item:
             h["Referer"] = self.referer
         if self.user_agent:
             h["User-Agent"] = self.user_agent
+        for name, value in (self.header_extra or {}).items():
+            if name.lower() not in ("cookie", "referer", "user-agent") and value:
+                h[name] = value
         if self.cookie_header:
             h["Cookie"] = self.cookie_header
         return h
+
+    def use_alternate(self) -> bool:
+        """🎞 Go on with the next stream the extension found on the page (False: there is none left)."""
+        if not self.alternates:
+            return False
+        alt = self.alternates.pop(0)
+        self.url = alt.get("url") or self.url
+        self.referer = alt.get("referer", self.referer)
+        self.user_agent = alt.get("user_agent", self.user_agent)
+        self.cookie_header = alt.get("cookie", "")
+        self.header_extra = dict(alt.get("headers") or {})
+        return True
 
     def attach(self, fd):
         """Register the engine that is downloading right now so stop requests reach it."""

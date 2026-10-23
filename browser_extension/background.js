@@ -84,6 +84,22 @@ async function sendToApp(urls, { referer = "", kind = null } = {}) {
   return r.json();
 }
 
+// POST a ready payload (found videos, a page with its streams) to DISO, starting it when it is closed.
+async function postToApp(payload) {
+  await ensureApp(await getOptions());
+  const opts = await getOptions();
+  const r = await fetch(HI.appBase(opts.port) + "/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-HI-Client": "extension" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const why = (await r.json().catch(() => ({}))).error || r.status;
+    throw new Error(why === "disabled" ? HI.t("bridgeOff") : HI.t("refused", [why]));
+  }
+  return r.json();
+}
+
 async function flash(text, ok) {
   const opts = await getOptions();
   if (!opts.badge) return;
@@ -113,7 +129,8 @@ async function sendLinks(urls, extra) {
 async function sendAndShow(urls, extra) {
   try {
     // a kind given by the user (MP4 / MP3 of a page) is kept; otherwise each link says what it is
-    const result = extra && extra.kind ? await sendToApp(urls, extra) : await sendLinks(urls, extra || {});
+    const result = extra && extra.payload ? await postToApp(extra.payload)
+      : extra && extra.kind ? await sendToApp(urls, extra) : await sendLinks(urls, extra || {});
     await flash(result.added ? "✓" : "=", true);
     return { ok: true, result, text: HI.describeResult(result) };
   } catch (e) {
@@ -155,6 +172,7 @@ function createMenus() {
     api.contextMenus.create({ id: "hi-media", title: HI.t("menuLink"), contexts: ["video", "audio", "image"] });
     api.contextMenus.create({ id: "hi-page-video", title: HI.t("menuPageVideo"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-page-audio", title: HI.t("menuPageAudio"), contexts: ["page"] });
+    api.contextMenus.create({ id: "hi-found", title: HI.t("menuFound"), contexts: ["page", "video", "audio"] });
     api.contextMenus.create({ id: "hi-all-links", title: HI.t("menuAllLinks"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-torrents", title: HI.t("menuTorrents"), contexts: ["page"] });
     api.contextMenus.create({ id: "hi-selection", title: HI.t("menuSelection"), contexts: ["selection"] });
@@ -173,8 +191,14 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   const referer = (tab && tab.url) || info.pageUrl || "";
   if (info.menuItemId === "hi-link") return sendAndShow([info.linkUrl], { referer });
   if (info.menuItemId === "hi-media") return sendAndShow([info.srcUrl], { referer });
-  if (info.menuItemId === "hi-page-video") return sendAndShow([info.pageUrl || referer], { referer: "", kind: "video" });
-  if (info.menuItemId === "hi-page-audio") return sendAndShow([info.pageUrl || referer], { referer: "", kind: "audio" });
+  if (info.menuItemId === "hi-page-video") return sendPage(tab, info.pageUrl || referer, "video");
+  if (info.menuItemId === "hi-page-audio") return sendPage(tab, info.pageUrl || referer, "audio");
+  if (info.menuItemId === "hi-found") {
+    const found = tab ? await foundOn(tab.id) : null;
+    if (!found || !found.media.length) { await flash("0", false); return { ok: false, text: HI.t("foundNone") }; }
+    const opts = await getOptions();
+    return sendFound(tab.id, HI.rankMedia(found.media).slice(0, 1).map((e) => e.url), "video", opts.quality, opts.withSubs);
+  }
   if (info.menuItemId === "hi-all-links") {
     const urls = tab ? await fileLinksOf(tab) : [];
     if (!urls.length) { await flash("0", false); return { ok: false, text: HI.t("noFileLinks") }; }
@@ -276,6 +300,138 @@ async function openApp() {
   return { ok: true, app };
 }
 
+// ------------------------------------------------------------- 🎞 videos the pages play
+// Every request a tab makes is looked at (only looked at: nothing is changed or blocked). Playlists of streams
+// (.m3u8 / .mpd), whole video / sound files and subtitles are remembered for the tab, with the headers the page's
+// player sent (Referer, Origin, cookies): many servers only answer the player. The toolbar button counts them.
+const found = new Map();          // tabId -> {page, title, media: [...], subs: [...]}
+const sentHeaders = new Map();    // requestId -> the request's headers, until its answer comes
+const MAX_PENDING = 600;
+const TYPES = ["media", "xmlhttprequest", "other", "object"];
+
+async function foundOn(tabId) {
+  if (found.has(tabId)) return found.get(tabId);
+  try {                            // the service worker slept: what it had found is in the session storage
+    const key = "found:" + tabId;
+    const saved = api.storage.session ? (await api.storage.session.get(key))[key] : null;
+    if (saved && Array.isArray(saved.media)) { found.set(tabId, saved); return saved; }
+  } catch (e) { /* nothing kept */ }
+  return null;
+}
+
+let keepTimer = null;
+function keepFound() {             // written down now and then, not on every request
+  if (keepTimer || !api.storage.session) return;
+  keepTimer = setTimeout(async () => {
+    keepTimer = null;
+    const all = {};
+    for (const [tabId, f] of found) all["found:" + tabId] = f;
+    try { await api.storage.session.set(all); } catch (e) { /* too big or no session storage: kept in memory */ }
+  }, 800);
+}
+
+async function showCount(tabId) {
+  const f = found.get(tabId);
+  const opts = await getOptions();
+  if (!opts.sniff || !opts.badge) return;
+  try {
+    await api.action.setBadgeBackgroundColor({ tabId, color: "#7b3fa0" });
+    await api.action.setBadgeText({ tabId, text: HI.badgeCount(f ? f.media.length : 0) });
+  } catch (e) { /* the tab is gone */ }
+}
+
+function forget(tabId) {
+  found.delete(tabId);
+  try { if (api.storage.session) api.storage.session.remove("found:" + tabId); } catch (e) { /* nothing kept */ }
+  try { api.action.setBadgeText({ tabId, text: "" }); } catch (e) { /* the tab is gone */ }
+}
+
+function onSendHeaders(details) {
+  if (details.tabId < 0) return;
+  if (sentHeaders.size > MAX_PENDING) sentHeaders.delete(sentHeaders.keys().next().value);
+  sentHeaders.set(details.requestId, details.requestHeaders || []);
+}
+
+async function onResponse(details) {
+  const sent = sentHeaders.get(details.requestId) || [];
+  sentHeaders.delete(details.requestId);
+  if (details.tabId < 0 || (details.statusCode && details.statusCode >= 400)) return;
+  const headers = details.responseHeaders || [];
+  const kind = HI.mediaKind(details.url, HI.headerValue(headers, "content-type"), HI.responseSize(headers));
+  if (!kind) return;
+  const opts = await getOptions();
+  if (!opts.sniff) return;
+  let f = await foundOn(details.tabId);
+  if (!f) {
+    f = { page: "", title: "", media: [], subs: [] };
+    found.set(details.tabId, f);
+  }
+  const entry = {
+    url: details.url, kind, size: HI.responseSize(headers), time: Date.now(),
+    referer: HI.headerValue(sent, "referer") || details.documentUrl || details.initiator || "",
+    origin: HI.headerValue(sent, "origin"), userAgent: HI.headerValue(sent, "user-agent"),
+    cookies: HI.headerValue(sent, "cookie"),
+  };
+  if (kind === "subtitle") {
+    HI.addFound(f.subs, { url: entry.url, lang: HI.subtitleLanguage(entry.url), ext: HI.fileExtension(entry.url) === "srt" ? "srt" : "vtt" }, 20);
+  } else if (HI.addFound(f.media, entry, 40)) {
+    try {
+      const tab = await api.tabs.get(details.tabId);
+      f.page = tab.url || f.page;
+      f.title = tab.title || f.title;
+    } catch (e) { /* the tab is gone */ }
+    showCount(details.tabId);
+  }
+  keepFound();
+}
+
+if (api.webRequest && api.webRequest.onSendHeaders) {
+  const filter = { urls: ["<all_urls>"], types: TYPES };
+  const extra = ["requestHeaders"];
+  // Chrome only gives Referer / Cookie with "extraHeaders"; Firefox gives them anyway (and does not know it)
+  if (api.webRequest.OnSendHeadersOptions && api.webRequest.OnSendHeadersOptions.EXTRA_HEADERS) extra.push("extraHeaders");
+  try {
+    api.webRequest.onSendHeaders.addListener(onSendHeaders, filter, extra);
+    api.webRequest.onResponseStarted.addListener(onResponse, filter, ["responseHeaders"]);
+    if (api.webRequest.onErrorOccurred) api.webRequest.onErrorOccurred.addListener((d) => sentHeaders.delete(d.requestId), filter);
+  } catch (e) { /* a browser without it: only links can be sent */ }
+}
+if (api.tabs && api.tabs.onUpdated) {
+  api.tabs.onUpdated.addListener((tabId, change) => {
+    if (change.status === "loading" && change.url) forget(tabId);         // another page in the tab
+  });
+}
+if (api.tabs && api.tabs.onRemoved) api.tabs.onRemoved.addListener((tabId) => forget(tabId));
+
+// The chosen found videos of a tab (by address) as downloads: MP4 or MP3, in a quality, with the subtitles.
+async function sendFound(tabId, urls, kind, quality, withSubs) {
+  const f = await foundOn(tabId);
+  if (!f) return { ok: false, text: HI.t("foundNone") };
+  const chosen = f.media.filter((e) => urls.includes(e.url));
+  if (!chosen.length) return { ok: false, text: HI.t("nothingChosen") };
+  const opts = await getOptions();
+  await api.storage.local.set({ quality: quality || opts.quality, withSubs: !!withSubs });
+  const payload = HI.buildMediaPayload(HI.rankMedia(chosen), {
+    kind, quality, title: f.title, subs: withSubs && kind !== "audio" ? f.subs : [], userAgent: navigator.userAgent });
+  const r = await sendAndShow([], { payload });
+  if (r.ok) r.text = HI.t("sentFound", [chosen.length]);
+  return r;
+}
+
+// "MP4 / MP3 of this page": the page itself, and the streams it played for when DISO cannot read the site.
+async function sendPage(tab, pageUrl, kind) {
+  const f = tab && tab.id !== undefined ? await foundOn(tab.id) : null;
+  const opts = await getOptions();
+  const payload = HI.buildPayload({ urls: [pageUrl], kind, userAgent: navigator.userAgent, cookies: await cookiesFor(pageUrl) });
+  if (f && f.media.length) {
+    payload.alternates = HI.alternatesOf(f.media, navigator.userAgent);
+    payload.title = (tab && tab.title) || f.title || "";
+    if (kind !== "audio" && opts.withSubs && f.subs.length) payload.subs = f.subs;
+  }
+  if (opts.quality && opts.quality !== "En iyi" && kind !== "audio") payload.quality = opts.quality;
+  return sendAndShow([pageUrl], { payload });
+}
+
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg && msg.type === "send") return sendAndShow(msg.urls || [], { referer: msg.referer || "", kind: msg.kind || null });
@@ -292,6 +448,18 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return sendAndShow([msg.url], { referer: msg.referer || "" });
     }
     if (msg && msg.type === "page-torrents") return msg.tabId ? torrentLinksOf({ id: msg.tabId }) : [];
+    if (msg && msg.type === "found") {
+      const f = msg.tabId !== undefined ? await foundOn(msg.tabId) : null;
+      const opts = await getOptions();
+      return { media: f ? HI.rankMedia(f.media) : [], subs: f ? f.subs : [], title: f ? f.title : "",
+               quality: opts.quality, withSubs: opts.withSubs, sniff: opts.sniff };
+    }
+    if (msg && msg.type === "send-found") return sendFound(msg.tabId, msg.urls || [], msg.kind, msg.quality, msg.withSubs);
+    if (msg && msg.type === "send-page") {
+      let tab = null;
+      try { tab = await api.tabs.get(msg.tabId); } catch (e) { /* only the address then */ }
+      return sendPage(tab || { id: msg.tabId, url: msg.url }, (tab && tab.url) || msg.url, msg.kind);
+    }
     if (msg && msg.type === "open") return openApp();
     return null;
   })().then(sendResponse, (e) => sendResponse({ ok: false, text: String(e && e.message || e) }));

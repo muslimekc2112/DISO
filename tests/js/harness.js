@@ -13,7 +13,8 @@ const scenario = process.argv[3];
 const livePort = Number(process.argv[4] || 0);
 const SESSION_URL = "http://shop.example/files/report.zip";
 
-const listeners = { installed: [], startup: [], menu: [], created: [], message: [], storage: [] };
+const listeners = { installed: [], startup: [], menu: [], created: [], message: [], storage: [], sendHeaders: [],
+                    response: [], tabUpdated: [], tabRemoved: [] };
 const session = {};
 const log = { badge: [], menus: [], titles: [], cancelled: [], erased: [], downloaded: [], cookiesAsked: [], native: [], paused: [],
               resumed: [], scripted: [] };
@@ -34,6 +35,7 @@ const chrome = {
   }, session: {
     get: async (key) => (key in session ? { [key]: session[key] } : {}),
     set: async (o) => { Object.assign(session, o); },
+    remove: async (key) => { delete session[key]; },
   }, onChanged: { addListener: (f) => listeners.storage.push(f) } },
   cookies: { getAll: async ({ url }) => { log.cookiesAsked.push(url); return cookieJar[url] || []; } },
   contextMenus: {
@@ -70,7 +72,18 @@ const chrome = {
   },
   action: {
     setBadgeBackgroundColor: async () => {},
-    setBadgeText: async (o) => { log.badge.push(o.text); },
+    setBadgeText: async (o) => { log.badge.push(o.tabId !== undefined ? o.tabId + ":" + o.text : o.text); },
+  },
+  webRequest: {
+    OnSendHeadersOptions: { EXTRA_HEADERS: "extraHeaders" },
+    onSendHeaders: { addListener: (f, filter, extra) => { listeners.sendHeaders.push(f); log.webRequestExtra = extra; } },
+    onResponseStarted: { addListener: (f) => listeners.response.push(f) },
+    onErrorOccurred: { addListener: () => {} },
+  },
+  tabs: {
+    get: async (id) => ({ id, url: "http://films.example/watch/film-1", title: "Güzel Bir Film İzle" }),
+    onUpdated: { addListener: (f) => listeners.tabUpdated.push(f) },
+    onRemoved: { addListener: (f) => listeners.tabRemoved.push(f) },
   },
 };
 
@@ -84,6 +97,18 @@ for (const file of ["lib.js", "background.js"]) {
 
 const ask = (msg) => new Promise((resolve) => listeners.message[0](msg, {}, resolve));
 const click = (info, tab) => listeners.menu[0](info, tab);
+// the page in tab 9 plays: what its player asks for, with the headers the browser sends
+let reqId = 0;
+async function played(url, type, contentType, size, tabId = 9) {
+  const requestId = String(++reqId);
+  const requestHeaders = [{ name: "Referer", value: "http://player.example/embed/77" }, { name: "Origin", value: "http://player.example" },
+                          { name: "Cookie", value: "pl=1" }, { name: "User-Agent", value: "TestBrowser/1.0" }];
+  for (const f of listeners.sendHeaders) f({ requestId, url, tabId, type, requestHeaders });
+  const responseHeaders = [{ name: "Content-Type", value: contentType }];
+  if (size) responseHeaders.push({ name: "Content-Length", value: String(size) });
+  for (const f of listeners.response) await f({ requestId, url, tabId, type, statusCode: 200, responseHeaders,
+                                                initiator: "http://player.example" });
+}
 const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
 
 (async () => {
@@ -168,6 +193,26 @@ const created = (item) => Promise.all(listeners.created.map((f) => f(item)));
     answer = await ask({ type: "send", urls: ["http://a.com/1", "http://a.com/2"], referer: page, kind: "audio" });
   } else if (scenario === "status") {
     answer = await ask({ type: "status" });
+  } else if (scenario === "sniff") {
+    await played("http://cdn.example/hls/master.m3u8?token=a", "xmlhttprequest", "application/vnd.apple.mpegurl", 900);
+    await played("http://cdn.example/hls/720/index.m3u8?token=a", "xmlhttprequest", "application/vnd.apple.mpegurl", 700);
+    await played("http://cdn.example/hls/720/seg-1.ts", "xmlhttprequest", "video/mp2t", 900000);
+    await played("http://cdn.example/hls/720/seg-2.ts", "xmlhttprequest", "video/mp2t", 900000);
+    await played("http://cdn.example/subs/turkce.vtt", "xmlhttprequest", "text/vtt", 3000);
+    await played("http://ads.example/pixel.mp4", "media", "video/mp4", 2000);                    // too small: an advert's pixel
+    await played("http://cdn.example/hls/master.m3u8?token=a", "xmlhttprequest", "application/vnd.apple.mpegurl", 900);
+    await played("http://other.example/clip.mp4", "media", "video/mp4", 5000000, 4);            // another tab
+    const found = await ask({ type: "found", tabId: 9 });
+    const sent = await ask({ type: "send-found", tabId: 9, urls: found.media.map((m) => m.url), kind: "video",
+                             quality: "720p", withSubs: true });
+    const page = await ask({ type: "send-page", tabId: 9, url: "http://films.example/watch/film-1", kind: "video" });
+    for (const f of listeners.tabUpdated) f(9, { status: "loading", url: "http://films.example/watch/film-2" });
+    const after = await ask({ type: "found", tabId: 9 });
+    answer = { found, sent, page, after };
+  } else if (scenario === "sniff-off") {
+    store.sniff = false;
+    await played("http://cdn.example/hls/master.m3u8", "xmlhttprequest", "application/vnd.apple.mpegurl", 900);
+    answer = await ask({ type: "found", tabId: 9 });
   } else if (scenario === "unknown-message") {
     answer = await ask({ type: "nonsense" });
   } else {

@@ -18,6 +18,9 @@
     torrents: true,        // magnet links and .torrent files always go to DISO (even without "intercept")
     lang: "app",           // "app": the language DISO speaks, or "tr" / "en"
     appLang: "",           // the language DISO told last (kept for when it is closed)
+    sniff: true,           // 🎞 find the videos (streams) pages play, and count them on the toolbar button
+    quality: "En iyi",     // 🎞 the quality asked for found videos
+    withSubs: true,        // 🎞 ... and the subtitles their player loaded
   };
 
   // Every text the extension shows, in Turkish and English; "{0}", "{1}" are the changing parts.
@@ -53,6 +56,14 @@
       language: "Dil", languageApp: "DISO ile aynı", languageHint: "Eklentinin dili. \"DISO ile aynı\": uygulamada hangi dil seçiliyse.",
       pasteHint: "Link ya da magnet yapıştır…", pasteSend: "⬇ İndir", nothingToSend: "Bunda indirilecek bir link yok",
       moreDownloads: "+{0} indirme daha", waiting: "sırada", magnetSent: "🧲 Torrent DISO'ya gönderildi",
+      foundTitle: "🎞 Bu sayfada bulunan videolar", foundNone: "Bu sayfada henüz video bulunmadı. Videoyu oynat; oynayınca burada görünür.",
+      foundCount: "🎞 Bu sayfada {0} video bulundu", foundSubs: "{0} altyazı bulundu", allNone: "Hepsi / hiçbiri",
+      sendFoundVideo: "🎬 Seçilenleri MP4 indir", sendFoundAudio: "🎵 Seçilenleri MP3 indir", withSubs: "Altyazıları da indir",
+      qualityLabel: "Kalite", qualityBest: "En iyi", nothingChosen: "Önce listeden en az bir video seç",
+      kindHls: "Akış (HLS)", kindDash: "Akış (DASH)", kindVideo: "Video dosyası", kindAudio: "Ses dosyası",
+      sniffOption: "Sayfalarda oynayan videoları bul",
+      sniffHint: "Sayfada oynayan video ve sesleri (gizli oynatıcıların içindekiler de) bulur; simgede kaç tane olduğunu gösterir. Site kendisi desteklenmese bile video böylece iner.",
+      sentFound: "{0} video DISO'ya gönderildi", menuFound: "🎞 Bu sayfada bulunan videoları DISO ile indir",
     },
     en: {
       checking: "Checking…", sendTabVideo: "🎬 Download as MP4 (video)", sendTabAudio: "🎵 Download as MP3 (sound)",
@@ -85,6 +96,14 @@
       language: "Language", languageApp: "Same as DISO", languageHint: "The extension's language. \"Same as DISO\": whichever is chosen in the app.",
       pasteHint: "Paste a link or a magnet…", pasteSend: "⬇ Download", nothingToSend: "There is no link to download in that",
       moreDownloads: "+{0} more downloads", waiting: "queued", magnetSent: "🧲 Torrent sent to DISO",
+      foundTitle: "🎞 Videos found on this page", foundNone: "No video found on this page yet. Play the video; it shows up here once it plays.",
+      foundCount: "🎞 {0} videos found on this page", foundSubs: "{0} subtitles found", allNone: "All / none",
+      sendFoundVideo: "🎬 Download the chosen as MP4", sendFoundAudio: "🎵 Download the chosen as MP3", withSubs: "Download the subtitles too",
+      qualityLabel: "Quality", qualityBest: "Best", nothingChosen: "Choose at least one video in the list first",
+      kindHls: "Stream (HLS)", kindDash: "Stream (DASH)", kindVideo: "Video file", kindAudio: "Sound file",
+      sniffOption: "Find the videos pages play",
+      sniffHint: "Finds the videos and sounds a page plays (also inside hidden players) and shows how many on the button. So a video downloads even when the site itself is not supported.",
+      sentFound: "{0} videos sent to DISO", menuFound: "🎞 Download the videos found on this page with DISO",
     },
   };
 
@@ -322,10 +341,141 @@
     return t("notAdded", [], lang);
   }
 
+  // ------------------------------------------------------------------ 🎞 videos a page plays
+  // What a request the page made is, from its address, its Content-Type and its size: "hls" / "dash" (a stream's
+  // playlist), "video" / "audio" (a whole file), "subtitle", or null (a piece of a stream, a picture, a page ...).
+  const VIDEO_EXT = ["mp4", "m4v", "webm", "mkv", "mov", "flv", "avi", "wmv", "3gp", "ogv"];
+  const AUDIO_EXT = ["mp3", "m4a", "aac", "ogg", "oga", "opus", "flac", "wav", "weba"];
+  const PIECE_EXT = ["ts", "m4s", "m4f", "cmfv", "cmfa", "key", "jpg", "jpeg", "png", "gif", "webp", "js", "css", "html", "json"];
+  const MIN_VIDEO = 512 * 1024;      // smaller "videos" are previews, adverts' pixels, pieces of a stream
+  const MIN_AUDIO = 256 * 1024;
+  function mediaKind(url, contentType, size) {
+    if (!isHttpUrl(url)) return null;
+    const ext = fileExtension(url);
+    const ct = String(contentType || "").toLowerCase().split(";")[0].trim();
+    const known = Number(size) > 0 ? Number(size) : 0;
+    if (ext === "m3u8" || ct === "application/vnd.apple.mpegurl" || ct === "application/x-mpegurl" || ct === "audio/mpegurl") return "hls";
+    if (ext === "mpd" || ct === "application/dash+xml") return "dash";
+    if (ext === "vtt" || ext === "srt" || ct === "text/vtt" || ct === "application/x-subrip") return "subtitle";
+    if (PIECE_EXT.includes(ext) || ct === "video/mp2t" || ct === "video/iso.segment") return null;
+    if (VIDEO_EXT.includes(ext) || ct.startsWith("video/")) return !known || known >= MIN_VIDEO ? "video" : null;
+    if (AUDIO_EXT.includes(ext) || ct.startsWith("audio/")) return !known || known >= MIN_AUDIO ? "audio" : null;
+    return null;
+  }
+
+  // The whole size of a file from a response's headers (a range answer says it after the "/").
+  function responseSize(headers) {
+    const range = headerValue(headers, "content-range");
+    const m = /\/(\d+)\s*$/.exec(range);
+    if (m) return Number(m[1]);
+    return Number(headerValue(headers, "content-length")) || 0;
+  }
+
+  // A header of a webRequest header list ([{name, value}]), any case; "" when it is not there.
+  function headerValue(headers, name) {
+    const want = String(name).toLowerCase();
+    const h = (headers || []).find((x) => x && String(x.name).toLowerCase() === want);
+    return h ? String(h.value || "") : "";
+  }
+
+  // The language a subtitle's address talks about ("…/tr.vtt", "?lang=en", "Turkish"), "" when it does not.
+  const SUB_LANGS = { tr: ["tr", "tur", "turkce", "türkçe", "turkish"], en: ["en", "eng", "english", "ingilizce"],
+                      de: ["de", "ger", "deu", "german"], fr: ["fr", "fre", "fra", "french"], es: ["es", "spa", "spanish"],
+                      ar: ["ar", "ara", "arabic"], ru: ["ru", "rus", "russian"] };
+  function subtitleLanguage(url) {
+    let text = String(url || "").toLowerCase();
+    try { text = decodeURIComponent(text); } catch (e) { /* as it is */ }
+    const words = text.split(/[^a-zçğıöşü]+/);
+    for (const [code, names] of Object.entries(SUB_LANGS)) {
+      if (names.some((n) => words.includes(n))) return code;
+    }
+    return "";
+  }
+
+  // Where a found stream should be listed: its quality from the address (…/1080p/…, _720.m3u8), "master"
+  // playlists (all the qualities) first.
+  function qualityOf(url) {
+    const m = /(?:^|[^0-9])(2160|1440|1080|720|576|480|360|240)p?(?:[^0-9]|$)/i.exec(String(url || "").split("?")[0]);
+    return m ? Number(m[1]) : 0;
+  }
+  const KIND_ORDER = { hls: 0, dash: 1, video: 2, audio: 3 };
+  function rankMedia(list) {
+    const master = (u) => /master|playlist|manifest/i.test(String(u).split("?")[0]) ? 0 : 1;
+    return (list || []).slice().sort((a, b) =>
+      (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) || (master(a.url) - master(b.url)) ||
+      (qualityOf(b.url) - qualityOf(a.url)) || ((b.size || 0) - (a.size || 0)) || ((a.time || 0) - (b.time || 0)));
+  }
+
+  // Remember a found request (once per address); keeps at most `limit` of them. Returns true when it is new.
+  function addFound(list, entry, limit) {
+    if (!entry || !entry.url || list.some((e) => e.url === entry.url)) return false;
+    list.push(entry);
+    while (list.length > (limit || 40)) list.shift();
+    return true;
+  }
+
+  // One line about a found video for the popup: "Akış (HLS) • 1080p • 34.2 MB".
+  function mediaLine(entry, lang) {
+    const kinds = { hls: "kindHls", dash: "kindDash", video: "kindVideo", audio: "kindAudio" };
+    const parts = [t(kinds[entry.kind] || "kindVideo", [], lang)];
+    const q = qualityOf(entry.url);
+    if (q) parts.push(q + "p");
+    if (entry.size > 0) parts.push(sizeText(entry.size));
+    let host = "";
+    try { host = new URL(entry.url).hostname; } catch (e) { /* no host */ }
+    if (host) parts.push(host);
+    return parts.join(" • ");
+  }
+
+  // The names the chosen videos get: the page's title, numbered when there are several.
+  function mediaTitles(title, count) {
+    const base = String(title || "").replace(/\s+/g, " ").trim().slice(0, 200) || "video";
+    return Array.from({ length: count }, (_, i) => (count > 1 ? base + " (" + (i + 1) + ")" : base));
+  }
+
+  // The body of POST /add for videos found on a page (one download each, with the browser's own headers).
+  function buildMediaPayload(entries, { kind, quality, title, subs, userAgent } = {}) {
+    const chosen = (entries || []).filter((e) => e && isHttpUrl(e.url));
+    const names = mediaTitles(title, chosen.length);
+    const p = {
+      kind: kind === "audio" ? "audio" : "video",
+      media: chosen.map((e, i) => {
+        const m = { url: e.url, title: names[i] };
+        if (e.referer && isHttpUrl(e.referer)) m.referer = e.referer;
+        if (e.userAgent || userAgent) m.userAgent = String(e.userAgent || userAgent);
+        if (e.cookies) m.cookies = String(e.cookies);
+        if (e.origin) m.headers = { Origin: String(e.origin) };
+        if (subs && subs.length) m.subs = subs.filter((s) => s && isHttpUrl(s.url)).map((s) => ({ url: s.url, lang: s.lang || "", ext: s.ext || "vtt" }));
+        return m;
+      }),
+    };
+    if (quality && quality !== "En iyi") p.quality = quality;
+    return p;
+  }
+
+  // The page itself (DISO asks yt-dlp first) with the streams it played as the way out when the site is not supported.
+  function alternatesOf(entries, userAgent) {
+    return rankMedia(entries).filter((e) => e.kind !== "audio" && e.kind !== "subtitle").slice(0, 5).map((e) => {
+      const a = { url: e.url };
+      if (e.referer && isHttpUrl(e.referer)) a.referer = e.referer;
+      if (e.userAgent || userAgent) a.userAgent = String(e.userAgent || userAgent);
+      if (e.cookies) a.cookies = String(e.cookies);
+      if (e.origin) a.headers = { Origin: String(e.origin) };
+      return a;
+    });
+  }
+
+  // The number on the toolbar button: how many videos the page plays ("" for none, "9+" for many).
+  function badgeCount(n) {
+    n = Number(n) || 0;
+    return n <= 0 ? "" : n > 9 ? "9+" : String(n);
+  }
+
   const HOST = "com.iso.diso";       // the native host (app/native_host.py) that starts DISO when it is closed
 
   return { APP_ID, HOST, DEFAULTS, TEXTS, language, t, translatePage, appBase, isHttpUrl, parseExtensions, fileExtension,
            extractUrls, cookieHeader, shouldIntercept, buildPayload, describeResult, pageFileLinks, sizeText, statusText,
            linkKind, isSendable, pickLanguage, setLanguage, currentLanguage, isTorrentLink, magnetHash,
-           pageTorrentLinks, downloadRows };
+           pageTorrentLinks, downloadRows, mediaKind, responseSize, headerValue, subtitleLanguage, qualityOf, rankMedia,
+           addFound, mediaLine, mediaTitles, buildMediaPayload, alternatesOf, badgeCount };
 });

@@ -8,6 +8,7 @@ The actual work for one list item:
                  ffmpeg merges / converts. Falls back to yt-dlp's downloader if needed.
 """
 import os
+import re
 import threading
 from urllib.parse import urlsplit
 
@@ -290,6 +291,27 @@ def _finish_media_body(item: Item, info: dict, fmts: list, parts: list, stem: st
     return out
 
 
+def ydl_leftovers(item: Item) -> list:
+    """What yt-dlp leaves of a download it did not finish (the .part, its pieces, its .ytdl note): deleted when
+    the download is cancelled. Only files of this download's own name."""
+    if item.kind not in ("video", "audio") or not item.title:
+        return []
+    folder = media_folder(item.folder, item.kind, item.sort_folders)
+    stem = sanitize_filename(item.name_hint or item.title, 150)
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        if not name.startswith(stem + "."):
+            continue
+        rest = name[len(stem):]
+        if rest.endswith((".part", ".ytdl")) or ".part-Frag" in rest or rest.endswith(".temp"):
+            out.append(os.path.join(folder, name))
+    return out
+
+
 def _ydl_fallback(item: Item) -> str:
     item.state = DOWNLOADING
     _get_ffmpeg(item, required=(item.kind == "audio"))
@@ -326,18 +348,46 @@ def save_subtitles(item: Item, info: dict, path: str) -> list:
     return saved
 
 
+def save_found_subtitles(item: Item, path: str) -> list:
+    """🎞 The subtitles the page's player loaded (found by the browser extension): next to the video as
+    '<name>.<lang>.<ext>' and inside the MP4. Never fails the download."""
+    item.state, item.message = PROCESSING, "Sayfanın altyazıları indiriliyor…"
+    subs, seen = [], set()
+    for k, sub in enumerate(item.sub_urls):
+        ext = sub.get("ext") if sub.get("ext") in ("vtt", "srt") else "vtt"
+        lang = re.sub(r"[^a-z0-9-]", "", str(sub.get("lang") or "").lower())[:12] or f"altyazi{k + 1}"
+        while lang in seen:
+            lang += "x"
+        seen.add(lang)
+        subs.append({"lang": lang, "url": sub.get("url"), "ext": ext})
+    saved = ve.download_subtitles(item, [s for s in subs if s["url"]], os.path.splitext(path)[0])
+    if saved:
+        item.message = "Altyazı videoya ekleniyor…"
+        ve.embed_subtitles(path, saved, item)
+        item.message = f"{len(saved)} altyazı kaydedildi"
+    else:
+        item.message = "Sayfanın altyazıları indirilemedi"
+    return saved
+
+
 def run_media(item: Item):
     os.makedirs(item.folder, exist_ok=True)
     item.state = RESOLVING
     item.message = "Video bilgisini alıyorum…"
-    try:
-        info = ve.resolve(item.url, item.kind, item.quality, item.cookies)
-    except Exception as e:
-        _check_stop(item)
-        raise (TransientError if is_transient(e) else RuntimeError)(ve.pretty_error(e))
+    while True:
+        try:
+            info = ve.resolve(item.url, item.kind, item.quality, item.cookies, item.request_headers())
+            break
+        except Exception as e:
+            _check_stop(item)
+            if not is_transient(e) and item.use_alternate():          # 🎞 the page did not work: its stream
+                log.info("page not downloadable (%s), trying the stream the browser played: %s", e, item.url)
+                item.message = "Sayfa doğrudan inmedi; sayfada oynayan videoyu indiriyorum…"
+                continue
+            raise (TransientError if is_transient(e) else RuntimeError)(ve.pretty_error(e))
     _check_stop(item)
 
-    title = info.get("title") or info.get("id") or "video"
+    title = item.name_hint or info.get("title") or info.get("id") or "video"
     item.title = title
     stem = sanitize_filename(title, 120)
     fmts = info.get("requested_formats") or [info]
@@ -360,3 +410,5 @@ def run_media(item: Item):
     item.final_path = path or ""
     if item.kind == "video" and item.subs != "Yok" and not item.clip and path and os.path.exists(path):
         save_subtitles(item, info, path)
+    if item.kind == "video" and item.sub_urls and path and os.path.exists(path):
+        save_found_subtitles(item, path)

@@ -32,7 +32,7 @@ def test_the_manifest_is_a_valid_manifest_v3_for_chrome_and_firefox():
     assert m["manifest_version"] == 3 and m["name"] == "DISO"
     assert m["version"] == __version__                       # extension and app move together
     assert set(m["permissions"]) == {"contextMenus", "downloads", "storage", "cookies", "activeTab", "scripting",
-                                      "nativeMessaging"}
+                                      "nativeMessaging", "webRequest"}
     assert "http://127.0.0.1/*" in m["host_permissions"]
     assert m["background"] == {"service_worker": "sw.js"}                       # Chrome
     assert firefox_manifest()["background"] == {"scripts": ["lib.js", "background.js"]}   # Firefox
@@ -171,7 +171,7 @@ PAGE = "http://shop.example/page"
 @needs_node
 def test_the_context_menu_entries_are_created(app):
     api, b = app
-    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page-video", "hi-page-audio",
+    assert run(b.port, "menus")["log"]["menus"] == ["hi-link", "hi-media", "hi-page-video", "hi-page-audio", "hi-found",
                                                     "hi-all-links", "hi-torrents", "hi-selection"]
 
 

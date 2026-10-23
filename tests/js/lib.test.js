@@ -231,3 +231,79 @@ test("the popup's download lines", () => {
   assert.equal(more, 4);
   assert.deepEqual(HI.downloadRows(null), { rows: [], more: 0 });
 });
+
+// ------------------------------------------------------------------ 🎞 videos a page plays
+test("mediaKind tells streams, files and subtitles from the pieces and the rest", () => {
+  assert.equal(HI.mediaKind("https://a.com/x/master.m3u8?t=1"), "hls");
+  assert.equal(HI.mediaKind("https://a.com/play", "application/vnd.apple.mpegurl; charset=utf-8"), "hls");
+  assert.equal(HI.mediaKind("https://a.com/x/stream.mpd"), "dash");
+  assert.equal(HI.mediaKind("https://a.com/movie.mp4", "video/mp4", 50e6), "video");
+  assert.equal(HI.mediaKind("https://a.com/get?id=1", "video/mp4", 0), "video");           // size not told: kept
+  assert.equal(HI.mediaKind("https://a.com/song.mp3", "audio/mpeg", 4e6), "audio");
+  assert.equal(HI.mediaKind("https://a.com/subs/tr.vtt"), "subtitle");
+  assert.equal(HI.mediaKind("https://a.com/subs/x", "text/vtt"), "subtitle");
+  for (const [u, ct, size] of [["https://a.com/seg-1.ts", "video/mp2t", 9e5], ["https://a.com/c-2.m4s", "video/mp4", 9e5],
+                               ["https://a.com/ad.mp4", "video/mp4", 3000], ["https://a.com/p.jpg", "image/jpeg", 9e5],
+                               ["https://a.com/page", "text/html", 9e5], ["blob:https://a.com/1", "video/mp4", 9e6]]) {
+    assert.equal(HI.mediaKind(u, ct, size), null, u);
+  }
+});
+
+test("the size of a whole file is read from a range answer too", () => {
+  assert.equal(HI.responseSize([{ name: "Content-Range", value: "bytes 0-999/123456789" }, { name: "Content-Length", value: "1000" }]), 123456789);
+  assert.equal(HI.responseSize([{ name: "content-length", value: "5000" }]), 5000);
+  assert.equal(HI.responseSize([]), 0);
+  assert.equal(HI.headerValue([{ name: "REFERER", value: "http://x" }], "referer"), "http://x");
+  assert.equal(HI.headerValue(null, "referer"), "");
+});
+
+test("a subtitle's language and a stream's quality come from their address", () => {
+  assert.equal(HI.subtitleLanguage("https://x.com/subs/Turkce.vtt"), "tr");
+  assert.equal(HI.subtitleLanguage("https://x.com/s?lang=en&f=1.vtt"), "en");
+  assert.equal(HI.subtitleLanguage("https://x.com/s/123.vtt"), "");
+  assert.equal(HI.qualityOf("https://x.com/hls/1080p/index.m3u8"), 1080);
+  assert.equal(HI.qualityOf("https://x.com/v_720.m3u8?t=2160"), 720);                      // not the query
+  assert.equal(HI.qualityOf("https://x.com/a.m3u8"), 0);
+});
+
+test("found videos are ranked (whole playlists and the best first) and kept once", () => {
+  const list = [];
+  assert.equal(HI.addFound(list, { url: "u1", kind: "video", size: 5e6 }), true);
+  assert.equal(HI.addFound(list, { url: "u1", kind: "video" }), false);
+  for (let i = 0; i < 50; i++) HI.addFound(list, { url: "x" + i, kind: "audio" }, 10);
+  assert.equal(list.length, 10);
+  const ranked = HI.rankMedia([{ url: "https://a/720/index.m3u8", kind: "hls" }, { url: "https://a/f.mp4", kind: "video", size: 9 },
+                               { url: "https://a/master.m3u8", kind: "hls" }, { url: "https://a/1080/index.m3u8", kind: "hls" },
+                               { url: "https://a/s.mp3", kind: "audio" }]);
+  assert.deepEqual(ranked.map((e) => e.url), ["https://a/master.m3u8", "https://a/1080/index.m3u8", "https://a/720/index.m3u8",
+                                              "https://a/f.mp4", "https://a/s.mp3"]);
+  assert.equal(HI.mediaLine({ kind: "hls", url: "https://cdn.x.com/1080/index.m3u8" }, "tr"), "Akış (HLS) • 1080p • cdn.x.com");
+  assert.equal(HI.mediaLine({ kind: "video", url: "https://x.com/a.mp4", size: 1536000 }, "en"), "Video file • 1.5 MB • x.com");
+});
+
+test("the payload for found videos carries the player's headers, names, quality and subtitles", () => {
+  const p = HI.buildMediaPayload([{ url: "https://cdn/a.m3u8", referer: "https://player/e/1", origin: "https://player", cookies: "a=1" },
+                                  { url: "https://cdn/b.mp4" }, { url: "blob:x" }],
+                                 { kind: "video", quality: "720p", title: "  Film   Adı ", subs: [{ url: "https://cdn/tr.vtt", lang: "tr" }],
+                                   userAgent: "UA" });
+  assert.equal(p.kind, "video");
+  assert.equal(p.quality, "720p");
+  assert.deepEqual(p.media.map((m) => m.title), ["Film Adı (1)", "Film Adı (2)"]);
+  assert.deepEqual(p.media[0], { url: "https://cdn/a.m3u8", title: "Film Adı (1)", referer: "https://player/e/1", userAgent: "UA",
+                                 cookies: "a=1", headers: { Origin: "https://player" },
+                                 subs: [{ url: "https://cdn/tr.vtt", lang: "tr", ext: "vtt" }] });
+  assert.equal(HI.buildMediaPayload([{ url: "https://cdn/a.mp3" }], { kind: "audio", quality: "En iyi" }).quality, undefined);
+  assert.deepEqual(HI.mediaTitles("", 1), ["video"]);
+  const alts = HI.alternatesOf([{ url: "https://a/s.mp3", kind: "audio" }, { url: "https://a/x.m3u8", kind: "hls", referer: "https://p/" }], "UA");
+  assert.deepEqual(alts, [{ url: "https://a/x.m3u8", referer: "https://p/", userAgent: "UA" }]);
+  assert.equal(HI.badgeCount(0), "");
+  assert.equal(HI.badgeCount(3), "3");
+  assert.equal(HI.badgeCount(12), "9+");
+});
+
+test("every new text is there in both languages", () => {
+  for (const key of ["foundTitle", "foundNone", "foundCount", "sendFoundVideo", "sendFoundAudio", "withSubs", "kindHls",
+                     "sniffOption", "sniffHint", "menuFound", "sentFound", "nothingChosen", "qualityLabel"]) {
+    assert.ok(HI.TEXTS.tr[key] && HI.TEXTS.en[key], key);
+  }
+});

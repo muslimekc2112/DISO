@@ -140,10 +140,16 @@ class DownloadManager:
     @staticmethod
     def _make_item(url, s: Settings, folder, title="", kind=None, extra=None, group="") -> Item:
         extra = extra or {}
-        return Item(url, kind or s.kind, s.quality, s.bitrate, s.connections, folder, s.cookies, title,
+        item = Item(url, kind or s.kind, extra.get("quality") or s.quality, s.bitrate, s.connections, folder,
+                    s.cookies, title or extra.get("title", ""),
                     subs=s.subs, cover=s.cover, sort_folders=s.sort_folders,
                     referer=extra.get("referer", ""), user_agent=extra.get("user_agent", ""),
                     cookie_header=extra.get("cookie", ""), group=group, clip=extra.get("clip"))
+        item.name_hint = extra.get("title", "")
+        item.header_extra = dict(extra.get("headers") or {})
+        item.alternates = [dict(a) for a in extra.get("alternates") or []]
+        item.sub_urls = [dict(u) for u in extra.get("sub_urls") or []]
+        return item
 
     def add_url(self, url: str, s: Settings, start=True, skip_duplicates=False, extra=None) -> bool:
         """Add one link. Returns False if it was skipped because it is already in the list.
@@ -152,8 +158,9 @@ class DownloadManager:
         if skip_duplicates and self.find_duplicate(url):
             return False
         folder = s.folder or default_download_dir()
-        if s.playlist and s.kind in ("auto", "video", "audio") and not jobs.is_plain_file_link(url):
-            threading.Thread(target=self._add_playlist, args=(url, s, folder, start, skip_duplicates),
+        stream = bool(extra and (extra.get("title") or extra.get("alternates") or extra.get("sub_urls")))
+        if s.playlist and s.kind in ("auto", "video", "audio") and not jobs.is_plain_file_link(url) and not stream:
+            threading.Thread(target=self._add_playlist, args=(url, s, folder, start, skip_duplicates, extra),
                              daemon=True).start()
             return True
         self._add_item(self._make_item(url, s, folder, extra=extra), start)
@@ -190,12 +197,17 @@ class DownloadManager:
         self._add_item(item, True)
         return item
 
-    def _add_playlist(self, url, s, folder, start, skip_duplicates=False):
+    def _add_playlist(self, url, s, folder, start, skip_duplicates=False, extra=None):
         try:
             entries = ve.expand_playlist(url, s.cookies)
         except Exception as e:
             self.notices.put(f"Listeyi okuyamadım: {ve.pretty_error(e)}")
             entries = [(url, "", 0)]
+        if len(entries) == 1 and extra and entries[0][0] == url:      # one video: the browser's headers go along
+            kind = "video" if s.kind == "auto" else s.kind
+            self._add_item(self._make_item(url, s, folder, entries[0][1] if len(entries[0]) > 1 else "", kind,
+                                           extra=extra), start)
+            return
         added, skipped = self.add_entries(entries, s, start, skip_duplicates)
         if len(entries) > 1:
             text = f"{added} video listeye eklendi"
@@ -346,6 +358,11 @@ class DownloadManager:
         if item.temp_files and torrent.is_torrent_link(item.url):     # a torrent's own folders, now empty
             torrent.remove_empty_dirs(item.temp_files, item.folder)
         item.temp_files = []
+        for p in jobs.ydl_leftovers(item):                           # what yt-dlp had of a video / MP3
+            try:
+                os.remove(p)
+            except OSError:
+                pass
 
     def to_front(self, item) -> bool:
         """⏫ This queued download is the next one to start."""
