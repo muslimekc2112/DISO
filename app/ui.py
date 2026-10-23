@@ -2189,6 +2189,16 @@ class App(NostalgiaWindow, ctk.CTk):
                 return None
             fn = getattr(self.music, music[action])
             return fn(lyrics_on=True) if action == "visualizer" else fn()
+        if action in ("speed", "order"):                    # ⏩ / ⇅ in the music player
+            if self.mode != MODE_MUSIC:
+                self._switch_mode(MODE_MUSIC)
+            if self.music is None:
+                return None
+            if action == "speed":
+                return self.music.after(150, self.music._open_speed_menu)
+            return self.music.after(150, self.music.order_menu._open_dropdown_menu)
+        if action == "extension":
+            return self.open_extension_guide()
         if action == "phone":
             return self.open_phone()
         if action == "torrent":

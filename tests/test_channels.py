@@ -227,3 +227,28 @@ def test_look_now_says_when_it_has_looked(app):
         time.sleep(0.05)
     assert "Kanallara baktım" in win.status.cget("text") and win.check_btn.cget("state") == "normal"
     assert [v["id"] for v in app.channel_store.new] == ["kanal9"] and app.manager.items == []
+
+
+def test_a_channels_tabs_are_never_taken_for_videos():
+    from app import channels
+    tab = {"id": "UCX6OQ3DkcsbYNE6H8uQQuVA", "url": "https://www.youtube.com/@MrBeast/videos", "title": "MrBeast - Videos"}
+    assert channels._video(tab, "https://www.youtube.com/@MrBeast") is None
+    video = {"id": "abc", "url": "https://www.youtube.com/watch?v=abc", "title": "Bir video", "duration": 60}
+    assert channels._video(video, "https://www.youtube.com/@MrBeast/videos")["id"] == "abc"
+    asked = []
+
+    class Ydl:
+        def __init__(self, opts):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def extract_info(self, url, download=False, process=True):
+            asked.append(url)
+            return {"_type": "playlist", "channel": "MrBeast", "entries": [tab, video]}
+    got = channels.read_channel("https://www.youtube.com/@MrBeast", ydl_class=Ydl, opts={})
+    assert asked == ["https://www.youtube.com/@MrBeast/videos"] and [v["id"] for v in got["videos"]] == ["abc"]

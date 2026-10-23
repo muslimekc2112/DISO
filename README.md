@@ -57,6 +57,11 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 - Make **as many playlists as you like** (`＋` new, `✎` rename, `🗑` delete). They survive closing DISO (`%LOCALAPPDATA%\DISO\playlists.json`).
 - Add music with `＋ File` and `📁 Folder`, put the songs in any order with `▲` `▼` (or `Ctrl+↑/↓`), take them out with `Delete`. The files themselves are never deleted.
 - Double-click a song to start from it. There is play/pause, previous/next, a progress bar, volume, **🔀 Shuffle** and **🔁 Repeat** (off / list / one song). `Space` plays/pauses.
+- **⏪5 / 5⏩** go 5 seconds back / forward. On the keyboard **→ once: 5 s forward, twice quickly: the next song**; **← once: 5 s back, twice: the song before** (held down it keeps going).
+- **⏩ Playing speed** (the `1x` button): 0.25x to 4x, and the **pitch** ±6 semitones.
+- **⇅ Order a list** (the menu next to the list): my own order, newest first / last, A → Z, Z → A, most played first; your own order is always kept.
+- **🎨** The background takes on a little of the playing song's cover colour (⚙ menu to turn it off).
+- **🌌 Visualizer:** bars, wave or ring; in the ring the cover beats in the middle, the colours can come from the cover; ⏮ ⏪5 ⏯ 5⏩ ⏭ at the bottom, F11 for full screen.
 - The song table shows **artist, title and length** (read from the file's tags in the background; a file without tags shows its file name). The list's total length is shown below it. The playing song's **cover art** and album appear in the player box.
 - Finished music downloads **go into a playlist by themselves**: a YouTube playlist into a list with its own name (in its order), a single MP3 into the "Downloaded" list. To turn this off: Settings → "Put finished music into a playlist". From a download's **right-click menu → Add to a playlist** you can also put it into any list.
 - **A song whose file was deleted leaves the list by itself** (a short note says so). A song on a USB stick that is not plugged in does not count as deleted; it is still there when the stick comes back.
@@ -100,6 +105,7 @@ Turn on Settings → Scheduler and type the start time (and, if you like, the en
 ## 🧩 Browser extension
 DISO has a browser extension for **Chrome, Edge, Brave, Opera, Vivaldi** (and Firefox, see below), like IDM's:
 - **Right-click a link → "Download with DISO"**: the download starts in DISO at once. Also on a video / sound / picture, on selected text (every link in it), and **"Download all file links on this page with DISO"** (only links to file types such as zip, exe, mp4, mp3, pdf … — the list is in the extension's settings).
+- **🎞 Videos from any site:** the extension finds the videos (HLS / DASH streams, video and sound files) a page plays, also inside hidden players, and shows how many on its button. In its window choose them, the quality and the subtitles, and download as MP4 or MP3. The player's headers go along, so even sites DISO cannot read download; a page sent with "MP4" falls back to the video it played. Copy-protected (DRM) streams cannot be downloaded.
 - **DISO opens by itself when it is closed.** The extension starts it (through the browser's "native messaging", the way IDM does it), waits until it is ready and hands the link over. No need to keep DISO running.
 - **Catching the browser's own downloads** (optional, in the extension's settings): files of the chosen types or above a size go to DISO instead. While DISO is starting the browser's download waits; if DISO cannot start, the browser simply goes on.
 - The toolbar button shows whether DISO runs, **what it is downloading right now** (count and speed), and has **▶ Open DISO**, "download this tab" and "download this tab as MP3".

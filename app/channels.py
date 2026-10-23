@@ -61,8 +61,8 @@ def _video(e: dict, base: str):
     url = e.get("webpage_url") or e.get("url") or ""
     if url and not url.startswith("http"):
         url = f"https://www.youtube.com/watch?v={vid or url}" if _YT.match(base) else ""
-    if not url or not vid:
-        return None
+    if not url or not vid or _YT_CHANNEL.match(url) and not _YT_VIDEO.match(url):
+        return None                                   # (a tab of the channel - "Videos", "Shorts" - is no video)
     duration = e.get("duration")
     return {"id": vid, "url": url, "title": str(e.get("title") or url).strip(),
             "duration": int(duration) if isinstance(duration, (int, float)) and duration > 0 else 0}
@@ -83,6 +83,7 @@ def read_channel(url: str, limit=LATEST, ydl_class=None, opts=None) -> dict:
         if not owner:
             raise ValueError("Bu videonun kanalını bulamadım")
         url = channel_link(owner)
+    url = channel_link(url) or url                    # a channel's own page lists its tabs: its videos are read
     opts.update({"extract_flat": "in_playlist", "playlistend": int(limit)})
     with ydl_class(opts) as ydl:
         info = ydl.extract_info(url, download=False) or {}

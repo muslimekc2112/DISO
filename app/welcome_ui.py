@@ -9,20 +9,19 @@ from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
 # (icon, title, text, what "Dene" opens — see App.try_feature)
 WHATS_NEW = [
-    ("👤", "YouTube Music listelerin", "Google hesabınla bağlan; listelerin ve beğendiğin şarkılar gelsin, istediğini MP3 indir.",
-     "google"),
-    ("🌈", "Görselleştirici + şarkıyla akan sözler", "Çalan şarkı çubuk, dalga ya da halka olarak dans eder; sözler "
-     "üstünden akar. Tam ekran da olur.", "visualizer"),
-    ("✨", "Günün karışığı ve radyo", "En çok dinlediklerine benzeyen yeni şarkılar her gün hazır; bir şarkıya sağ tıklayıp "
-     "onun radyosunu da açabilirsin.", "mix"),
-    ("⏰", "Müzikli alarm", "Seçtiğin saatte sevdiğin listeyle, sesi yavaşça açılarak uyan.", "alarm"),
-    ("📊", "Dinleme istatistiklerin", "Bu ay, bu yıl en çok neleri, kimleri, hangi saatlerde dinledin.", "stats"),
-    ("🎛", "Daha kolay ekolayzır", "Bas, Orta, Tiz; değiştirirken müzik artık takılmıyor. Uzmanlar için Gelişmiş.", "eq"),
-    ("📱", "Telefondan link gönder", "QR kodu okut, telefondaki linki yapıştır, bilgisayarda insin.", "phone"),
-    ("🧲", "Torrent", "Torrent dosyası düğmesi; .torrent dosyaları ve magnet linkleri doğrudan DISO'da açılır.", "torrent"),
-    ("❓", "Neden inmedi?", "Hata olursa anlaşılır bir sebep ve tek tıkla çözüm: ▶'e basman yeter.", None),
-    ("⌨", "Kendi kısayolların", "Müzik çaların tuşlarını sen belirle; DISO arkadayken çalışanlar dahil.", "keys"),
-    ("🛡", "Ekstralar", "Klasör izleme, bitince USB'ye kopyalama, virüs taraması, internet hız testi.", "extras"),
+    ("🎞", "Her siteden video", "Tarayıcıda oynayan videoyu eklenti kendisi bulur, simgesinde kaç tane olduğu yazar. "
+     "Seç, kaliteyi ve altyazıyı belirle, indir; site desteklenmese bile.", "extension"),
+    ("🌌", "Yeni görselleştirici", "Halkanın ortasında şarkının kapağı ritimle atar, renkler kapaktan gelir; ⏮ ⏪ ⏯ ⏩ ⏭ "
+     "düğmeleri de orada.", "visualizer"),
+    ("⏩", "Çalma hızı ve ⏪5 / 5⏩", "0.25x'ten 4x'e hız, istersen perde. → bir kez: 5 sn ileri, iki kez: sonraki şarkı "
+     "(← de geri ve önceki).", "speed"),
+    ("⇅", "Listeyi sırala", "Kendi sıran, son eklenen başta ya da sonda, A → Z, Z → A, en popüler başta. Kendi sıran hep "
+     "saklı kalır.", "order"),
+    ("🎨", "Şarkının rengi", "Müzik çaların arka planı çalan şarkının kapağının rengini hafifçe alır.", None),
+    ("🛡", "Her indirmede Defender", "İnen her dosya (torrent klasörleri dahil) Windows Defender ile taranır; sonucu "
+     "indirmenin altında yazar.", "extras"),
+    ("🔔", "Bildirimler DISO'dan", "Bildirimler artık “Windows PowerShell” adıyla değil, DISO'nun adı ve simgesiyle gelir.",
+     None),
 ]
 
 # (icon, title, text, the App attribute of the widget to outline or None)

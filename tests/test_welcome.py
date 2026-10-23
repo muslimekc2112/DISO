@@ -65,3 +65,23 @@ def test_whats_new_cards_open_their_features(app, monkeypatch):
     assert vis.show_lyrics
     vis.destroy()
     win.destroy()
+
+
+@pytest.mark.gui
+def test_the_new_cards_of_1_2_open_their_features(app, monkeypatch):
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
+    actions = {card[3] for card in welcome_ui.WHATS_NEW}
+    assert {"extension", "visualizer", "speed", "order", "extras"} <= actions
+    opened = []
+    monkeypatch.setattr(app, "open_extension_guide", lambda: opened.append("guide"))
+    app.try_feature("extension")
+    assert opened == ["guide"]
+    assert app._ensure_music()
+    monkeypatch.setattr(app.music, "_open_speed_menu", lambda: opened.append("speed"))
+    monkeypatch.setattr(app.music.order_menu, "_open_dropdown_menu", lambda: opened.append("order"))
+    app.try_feature("speed")
+    app.try_feature("order")
+    end = __import__("time").time() + 2
+    while len(opened) < 3 and __import__("time").time() < end:
+        app.update()
+    assert opened == ["guide", "speed", "order"]

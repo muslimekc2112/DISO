@@ -796,6 +796,28 @@ PLAIN = {
     'Hep üstte': 'Always on top', 'Büyük pencere': 'Big window', 'Çalmaya hazırlanıyor…': 'Getting ready to play…',
     'Uyku zamanlayıcısı': 'Sleep timer', 'Şarkı sözleri': 'Lyrics',
 
+    # ---- 1.2: what is new
+    "Her siteden video": "Videos from any site",
+    "Tarayıcıda oynayan videoyu eklenti kendisi bulur, simgesinde kaç tane olduğu yazar. Seç, kaliteyi ve altyazıyı belirle, indir; site desteklenmese bile.":
+        "The extension finds the video the browser plays and shows how many on its button. Choose, pick the quality and the subtitles, download — even when the site is not supported.",
+    "Yeni görselleştirici": "A new visualizer",
+    "Halkanın ortasında şarkının kapağı ritimle atar, renkler kapaktan gelir; ⏮ ⏪ ⏯ ⏩ ⏭ düğmeleri de orada.":
+        "The song's cover beats in the middle of the ring, the colours come from the cover; ⏮ ⏪ ⏯ ⏩ ⏭ are there too.",
+    "Çalma hızı ve ⏪5 / 5⏩": "Playing speed and ⏪5 / 5⏩",
+    "0.25x'ten 4x'e hız, istersen perde. → bir kez: 5 sn ileri, iki kez: sonraki şarkı (← de geri ve önceki).":
+        "Speed from 0.25x to 4x, and the pitch if you like. → once: 5 s forward, twice: the next song (← back and the one before).",
+    "Listeyi sırala": "Order a list",
+    "Kendi sıran, son eklenen başta ya da sonda, A → Z, Z → A, en popüler başta. Kendi sıran hep saklı kalır.":
+        "Your own order, newest first or last, A → Z, Z → A, most played first. Your own order is always kept.",
+    "Şarkının rengi": "The song's colour",
+    "Müzik çaların arka planı çalan şarkının kapağının rengini hafifçe alır.":
+        "The music player's background takes on a little of the playing song's cover colour.",
+    "Her indirmede Defender": "Defender on every download",
+    "İnen her dosya (torrent klasörleri dahil) Windows Defender ile taranır; sonucu indirmenin altında yazar.":
+        "Every downloaded file (torrent folders too) is scanned with Windows Defender; the result is written under the download.",
+    "Bildirimler DISO'dan": "Notifications from DISO",
+    "Bildirimler artık “Windows PowerShell” adıyla değil, DISO'nun adı ve simgesiyle gelir.":
+        "Notifications now come with DISO's name and icon, not as “Windows PowerShell”.",
     # ---- 1.2: Windows Defender on every download
     "🛡 Windows Defender tarıyor…": "🛡 Windows Defender is scanning…", "🛡 Windows Defender: temiz": "🛡 Windows Defender: clean",
     "⚠ Windows Defender tehdit buldu ve karantinaya aldı": "⚠ Windows Defender found a threat and quarantined it",
