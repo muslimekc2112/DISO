@@ -6,14 +6,15 @@ Keys are kept as Tk sequences without the brackets ("space", "Control-Right", "C
 
 ACTIONS = [
     ("toggle", "Çal / duraklat"), ("next", "Sonraki şarkı"), ("previous", "Önceki şarkı"), ("stop", "Durdur"),
-    ("seek_forward", "5 saniye ileri"), ("seek_back", "5 saniye geri"), ("volume_up", "Sesi aç"),
+    ("seek_forward", "5 saniye ileri (iki kez: sonraki şarkı)"), ("seek_back", "5 saniye geri (iki kez: önceki şarkı)"),
+    ("volume_up", "Sesi aç"),
     ("volume_down", "Sesi kıs"), ("mute", "Sesi kapat / aç"), ("shuffle", "Karışık çal"),
     ("repeat", "Tekrar modu"), ("mini", "Mini oynatıcı"), ("lyrics", "Şarkı sözleri"), ("search", "Şarkı ara"),
 ]
 NAMES = dict(ACTIONS)
 
 DEFAULT_KEYS = {"toggle": "space", "next": "Control-Right", "previous": "Control-Left", "stop": "",
-                "seek_forward": "Shift-Right", "seek_back": "Shift-Left", "volume_up": "Shift-Up",
+                "seek_forward": "Right", "seek_back": "Left", "volume_up": "Shift-Up",
                 "volume_down": "Shift-Down", "mute": "Control-m", "shuffle": "Control-r", "repeat": "Control-t",
                 "mini": "Control-i", "lyrics": "Control-l", "search": "Control-k"}
 DEFAULT_GLOBAL = {name: "" for name, _ in ACTIONS}

@@ -6,7 +6,10 @@ mixer channel in short pieces, and the channel's own volume and pause do the res
 channel of its own, so two can sound at once (cross-fade, preview). The methods are MciBackend's.
 
 A new equalizer setting does not stop the sound: a second ffmpeg starts a little ahead with the new
-filter, the first one is played up to exactly that moment, and the two are blended over a few ms there."""
+filter, the first one is played up to exactly that moment, and the two are blended over a few ms there.
+
+⏩ The playing speed (and pitch) is an ffmpeg filter too (tempo_filter); positions stay in the song's own
+time, so a minute of sound at 2x is two minutes of the song."""
 import json
 import os
 import subprocess
@@ -25,7 +28,53 @@ MAX_CHANNELS = 16
 CHANGE_AHEAD = RATE * 200 // 1000                # frames: a new filter starts this far ahead (ffmpeg needs ~40 ms)
 BLEND = RATE * 15 // 1000                        # frames: old and new sound are blended over this, so nothing clicks
 
+MIN_SPEED, MAX_SPEED = 0.25, 4.0
+MAX_PITCH = 12                                   # semitones up or down
+
 _mixer_lock = threading.Lock()
+
+
+def clean_tempo(speed, pitch=0):
+    """(speed, pitch) inside what can be played: 0.25x–4x, ±12 semitones."""
+    try:
+        speed = float(speed)
+    except (TypeError, ValueError):
+        speed = 1.0
+    try:
+        pitch = int(round(float(pitch)))
+    except (TypeError, ValueError):
+        pitch = 0
+    speed = 1.0 if speed != speed else max(MIN_SPEED, min(MAX_SPEED, speed))     # (NaN)
+    return round(speed, 2), max(-MAX_PITCH, min(MAX_PITCH, pitch))
+
+
+def _atempo(factor) -> list:
+    """atempo steps for any factor (one step only goes from 0.5 to 2 in older ffmpeg builds)."""
+    steps = []
+    while factor >= 2.0:
+        steps.append("atempo=2.0")
+        factor /= 2.0
+    while factor <= 0.5:
+        steps.append("atempo=0.5")
+        factor /= 0.5
+    if abs(factor - 1.0) > 1e-4:
+        steps.append(f"atempo={factor:.6f}")
+    return steps
+
+
+def tempo_filter(speed=1.0, pitch=0) -> str:
+    """The ffmpeg filter that plays at `speed` with the voice `pitch` semitones higher / lower ("" = as it is).
+    The pitch moves by playing the sound faster (higher) and atempo takes that speed back out."""
+    speed, pitch = clean_tempo(speed, pitch)
+    if speed == 1.0 and pitch == 0:
+        return ""
+    steps = []
+    factor = speed
+    if pitch:
+        rise = 2 ** (pitch / 12)
+        steps += [f"aresample={RATE}", f"asetrate={RATE * rise:.3f}", f"aresample={RATE}"]
+        factor = speed / rise
+    return ",".join(steps + _atempo(factor))
 _channels_used = [0]
 
 
@@ -104,6 +153,8 @@ class SdlBackend:
         self._refilter = False        # the filter changed while playing: the feeding thread changes over
         self._next_proc = None        # the decoder with the new filter, until it takes over
         self._hold = False            # cue(): the first piece waits for go()
+        self._speed, self._pitch = 1.0, 0     # ⏩ set_tempo()
+        self._run_speed = 1.0         # the speed of the running decoder (its sound per second of the song)
         self._ready = False           # ... and it is there
         self.last_error = ""
 
@@ -126,6 +177,7 @@ class SdlBackend:
         if at_frame > 0:
             args += ["-ss", f"{at_frame / RATE:.6f}"]
         args += ["-i", self._path, "-vn"]
+        af = ",".join(f for f in (af, tempo_filter(self._speed, self._pitch)) if f)
         if af:
             args += ["-af", af]
         args += ["-f", "s16le", "-acodec", "pcm_s16le", "-ac", str(CHANNELS), "-ar", str(RATE), "pipe:1"]
@@ -156,7 +208,9 @@ class SdlBackend:
         self._gen += 1
         self._base, self._began, self._paused_at, self._paused_for, self._eof = at_ms, None, None, 0.0, False
         self._hold, self._ready = hold, False
-        threading.Thread(target=self._feed, args=(self._gen, proc, at_frame), daemon=True, name="sdl-feed").start()
+        self._run_speed = self._speed
+        threading.Thread(target=self._feed, args=(self._gen, proc, at_frame, self._speed), daemon=True,
+                         name="sdl-feed").start()
         return True
 
     def _stop_decoder(self):
@@ -168,9 +222,9 @@ class SdlBackend:
             self._kill(proc)
         self._channel.stop()
 
-    def _feed(self, gen, proc, at):
+    def _feed(self, gen, proc, at, speed=1.0):
         """Hands the decoded sound to the channel, one piece while the one before it sounds. `at` is the frame
-        of the song the next piece starts with. When the filter changes, a decoder with the new one starts at
+        of the song the next piece starts with (a piece of sound is `speed` times as much of the song). When the filter changes, a decoder with the new one starts at
         `switch` (a little ahead), this one is read up to exactly there, and the new one goes on from it."""
         nxt = switch = None
         tail = b""                    # the old sound just after `switch`: the new one is blended into it
@@ -201,7 +255,8 @@ class SdlBackend:
                     self._kill(proc)
                     proc, nxt, switch = nxt, None, None
                     continue
-                data = self._read(proc.stdout, PIECE if switch is None else min(PIECE, (switch - at) * FRAME))
+                ahead = PIECE if switch is None else min(PIECE, max(1, int((switch - at) / speed)) * FRAME)
+                data = self._read(proc.stdout, ahead)
                 if gen != self._gen:
                     return
                 if not data:
@@ -213,7 +268,7 @@ class SdlBackend:
                     return
                 if tail:
                     data, tail = _blend(tail, data), b""
-                at += len(data) // FRAME
+                at += len(data) // FRAME * speed
                 if not self._hand(gen, data):
                     return
         except Exception:  # noqa: BLE001 - the song just ends
@@ -329,7 +384,7 @@ class SdlBackend:
             if self._began is None:
                 return min(self._base, self._length)
             now = self._paused_at if self._paused_at is not None else time.monotonic()
-            return min(self._length, self._base + int((now - self._began - self._paused_for) * 1000))
+            return min(self._length, self._base + int((now - self._began - self._paused_for) * 1000 * self._run_speed))
 
     def length_ms(self) -> int:
         with self._lock:
@@ -367,6 +422,23 @@ class SdlBackend:
                 self._refilter = True                # the feeding thread changes over to a new decoder
             elif self._proc is not None or self._playing:
                 self.seek(self.position_ms())        # paused: the decoder starts again there, with the new filter
+
+    def set_tempo(self, speed=1.0, pitch=0):
+        """⏩ Play faster / slower (and higher / lower). A playing song goes on from the same moment."""
+        with self._lock:
+            speed, pitch = clean_tempo(speed, pitch)
+            if (speed, pitch) == (self._speed, self._pitch):
+                return
+            at = self.position_ms()
+            self._speed, self._pitch = speed, pitch
+            if self._path is None or self._eof:
+                return
+            if self._hold:
+                self._start_decoder(self._base, hold=True)
+            elif self._playing and self._proc is not None and self._paused_at is None:
+                self._start_decoder(at)
+            elif self._proc is not None or self._playing:
+                self.seek(at)
 
     def cue(self, ms: int) -> bool:
         """Get ready to play from ms: the decoder starts, and its first piece waits for go(). So this one can

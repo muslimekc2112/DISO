@@ -22,7 +22,11 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
                   "keys": {}, "global_keys": {},                            # ⌨ the user's shortcuts (hotkeys.py)
                   "vis_style": "Çubuklar", "vis_palette": "Mor",            # 🌈 the visualizer's picture and colours
                   "vis_lyrics": True,                                       # 🎤 ... with the lyrics flowing over it
+                  "vis_auto_once": False,                                   # 🎨 the cover's colours were made the default
                   "alarm": {},                                              # ⏰ the music alarm (alarm.py)
+                  "orders": {}, "own_orders": {},                           # ⇅ how each list is sorted; the user's own order
+                  "speed": 1.0, "pitch": 0,                                 # ⏩ playing speed, semitones up / down
+                  "ambient": True,                                          # 🎨 the window takes the colours of the cover
                   "searches": []}                                           # the last searches of "Şarkı bul"
 FADE_CHOICES = (0, 3, 6, 10)
 # ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)
@@ -32,6 +36,19 @@ SMART_SIZE = 50                 # songs in "most played" and "recently added"
 PLAYED_AFTER_MS = 30000         # a song counts as listened to after this much (a short one: after half of it)
 MAX_SEARCHES = 15
 SORT_KEYS = ("title", "artist", "time")
+# ⇅ the ways a list can be ordered (ORDER_OWN: the order the user made, kept while another one is shown)
+ORDER_OWN, ORDER_NEW_FIRST, ORDER_NEW_LAST, ORDER_AZ, ORDER_ZA, ORDER_POPULAR, ORDER_COLUMN = (
+    "own", "new_first", "new_last", "az", "za", "popular", "column")
+ORDERS = (ORDER_OWN, ORDER_NEW_FIRST, ORDER_NEW_LAST, ORDER_AZ, ORDER_ZA, ORDER_POPULAR)
+_ALPHABET = "0123456789aâbcçdefgğhıiîjklmnoöprsştuüûvwxqyz"
+_ALPHA = {ch: i for i, ch in enumerate(_ALPHABET)}
+
+
+def alpha_key(text: str):
+    """A–Z the Turkish way (Ç after C, Ğ after G, I before İ, Ö after O, Ş after S, Ü after U); other
+    letters after the known ones, in their own order."""
+    text = (text or "").replace("I", "ı").replace("İ", "i").lower().strip()
+    return tuple((0, -1) if ch.isspace() else (0, _ALPHA[ch]) if ch in _ALPHA else (1, ord(ch)) for ch in text)
 
 
 def track_for(path: str) -> dict:
@@ -160,6 +177,14 @@ class PlaylistStore:
         self.state["searches"] = [q for q in self.state["searches"] if isinstance(q, str) and q.strip()][:MAX_SEARCHES]
         if self.state["repeat"] not in REPEAT_MODES:
             self.state["repeat"] = "Kapalı"
+        self.state["orders"] = {n: m for n, m in self.state["orders"].items()
+                                if isinstance(n, str) and m in ORDERS + (ORDER_COLUMN,)}
+        self.state["own_orders"] = {n: [k for k in keys if isinstance(k, str)]
+                                    for n, keys in self.state["own_orders"].items()
+                                    if isinstance(n, str) and isinstance(keys, list)}
+        from .sdl_player import clean_tempo
+        speed = self.state["speed"] if not isinstance(self.state["speed"], bool) else 1.0
+        self.state["speed"], self.state["pitch"] = clean_tempo(speed, self.state["pitch"])
 
     def save(self):
         with self._lock:
@@ -206,6 +231,9 @@ class PlaylistStore:
         self.lists = {(name if k == old else k): v for k, v in self.lists.items()}   # keeps the order
         if self.state["last"] == old:
             self.state["last"] = name
+        for key in ("orders", "own_orders"):
+            if old in self.state[key]:
+                self.state[key] = {(name if k == old else k): v for k, v in self.state[key].items()}
         self.save()
         return name
 
@@ -222,6 +250,7 @@ class PlaylistStore:
                 del self.lists[name]
                 if self.state["last"] == name:
                     self.state["last"] = after
+            self._forget_order(name)
         self.save()
         return self.state["last"] if self.state["last"] in self.lists else next(iter(self.lists))
 
@@ -234,6 +263,7 @@ class PlaylistStore:
         self.lists.setdefault(name, []).extend(added)
         self._seen(t["path"] for t in added)
         if added:
+            self._keep_order(name)
             self.save()
         return len(added)
 
@@ -269,6 +299,7 @@ class PlaylistStore:
             return picked
         order = picked if offset < 0 else picked[::-1]
         moved = set(picked)
+        self._forget_order(name)                           # moved by hand: this is the user's own order now
         for i in order:
             j = i + offset
             if 0 <= j < len(tracks) and j not in moved:
@@ -281,8 +312,63 @@ class PlaylistStore:
     def sort(self, name: str, key: str, reverse=False) -> None:
         """Put the list in order of title / artist / length (stable: equal ones keep their order)."""
         if name in self.lists and key in SORT_KEYS:
+            self._remember_own(name)
             self.lists[name].sort(key=lambda t: sort_key(t, key), reverse=reverse)
+            self.state["orders"] = dict(self.state["orders"], **{name: ORDER_COLUMN})
             self.save()
+
+    # ------------------------------------------------------------------ ⇅ ordering a list
+    def order_of(self, name) -> str:
+        return self.state["orders"].get(name, ORDER_OWN)
+
+    def _remember_own(self, name):
+        """Before the list is first put in another order: keep the user's own one, to go back to."""
+        if self.order_of(name) == ORDER_OWN:
+            self.state["own_orders"] = dict(self.state["own_orders"],
+                                            **{name: [file_key(t["path"]) for t in self.lists.get(name, [])]})
+
+    def _forget_order(self, name):
+        """The list's order as it is now is the user's own (moved / shuffled by hand, or the list is gone)."""
+        if name in self.state["orders"] or name in self.state["own_orders"]:
+            self.state["orders"] = {n: m for n, m in self.state["orders"].items() if n != name}
+            self.state["own_orders"] = {n: k for n, k in self.state["own_orders"].items() if n != name}
+
+    def _keep_order(self, name):
+        """New songs in a sorted list go to their place in that order."""
+        mode = self.order_of(name)
+        if mode not in (ORDER_OWN, ORDER_COLUMN):
+            self._arrange(name, mode)
+
+    def _arrange(self, name, mode):
+        tracks = self.lists.get(name, [])
+        if mode == ORDER_OWN:
+            own = {k: i for i, k in enumerate(self.state["own_orders"].get(name, []))}
+            last = len(own)                                 # added since: after the rest, as they came
+            tracks.sort(key=lambda t: own.get(file_key(t["path"]), last))
+        elif mode in (ORDER_NEW_FIRST, ORDER_NEW_LAST):
+            tracks.sort(key=self._added_time, reverse=mode == ORDER_NEW_FIRST)
+        elif mode in (ORDER_AZ, ORDER_ZA):
+            tracks.sort(key=lambda t: alpha_key(artist_and_title(t)[1] or t["title"]), reverse=mode == ORDER_ZA)
+        elif mode == ORDER_POPULAR:
+            def popular(t):
+                s = self.stats.get(file_key(t["path"]), {})
+                return (-s.get("plays", 0), -s.get("last", 0))
+            tracks.sort(key=popular)
+
+    def order(self, name: str, mode: str) -> bool:
+        """⇅ Show the list in this order: own (the user's), newest first / last, A–Z, Z–A, most played first.
+        The user's own order is kept and comes back with ORDER_OWN. False: not possible (a smart list)."""
+        if name not in self.lists or is_smart(name) or mode not in ORDERS:
+            return False
+        if mode != ORDER_OWN:
+            self._remember_own(name)
+        self._arrange(name, mode)
+        if mode == ORDER_OWN:
+            self._forget_order(name)
+        else:
+            self.state["orders"] = dict(self.state["orders"], **{name: mode})
+        self.save()
+        return True
 
     def shuffle(self, name: str, rng=None) -> list:
         """Put the list in a random order for good; returns the old order (for undo)."""
@@ -290,6 +376,7 @@ class PlaylistStore:
         tracks = self.lists.get(name, [])
         before = list(tracks)
         if len(tracks) > 1:
+            self._forget_order(name)
             while tracks == before:                        # a 'shuffle' that changes nothing looks broken
                 (rng or random).shuffle(tracks)
             self.save()
@@ -344,6 +431,9 @@ class PlaylistStore:
                 stat = self.stats.pop(file_key(old), None)
                 if stat is not None:
                     self.stats[file_key(new)] = stat
+            if self.state["own_orders"]:                              # ⇅ the user's own orders follow too
+                self.state["own_orders"] = {n: [file_key(new_of[k]) if k in new_of else k for k in keys]
+                                            for n, keys in self.state["own_orders"].items()}
             resume = self.state.get("resume_path")
             if resume and file_key(resume) in new_of:                 # "Kaldığın yer" follows its song
                 self.state["resume_path"] = os.path.abspath(new_of[file_key(resume)])
@@ -425,6 +515,7 @@ class PlaylistStore:
                 break
         else:
             tracks.append(track)
+        self._keep_order(name)
         self.save()
         return True
 

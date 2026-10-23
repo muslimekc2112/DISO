@@ -77,6 +77,9 @@ class FakeEqBackend(FakeBackend):
     def set_filter(self, text):
         self.filter = text
 
+    def set_tempo(self, speed=1.0, pitch=0):
+        self.tempo = (speed, pitch)
+
 class FakeReader:
     """Same interface as app.tags.TagReader, answered by the test instead of ffprobe."""
 

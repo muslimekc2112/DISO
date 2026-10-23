@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
-from . import equalizer, i18n, look, loudness, lyrics, mediakeys, music_search, playlists, smtc, tags
+from . import ambient, equalizer, i18n, look, loudness, lyrics, mediakeys, music_search, playlists, smtc, tags
 from . import hotkeys
 from . import taskbar as taskbar_module
 from . import tooltip
@@ -44,6 +44,20 @@ SMART_EMPTY = {
 SLEEP_TRACK = "Parça bitince"
 SLEEP_CHOICES = [SLEEP_OFF, "15 dk", "30 dk", "45 dk", "60 dk", "90 dk", SLEEP_TRACK]
 SORT_COLUMNS = {"title": "title", "artist": "artist", "time": "time"}
+SEEK_STEP = 5000           # ms: ⏪ / ⏩ and a single ← / →
+DOUBLE_TAP = 0.4           # s: ← / → twice within this: the song before / after
+SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0)
+PITCHES = (-6, -4, -2, -1, 0, 1, 2, 4, 6)
+# ⇅ how a list can be shown (playlists.ORDERS), in the menu's words
+ORDER_NAMES = {playlists.ORDER_OWN: "Kendi sıram", playlists.ORDER_NEW_FIRST: "Son eklenen en başta",
+               playlists.ORDER_NEW_LAST: "Son eklenen en sonda", playlists.ORDER_AZ: "A → Z",
+               playlists.ORDER_ZA: "Z → A", playlists.ORDER_POPULAR: "En popüler en başta"}
+ORDER_COLUMN_NAME = "Sütuna göre"
+
+
+def speed_text(speed) -> str:
+    """1x, 1.25x, 0.5x ..."""
+    return f"{float(speed):g}x"
 
 
 def mode_bar(parent, current, command, height=32):
@@ -229,6 +243,11 @@ class MusicWindow(ctk.CTkToplevel):
         self.sleep_at = None                         # time.time() when the music stops by itself
         self.sleep_after_track = False
         self._resume = self._saved_place()           # (list, index, ms) to go on from, or None
+        self._last_tap = None                        # (action, time) of the last ← / → (twice: next / previous)
+        self._held = None                            # the ← / → that is held down (its repeats only seek)
+        self._ambient = None                         # 🎨 the cover colour the window shows (None: none)
+        self._ambient_job = None
+        self._ambient_now = None                     # (window light, window dark, panel light, panel dark)
 
         controller.shuffle = bool(store.state["shuffle"])
         controller.repeat = store.state["repeat"]
@@ -238,6 +257,8 @@ class MusicWindow(ctk.CTkToplevel):
         self.eq_window = None
         if not equalizer.is_flat(store.state["eq"]):
             self.apply_eq(store.state["eq"], remember=False)
+        if (store.state["speed"], store.state["pitch"]) != (1.0, 0):
+            self.set_tempo(store.state["speed"], store.state["pitch"], remember=False, quiet=True)
 
         self._build_top()
         self._build_toolbars()
@@ -276,7 +297,11 @@ class MusicWindow(ctk.CTkToplevel):
         self.eq_btn.grid(row=0, column=4, padx=(8, 0))
         self.google_btn = ctk.CTkButton(head, text="👤 YT Music", width=104, height=32, command=self.open_google)
         self.google_btn.grid(row=0, column=5, padx=(8, 0))
-        self.vis_btn = ctk.CTkButton(head, text="🌈", width=40, height=32, command=self.open_visualizer)
+        from .visualizer_ui import icon_image
+        self._vis_icon = icon_image(20)              # (kept on self: a picture nobody holds disappears)
+        self.vis_btn = ctk.CTkButton(head, text="" if self._vis_icon else "🌌", image=self._vis_icon, width=40,
+                                     height=32, command=self.open_visualizer)
+        tooltip.set(self.vis_btn, "Görselleştirici")
         self.vis_btn.grid(row=0, column=6, padx=(8, 0))
         self.menu_btn = ctk.CTkButton(head, text="⚙", width=40, height=32, command=self._open_player_menu)
         self.menu_btn.grid(row=0, column=7, padx=(8, 0))
@@ -291,9 +316,12 @@ class MusicWindow(ctk.CTkToplevel):
                  ("📻 Çalan şarkıdan radyo", self.start_radio), ("✨ Sana özel günlük karışık", self.daily_mix),
                  ("⏰ Müzikli alarm…", self.open_alarm), ("👤 YouTube Music hesabım…", self.open_google),
                  ("📊 Dinleme istatistiklerim…", self.open_stats), ("⌨ Kısayolları ayarla…", self.open_keys),
-                 ("🌈 Görselleştirici", self.open_visualizer),
-                 ("🌈🎤 Görselleştirici + şarkıyla akan sözler", lambda: self.open_visualizer(lyrics_on=True)),
+                 ("🌌 Görselleştirici", self.open_visualizer),
+                 ("🌌🎤 Görselleştirici + şarkıyla akan sözler", lambda: self.open_visualizer(lyrics_on=True)),
+                 ("⏩ Çalma hızı ve perde", self.speed_menu_items()),
                  (level, lambda: self.set_level(not self.store.state["level"])),
+                 ((("✓ " if self.store.state["ambient"] else "   ") + "🎨 Arka plan şarkının renginde"),
+                  lambda: self.set_ambient(not self.store.state["ambient"])),
                  None, ("📤 Bu listeyi dışa aktar (.m3u)…", self.export_list), ("📥 Liste içe aktar (.m3u)…", self.import_list),
                  ("🖼 Kapağı olmayanlara kapak bul", lambda: self.find_covers(self.store.tracks(self.viewed)))]
         shortcuts = getattr(self.app, "open_shortcuts", None)
@@ -558,6 +586,10 @@ class MusicWindow(ctk.CTkToplevel):
             b.grid(row=0, column=col, padx=(6, 0))
             if text != "＋":
                 self.edit_buttons.append(b)
+        self.order_menu = ctk.CTkOptionMenu(bar, values=list(ORDER_NAMES.values()), width=178,
+                                            command=self._choose_order)
+        self.order_menu.grid(row=0, column=4, padx=(12, 0))
+        tooltip.set(self.order_menu, "Listeyi sırala: senin sıran hep saklı kalır")
         self.filter_entry = ctk.CTkEntry(bar, placeholder_text="🔎 Bu listede ara", width=200)
         self.filter_entry.grid(row=0, column=5, sticky="e", padx=(12, 0))
         self.filter_entry.bind("<KeyRelease>", lambda e: self._apply_filter(self.filter_entry.get()))
@@ -700,28 +732,41 @@ class MusicWindow(ctk.CTkToplevel):
 
         ctl = ctk.CTkFrame(body, fg_color="transparent")
         ctl.grid(row=3, column=0, columnspan=3, sticky="ew")
-        ctl.columnconfigure(5, weight=1)
+        ctl.columnconfigure(6, weight=1)
         self.prev_btn = ctk.CTkButton(ctl, text="⏮", width=44, command=self._previous)
+        self.back_btn = ctk.CTkButton(ctl, text="⏪ 5", width=52, command=lambda: self.seek_by(-SEEK_STEP))
+        tooltip.set(self.back_btn, "5 saniye geri  (←; iki kez: önceki şarkı)")
         self.play_btn = ctk.CTkButton(ctl, text=PLAY_ICON, width=60, font=ctk.CTkFont(size=18),
                                       command=self._toggle)
         tooltip.set(self.play_btn, "Çal / duraklat")
+        self.forward_btn = ctk.CTkButton(ctl, text="5 ⏩", width=52, command=lambda: self.seek_by(SEEK_STEP))
+        tooltip.set(self.forward_btn, "5 saniye ileri  (→; iki kez: sonraki şarkı)")
         self.next_btn = ctk.CTkButton(ctl, text="⏭", width=44, command=self._next)
         self.stop_btn = ctk.CTkButton(ctl, text="⏹", width=44, command=self._stop)
-        for col, b in enumerate((self.prev_btn, self.play_btn, self.next_btn, self.stop_btn)):
+        for col, b in enumerate((self.prev_btn, self.back_btn, self.play_btn, self.forward_btn, self.next_btn,
+                                 self.stop_btn)):
             b.grid(row=0, column=col, padx=(0, 6))
-        self.shuffle_var = ctk.BooleanVar(value=self.controller.shuffle)
-        ctk.CTkCheckBox(ctl, text="🔀 Karışık", variable=self.shuffle_var, width=90,
-                        command=self._on_shuffle).grid(row=0, column=4, padx=(8, 6))
-        self.repeat_btn = ctk.CTkButton(ctl, text="", width=104, command=self._cycle_repeat)
-        self.repeat_btn.grid(row=0, column=5, sticky="w")
-        self.sleep_menu = ctk.CTkOptionMenu(ctl, values=SLEEP_CHOICES, width=128, command=self._set_sleep)
-        self.sleep_menu.set(SLEEP_OFF)
-        self.sleep_menu.grid(row=0, column=6, padx=(6, 6))
-        ctk.CTkLabel(ctl, text="🔊", text_color="gray").grid(row=0, column=7, padx=(4, 2))
+        self.speed_btn = ctk.CTkButton(ctl, text="1x", width=58, command=self._open_speed_menu)
+        tooltip.set(self.speed_btn, "Çalma hızı ve perde")
+        self.speed_btn.grid(row=0, column=7, padx=(6, 6))
+        ctk.CTkLabel(ctl, text="🔊", text_color="gray").grid(row=0, column=8, padx=(4, 2))
         self.volume = ctk.CTkSlider(ctl, from_=0, to=100, width=110, command=self._on_volume)
         self.volume.set(self.store.state["volume"])
-        self.volume.grid(row=0, column=8, padx=(0, 6))
+        self.volume.grid(row=0, column=9, padx=(0, 6))
+
+        more = ctk.CTkFrame(body, fg_color="transparent")
+        more.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        self.shuffle_var = ctk.BooleanVar(value=self.controller.shuffle)
+        ctk.CTkCheckBox(more, text="🔀 Karışık", variable=self.shuffle_var, width=90,
+                        command=self._on_shuffle).grid(row=0, column=0, padx=(0, 6))
+        self.repeat_btn = ctk.CTkButton(more, text="", width=104, command=self._cycle_repeat)
+        self.repeat_btn.grid(row=0, column=1, sticky="w")
+        self.sleep_menu = ctk.CTkOptionMenu(more, values=SLEEP_CHOICES, width=128, command=self._set_sleep)
+        self.sleep_menu.set(SLEEP_OFF)
+        self.sleep_menu.grid(row=0, column=2, padx=(6, 6))
+        self.player_box = box
         self._update_repeat_text()
+        self._update_speed_text()
 
         notes = ctk.CTkFrame(self, fg_color="transparent")
         notes.grid(row=5, column=0, sticky="ew", padx=20)
@@ -742,6 +787,7 @@ class MusicWindow(ctk.CTkToplevel):
         self.bind("<Control-f>", lambda e: self._focus_search() or "break")
         self.bind("<Control-z>", lambda e: self._undo_shuffle() or "break")
         self.bind("<F1>", lambda e: getattr(self.app, "open_shortcuts", lambda: None)() or "break")
+        self.bind("<KeyRelease>", self._on_key_release, add="+")
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_lyrics_button(), add="+")
 
     # ------------------------------------------------------------------ ⌨ the user's shortcuts
@@ -800,8 +846,199 @@ class MusicWindow(ctk.CTkToplevel):
         if quiet and (isinstance(event.widget, (tk.Entry, tk.Text)) or "entry" in str(event.widget).lower()
                       or "textbox" in str(event.widget).lower()):
             return None                                      # typing in a box: the key is the box's
+        if name in ("seek_forward", "seek_back"):
+            self.tap(name, getattr(event, "keysym", ""))
+            return "break"
         self.key_actions()[name]()
         return "break"
+
+    def tap(self, name, key="", now=None):
+        """→ / ← (whatever key "5 saniye ileri / geri" has): once = 5 s forward / back, twice quickly = the
+        next / previous song. Held down, it keeps going 5 s at a time (the key's repeats are no double press)."""
+        now = time.monotonic() if now is None else now
+        last, self._last_tap = self._last_tap, (name, now)
+        if self._held == (name, key):                        # the key's own repeat while it is held
+            self._last_tap = None
+            self.seek_by(SEEK_STEP if name == "seek_forward" else -SEEK_STEP)
+            return "seek"
+        self._held = (name, key)
+        if last and last[0] == name and now - last[1] <= DOUBLE_TAP and self.controller.state != "stopped":
+            self._last_tap = None
+            if name == "seek_forward":
+                self._next()
+            else:
+                self._previous_song()
+            return "song"
+        self.seek_by(SEEK_STEP if name == "seek_forward" else -SEEK_STEP)
+        return "seek"
+
+    def _on_key_release(self, event):
+        if self._held and self._held[1] in ("", getattr(event, "keysym", "")):
+            self._held = None
+
+    def seek_by(self, ms):
+        """⏪ / ⏩: move in the song (at the end: the next song, as if it had played out)."""
+        c = self.controller
+        if c.state == "stopped":
+            return False
+        length = c.length_ms() or 0
+        target = c.position_ms() + int(ms)
+        if length and target >= length:
+            self._next()
+            return True
+        self._seek_ms(max(0, target))
+        return True
+
+    def _previous_song(self):
+        """The song before this one (not the start of this one, as ⏮ does after 3 seconds)."""
+        self._resume = None
+        if not self.controller.tracks:
+            self._load_viewed()
+        self.controller.previous(0)
+        self._after_action()
+
+    # ------------------------------------------------------------------ ⏩ speed and pitch
+    def set_tempo(self, speed=None, pitch=None, remember=True, quiet=False) -> bool:
+        """Play faster / slower and higher / lower (both voices of a cross-fade). False: not possible here."""
+        from .sdl_player import clean_tempo
+        state = self.store.state
+        speed, pitch = clean_tempo(state["speed"] if speed is None else speed,
+                                   state["pitch"] if pitch is None else pitch)
+        ok = True
+        for backend in (self.controller.backend, self.controller.spare):
+            if backend is not None and hasattr(backend, "set_tempo"):
+                ok = backend.set_tempo(speed, pitch) is not False and ok
+        if not ok:
+            if not quiet:
+                self.note("⏩ Hız burada değiştirilemiyor: ses çıkışı bulunamadı")
+            return False
+        if remember:
+            self.store.set_state(speed=speed, pitch=pitch)
+        self._update_speed_text(speed, pitch)
+        if not quiet:
+            if (speed, pitch) == (1.0, 0):
+                self.note("⏩ Normal hızda çalıyor")
+            elif pitch:
+                self.note(f"⏩ Çalma hızı: {speed_text(speed)}, perde: {pitch:+d}")
+            else:
+                self.note(f"⏩ Çalma hızı: {speed_text(speed)}")
+        return True
+
+    def _update_speed_text(self, speed=None, pitch=None):
+        speed = self.store.state["speed"] if speed is None else speed
+        pitch = self.store.state["pitch"] if pitch is None else pitch
+        text = speed_text(speed) + (f" {pitch:+d}" if pitch else "")
+        if hasattr(self, "speed_btn"):                    # (the saved speed is put on before the buttons exist)
+            set_if_changed(self.speed_btn, text=text)
+
+    def speed_menu_items(self):
+        speed, pitch = self.store.state["speed"], self.store.state["pitch"]
+        speeds = [((("● " if s == speed else "   ") + speed_text(s) + ("  (normal)" if s == 1.0 else "")),
+                   lambda s=s: self.set_tempo(s, None)) for s in SPEEDS]
+        pitches = [((("● " if n == pitch else "   ") + (f"{n:+d} yarım ses" if n else "Normal perde")),
+                    lambda n=n: self.set_tempo(None, n)) for n in PITCHES]
+        return speeds + [None, ("🎵 Perde (ses inceliği)", pitches),
+                         ("↺ Normale döndür", lambda: self.set_tempo(1.0, 0))]
+
+    def _open_speed_menu(self):
+        menu = tk.Menu(self, tearoff=0)
+        self._fill_menu(menu, self.speed_menu_items())
+        x = self.speed_btn.winfo_rootx()
+        y = self.speed_btn.winfo_rooty() + self.speed_btn.winfo_height()
+        self._popup(menu, type("E", (), {"x_root": x, "y_root": y})())
+
+    # ------------------------------------------------------------------ 🎨 the cover's colours
+    def set_ambient(self, on):
+        self.store.set_state(ambient=bool(on))
+        self._ambient_to(self._ambient if on else None, force=True)
+        self.note("🎨 Pencere çalan şarkının kapağının renklerini alacak" if on
+                  else "🎨 Pencere hep kendi renginde kalacak")
+
+    def _ambient_from(self, jpg):
+        """The cover changed: the window slowly takes on its colour (or goes back to its own)."""
+        colour = ambient.main_colour(jpg) if jpg else None
+        self._ambient = colour
+        self._ambient_to(colour)
+
+    def _hex_pair(self, value):
+        """(light, dark) "#rrggbb" of a theme colour (a pair or one colour, a name like "gray14" too)."""
+        pair = tuple(value) if isinstance(value, (list, tuple)) else (value, value)
+        out = []
+        for colour in pair[:2]:
+            try:
+                r, g, b = self.winfo_rgb(colour)
+            except (tk.TclError, TypeError):
+                return None
+            out.append("#%02x%02x%02x" % (r >> 8, g >> 8, b >> 8))
+        return tuple(out)
+
+    def _ambient_target(self, colour):
+        theme = ctk.ThemeManager.theme
+        window = self._hex_pair(theme["CTkToplevel"]["fg_color"])
+        card = self._hex_pair(theme["CTkFrame"]["fg_color"])
+        if window is None or card is None:
+            return None
+        on = colour and self.store.state["ambient"] and not look.is_nostalgia()
+        return ambient.background(colour if on else None, window) + ambient.background(colour if on else None, card)
+
+    def _ambient_to(self, colour, force=False):
+        target = self._ambient_target(colour)
+        if target is None:
+            return
+        if self._ambient_job is not None:
+            try:
+                self.after_cancel(self._ambient_job)
+            except tk.TclError:
+                pass
+            self._ambient_job = None
+        start = self._ambient_now or self._ambient_target(None)
+        if start == target and not force:
+            return
+        frames = list(zip(*(ambient.steps(a, b, 8) for a, b in zip(start, target))))
+
+        def step(i=0):
+            self._ambient_job = None
+            if self._closed:
+                return
+            try:
+                self._paint_ambient(frames[i])
+            except tk.TclError:
+                return
+            if i + 1 < len(frames):
+                self._ambient_job = self.after(45, lambda: step(i + 1))
+        step()
+
+    def _paint_ambient(self, colours):
+        self._ambient_now = tuple(colours)
+        self.configure(fg_color=(colours[0], colours[1]))
+        self.player_box.configure(fg_color=(colours[2], colours[3]))
+
+    # ------------------------------------------------------------------ ⇅ the order of a list
+    def _choose_order(self, label):
+        mode = next((m for m, text in ORDER_NAMES.items() if text == label), None)
+        if mode is None:
+            self._show_order()
+            return False
+        if playlists.is_smart(self.viewed):
+            self.note("✨ Bu liste kendiliğinden dolar; sırası değiştirilemez")
+            self._show_order()
+            return False
+        if not self.store.order(self.viewed, mode):
+            self._show_order()
+            return False
+        self.sort_by = (None, False)
+        self._sync_queue()
+        self._refresh_tracks()
+        self.note("⇅ Liste kendi sıranda" if mode == playlists.ORDER_OWN
+                  else f"⇅ Liste sıralandı: {label} (kendi sıran saklı: “Kendi sıram” ile geri gelir)")
+        return True
+
+    def _show_order(self):
+        if not hasattr(self, "order_menu"):
+            return
+        mode = self.store.order_of(self.viewed)
+        set_if_changed(self.order_menu, state="disabled" if playlists.is_smart(self.viewed) else "normal")
+        self.order_menu.set(ORDER_NAMES.get(mode, ORDER_COLUMN_NAME))
 
     def _key_space(self, event):
         if isinstance(event.widget, (tk.Entry, tk.Text)) or "entry" in str(event.widget).lower():
@@ -955,6 +1192,7 @@ class MusicWindow(ctk.CTkToplevel):
         smart = playlists.is_smart(self.viewed)
         for b in self.edit_buttons:
             set_if_changed(b, state="disabled" if smart else "normal")
+        self._show_order()
         self._update_count()
         if not tracks and smart:
             self.empty_hint.configure(text=SMART_EMPTY.get(self.viewed, ""))
@@ -1691,9 +1929,12 @@ class MusicWindow(ctk.CTkToplevel):
         self._tags_save = None
         self.store.save()
 
-    def _set_cover(self, jpg):
-        """Show the cover (or the placeholder when there is none)."""
+    def _set_cover(self, jpg, final=True):
+        """Show the cover (or the placeholder when there is none). final=False: only the old one goes, the
+        new one is being read (the window's colour waits for it)."""
         img = square_cover(jpg) if jpg else None
+        if final:
+            self._ambient_from(jpg if img is not None else None)
         if img is None:
             self.cover_label.configure(image=self._placeholder, text="♪")
             self._cover_image = None
@@ -1724,7 +1965,7 @@ class MusicWindow(ctk.CTkToplevel):
         set_if_changed(self.sub_label, text=sub or " ")
         if self._cover_path != track["path"]:
             self._cover_path = track["path"]
-            self._set_cover(None)                                  # not the previous track's picture
+            self._set_cover(None, final=False)                     # not the previous track's picture
             if track["path"] in self._covers:
                 self._set_cover(self._covers[track["path"]])
             else:

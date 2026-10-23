@@ -98,6 +98,7 @@ class SwitchingBackend:
         self.plain, self._make_eq = plain, make_eq
         self.eq = None
         self.filter = ""
+        self.tempo = (1.0, 0)          # ⏩ (speed, pitch): anything but (1, 0) needs the ffmpeg player
         self.volume = 80
         self._path = None              # what is loaded now (to load it again on the other backend)
         self._resume_plays = False     # switched while paused: "resume" must start the new backend
@@ -130,14 +131,35 @@ class SwitchingBackend:
         the middle of a song, the ffmpeg one plays it on without a filter (a switch would be heard); the
         next song is on MCI again (see load)."""
         text = text or ""
-        plain_ok = self.plain is not None and not needs_ffmpeg(self._path)     # a FLAC stays on ffmpeg
-        mid_song = bool(self._path) and self.active is self.eq
-        target = self.plain if not text and plain_ok and not mid_song else self._eq_backend()
+        target = self._target(text, self.tempo)
         if target is None:
             return False
         self.filter = text
         if target is self.eq and hasattr(self.eq, "set_filter"):
             self.eq.set_filter(text)
+        if target is not self.active:
+            self._switch(target)
+        return True
+
+    def _target(self, text, tempo):
+        """The backend that plays with this filter and tempo (None: the ffmpeg one cannot be made)."""
+        plain_ok = self.plain is not None and not needs_ffmpeg(self._path)     # a FLAC stays on ffmpeg
+        mid_song = bool(self._path) and self.active is self.eq
+        if not text and tempo == (1.0, 0) and plain_ok and not mid_song:
+            return self.plain
+        return self._eq_backend()
+
+    def set_tempo(self, speed=1.0, pitch=0) -> bool:
+        """⏩ Play faster / slower and higher / lower (MCI cannot: the ffmpeg player takes over). False when
+        that is not possible here."""
+        from .sdl_player import clean_tempo
+        tempo = clean_tempo(speed, pitch)
+        target = self._target(self.filter, tempo)
+        if target is None:
+            return False
+        self.tempo = tempo
+        if target is self.eq and hasattr(self.eq, "set_tempo"):
+            self.eq.set_tempo(*tempo)              # (before a switch: it takes over at that speed)
         if target is not self.active:
             self._switch(target)
         return True
@@ -194,6 +216,8 @@ class SwitchingBackend:
         target.set_volume(self.volume)
         if target is self.eq and hasattr(target, "set_filter"):
             target.set_filter(self.filter)
+        if target is self.eq and hasattr(target, "set_tempo"):
+            target.set_tempo(*self.tempo)
 
     # ------------------------------------------------------------------ the backend API
     def load(self, path):
@@ -203,7 +227,7 @@ class SwitchingBackend:
         if self.plain is not None:
             if needs_ffmpeg(path):
                 self._use(self._eq_backend())
-            elif not self.filter:
+            elif not self.filter and self.tempo == (1.0, 0):
                 self._use(self.plain)
         ok = self.active.load(path)
         self._path = path if ok else None

@@ -795,6 +795,28 @@ PLAIN = {
     # ---- the mini player
     'Hep üstte': 'Always on top', 'Büyük pencere': 'Big window', 'Çalmaya hazırlanıyor…': 'Getting ready to play…',
     'Uyku zamanlayıcısı': 'Sleep timer', 'Şarkı sözleri': 'Lyrics',
+
+    # ---- 1.2: speed, ordering, cover colours, the new visualizer
+    "Kendi sıram": "My own order", "Son eklenen en başta": "Newest first", "Son eklenen en sonda": "Newest last",
+    "En popüler en başta": "Most played first", "Sütuna göre": "By column",
+    "Listeyi sırala: senin sıran hep saklı kalır": "Order the list: your own order is always kept",
+    "5 saniye geri  (←; iki kez: önceki şarkı)": "5 seconds back  (←; twice: the song before)",
+    "5 saniye ileri  (→; iki kez: sonraki şarkı)": "5 seconds forward  (→; twice: the next song)",
+    "5 saniye ileri (iki kez: sonraki şarkı)": "5 seconds forward (twice: next song)",
+    "5 saniye geri (iki kez: önceki şarkı)": "5 seconds back (twice: song before)",
+    "Çalma hızı ve perde": "Playing speed and pitch", "⏩ Çalma hızı ve perde": "⏩ Playing speed and pitch",
+    "🌌 Görselleştirici": "🌌 Visualizer", "🌌🎤 Görselleştirici + şarkıyla akan sözler": "🌌🎤 Visualizer + lyrics flowing with the song",
+    "🎨 Arka plan şarkının renginde": "🎨 Background in the song's colours",
+    "🎵 Perde (ses inceliği)": "🎵 Pitch (how high the voice is)", "↺ Normale döndür": "↺ Back to normal",
+    "Normal perde": "Normal pitch", "1x  (normal)": "1x  (normal)",
+    "⏩ Hız burada değiştirilemiyor: ses çıkışı bulunamadı": "⏩ The speed cannot be changed here: no sound output was found",
+    "⏩ Normal hızda çalıyor": "⏩ Playing at normal speed",
+    "🎨 Pencere çalan şarkının kapağının renklerini alacak": "🎨 The window will take on the colours of the playing song's cover",
+    "🎨 Pencere hep kendi renginde kalacak": "🎨 The window will keep its own colours",
+    "✨ Bu liste kendiliğinden dolar; sırası değiştirilemez": "✨ This list fills itself; its order cannot be changed",
+    "⇅ Liste kendi sıranda": "⇅ The list is in your own order",
+    "🎨 Kapaktan": "🎨 From the cover", "Tam ekran (F11)": "Full screen (F11)", "Önceki şarkı": "Previous song",
+    "Sonraki şarkı": "Next song", "Çal / duraklat  (Boşluk)": "Play / pause  (Space)",
 }
 
 TEMPLATES = [
@@ -1050,6 +1072,10 @@ TEMPLATES = [
     ("🛟 Bozulmuş dosya son sağlam kopyasından geri yüklendi: {}", "🛟 A broken file came back from its last good copy: {}"),
     ("⏫ Sıradaki: {}", "⏫ Next: {}"), ("Deno {} sürümüne güncellendi", "Deno updated to {}"), ("{}'den", "from {}"),
     ("Sıradaki: {}", "Up next: {}"),
+    ("{} yarım ses", "{} semitones"), ("⏩ Çalma hızı: {}, perde: {}", "⏩ Playing speed: {}, pitch: {}"),
+    ("⏩ Çalma hızı: {}", "⏩ Playing speed: {}"),
+    ("⇅ Liste sıralandı: {} (kendi sıran saklı: “Kendi sıram” ile geri gelir)",
+     "⇅ The list is ordered: {} (your own order is kept: “My own order” brings it back)"),
 ]
 
 # templates whose parts are words of the program (translated too); in all others a part is a name (a song,
@@ -1065,4 +1091,5 @@ TRANSLATE_PARTS = {
     "{}\n\n{}\nBozuk dosyayı silip baştan indireyim mi?", "Bilgiler yazılamadı: {}", "Sözler kaydedilemedi: {}",
     "Tamamlanamadı: {}. “Baştan indir” ile yeniden indirebilirsin.",
     "Eksik kısım eklendi ama dosya hâlâ bozuk ({}). “Baştan indir”i dene.", "Torrent indirilemedi: {}",
+    "⇅ Liste sıralandı: {} (kendi sıran saklı: “Kendi sıram” ile geri gelir)",
 }

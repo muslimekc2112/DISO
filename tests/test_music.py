@@ -100,7 +100,8 @@ def test_everything_survives_a_restart(store, songs, tmp_path):
                            "rename_pattern": "{sanatçı} - {şarkı}", "mini_top": True, "mini_place": "",
                            "eq_advanced": False, "keys": {}, "global_keys": {},
                            "vis_style": "Çubuklar", "vis_palette": "Mor", "vis_lyrics": True,
-                           "alarm": {}}
+                           "vis_auto_once": False, "alarm": {}, "orders": {}, "own_orders": {},
+                           "speed": 1.0, "pitch": 0, "ambient": True}
 
 
 def test_a_damaged_file_is_ignored(tmp_path):
