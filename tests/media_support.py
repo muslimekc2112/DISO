@@ -86,5 +86,5 @@ def served(server, media):
 def stand_in(monkeypatch):
     """Make ve.resolve return a prepared info dict instead of asking yt-dlp."""
     box = {}
-    monkeypatch.setattr(ve, "resolve", lambda url, kind, quality, cookies=None: box["info"])
+    monkeypatch.setattr(ve, "resolve", lambda url, kind, quality, cookies=None, headers=None: box["info"])
     return box

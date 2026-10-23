@@ -181,7 +181,7 @@ def test_a_download_that_keeps_losing_connections_still_finishes(manager, server
 def test_the_connection_problem_of_a_video_page_is_retried_too(manager, folder, monkeypatch):
     calls = []
 
-    def resolve(url, kind, quality, cookies=None):
+    def resolve(url, kind, quality, cookies=None, headers=None):
         calls.append(1)
         raise Exception("[generic] Unable to download webpage: getaddrinfo failed")
 

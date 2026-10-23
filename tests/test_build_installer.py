@@ -198,7 +198,7 @@ def test_the_payload_made_here_is_accepted_by_the_installer(tmp_path):
 # ------------------------------------------------------------------------------ the name and the label
 def test_the_setup_file_name_says_which_version_it_installs():
     from app import brand
-    assert bi.setup_name(brand) == "DISO-Setup-1.1"
+    assert bi.setup_name(brand) == "DISO-Setup-1.2"
 
 
 def test_the_payload_carries_the_label_the_registry_will_show(tmp_path):

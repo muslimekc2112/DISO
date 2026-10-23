@@ -18,7 +18,7 @@ from app.models import ERROR, QUEUED
     ("HTTP Error 404: Not Found", None, "sunucuda yok"),
     ("HTTP Error 403: Forbidden", "retry", "izin vermedi"),
     ("Read timed out. (read timeout=30)", "retry", "bağlantısı"),
-    ("ERROR: Unsupported URL: https://example.com/", None, "bulamadım"),
+    ("ERROR: Unsupported URL: https://example.com/", None, "desteklenmiyor"),
     ("something nobody has seen", "retry", "Beklenmedik"),
 ])
 def test_errors_get_a_reason_and_a_fix(error, fix, words):
