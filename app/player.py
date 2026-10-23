@@ -24,6 +24,9 @@ REPEAT_MODES = ("Kapalı", "Liste", "Tek")      # off / whole list / one track
 _ALIAS = "hizli_music"
 HANDOVER_AHEAD = 150           # ms: turning the equalizer on, ffmpeg takes over from MCI this far ahead ...
 HANDOVER_WAIT = 1.5            # s: ... and is waited for at most this long (MCI plays on meanwhile)
+PRELOAD_MS = 2500              # ⏭ gapless: the next song is opened (and decoded ahead) this long before the end ...
+GAPLESS_AHEAD_MS = 25          # ... and started this much before the last one has quite finished (decoded ahead)
+GAPLESS_AHEAD_MCI = 70         # (MCI takes a moment to start: a little earlier)
 
 
 # what a finished download must be to go into a playlist by itself (a .mp4 is more likely a video)
@@ -436,6 +439,8 @@ class Controller:
         self._history = []            # indexes already played (for "previous" in shuffle mode)
         self._played = set()          # indexes played in this shuffle round
         self.gain = None              # 🔊 even volume: path -> share of the volume (None: every song as it is)
+        self.gapless = True           # ⏭ the next song waits ready on `spare` and starts the moment this one ends
+        self._ready = None            # (kind, what, path) of the song waiting on spare
 
     # ------------------------------------------------------------------ volume
     def set_volume(self, percent):
@@ -458,6 +463,7 @@ class Controller:
     def set_tracks(self, tracks, keep_current=False):
         """Replace the list. With keep_current the playing track stays current if it is still in it."""
         current = self.current_path() if keep_current and self.extra is None else None
+        self._drop_ready()
         self.tracks = list(tracks)
         self._history, self._played = [], set()
         if self.extra is not None and keep_current:
@@ -472,10 +478,12 @@ class Controller:
 
     def play_next(self, tracks):
         """'Sıradaki olarak çal': these come right after the song that plays now."""
+        self._drop_ready()
         self.queue[0:0] = [dict(t) for t in tracks]
 
     def add_to_queue(self, tracks):
         """'Sıraya ekle': these come after what is already lined up."""
+        self._drop_ready()
         self.queue += [dict(t) for t in tracks]
 
     def current_path(self):
@@ -566,6 +574,7 @@ class Controller:
     def play_index(self, i) -> bool:
         """Start track i. If it cannot be opened, the next ones are tried (at most one round)."""
         self._end_fade()
+        self._drop_ready()
         n = len(self.tracks)
         skipped = None
         for step in range(n):
@@ -590,6 +599,7 @@ class Controller:
 
     def play_queued(self, track) -> bool:
         self._end_fade()
+        self._drop_ready()
         if self.queue and self.queue[0] is track:
             self.queue.pop(0)
         started = self._start(self.backend, track["path"])
@@ -618,6 +628,7 @@ class Controller:
 
     def stop(self):
         self._end_fade()
+        self._drop_ready()
         self.backend.stop()
         self.backend.close()
         self.extra = None
@@ -662,6 +673,7 @@ class Controller:
     def previous(self, position_ms=0):
         """After the first 3 seconds 'previous' restarts the track, as players usually do."""
         self._end_fade()
+        self._drop_ready()
         if self.state != "stopped" and position_ms > 3000:
             self.backend.seek(0)
             return True
@@ -680,6 +692,7 @@ class Controller:
 
     def seek_fraction(self, fraction):
         self._end_fade()
+        self._drop_ready()
         length = self.backend.length_ms()
         if self.state != "stopped" and length > 0:
             self.backend.seek(int(length * max(0.0, min(1.0, fraction))))
@@ -751,8 +764,102 @@ class Controller:
             return
         if self._maybe_start_fade():
             return
+        if self._gapless_step():
+            return
         if self.backend.finished():
             self.next(automatic=True)
+
+    # ------------------------------------------------------------------ ⏭ gapless
+    def remaining_ms(self):
+        """How long the playing song still sounds (None when nothing plays)."""
+        if self.state != "playing":
+            return None
+        length = self.backend.length_ms()
+        return max(0, length - self.backend.position_ms()) if length else None
+
+    def _drop_ready(self):
+        """The song waiting on spare is not the next one any more (skipped, sought, stopped): let it go."""
+        if self._ready is not None and self.spare is not None and self._fade is None:
+            try:
+                self.spare.stop()
+                self.spare.close()
+            except Exception:  # noqa: BLE001
+                pass
+        self._ready = None
+
+    def _gapless_step(self) -> bool:
+        """Near the end: open the next song on `spare` (ready to sound); at the end: start it at once and swap.
+        True when the next song was started."""
+        if not (self.gapless and self.spare is not None and not self.fade_ms and self.state == "playing"):
+            return False
+        left = self.remaining_ms()
+        if left is None:
+            return False
+        if self._ready is None:
+            if left > PRELOAD_MS or self.backend.length_ms() < PRELOAD_MS * 2:
+                return False
+            target = self._next_target(True)
+            if target is None:
+                return False
+            kind, what = target
+            track = what if kind == "queue" else self.tracks[what]
+            if self._load(self.spare, track["path"]) is not True:   # "wait": a playable copy first, the usual way
+                return False
+            self.spare.set_volume(self._level(track["path"]))
+            if hasattr(self.spare, "cue"):
+                self.spare.cue(0)                                  # decoding already: the first sound is ready
+            self._ready = (kind, what, track["path"])
+            return False
+        if not (self.backend.finished() or left <= self.gapless_ahead()):
+            return False
+        if not self._still_next():
+            self._drop_ready()                                     # (shuffle / repeat / the list changed meanwhile)
+            return False
+        kind, what, _path = self._ready
+        self._ready = None
+        spare = self.spare
+        if hasattr(spare, "go") and hasattr(spare, "cue"):
+            spare.go()
+        else:
+            spare.play()
+        old = self.backend
+        self.backend, self.spare = spare, old
+        old.stop()
+        old.close()
+        if kind == "queue":
+            if self.queue and self.queue[0] is what:
+                self.queue.pop(0)
+            self.extra = what
+        else:
+            if self.index >= 0 and self.index != what and self.extra is None:
+                self._history.append(self.index)
+            self.extra = None
+            self.index = what
+            self._played.add(what)
+        self.error = ""
+        return True
+
+    def gapless_ahead(self) -> int:
+        """How long before the end the waiting song is started (ms)."""
+        return GAPLESS_AHEAD_MS if hasattr(self.spare, "cue") else GAPLESS_AHEAD_MCI
+
+    def ready_next(self):
+        """The song waiting to start at the end of this one (None: none)."""
+        return self._ready
+
+    def _still_next(self) -> bool:
+        """Is the waiting song still the one that comes next?"""
+        kind, what, path = self._ready
+        if kind == "queue":
+            return bool(self.queue) and self.queue[0] is what and os.path.isfile(path)
+        if self.queue or not (0 <= what < len(self.tracks)) or self.tracks[what]["path"] != path:
+            return False
+        if self.repeat == "Tek" and self.extra is None:
+            return what == self.index
+        if self.shuffle:
+            return what not in self._played or self.repeat == "Liste"
+        nxt = self.index + 1
+        return what == (nxt if nxt < len(self.tracks) else (0 if self.repeat == "Liste" else -1))
 
     def _check_prepared(self):
         """While "preparing": play the copy once it is there, or go on to the next song if none comes."""

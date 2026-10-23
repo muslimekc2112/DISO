@@ -46,6 +46,8 @@ SLEEP_CHOICES = [SLEEP_OFF, "15 dk", "30 dk", "45 dk", "60 dk", "90 dk", SLEEP_T
 SORT_COLUMNS = {"title": "title", "artist": "artist", "time": "time"}
 SEEK_STEP = 5000           # ms: ⏪ / ⏩ and a single ← / →
 VOLUME_STEP = 5            # ↑ / ↓ once; held down it speeds up (VOLUME_RAMP)
+SLEEP_FADE_MAX = 120       # s: 😴 the music fades out over the last minutes before the sleep time
+TRACK_FADE = 10            # s: … or over the last seconds of the song ("Parça bitince")
 COVER_MELT = 8             # frames of the old cover melting into the new one
 PULSE_MS = 130             # 🎨 how often the player's block takes the colour of the music's moment
 SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0)
@@ -251,6 +253,9 @@ class MusicWindow(ctk.CTkToplevel):
         self._next_remember = 0.0
         self.sleep_at = None                         # time.time() when the music stops by itself
         self.sleep_after_track = False
+        self._sleep_fade = SLEEP_FADE_MAX
+        self._sleep_fading = False                   # 😴 the music is being faded out for the sleep time
+        self._gapless_job = None                     # ⏭ the wake-up at the end of the song
         self._resume = self._saved_place()           # (list, index, ms) to go on from, or None
         self._held = None                            # the ← / → / ↑ / ↓ that is held down, and its repeats so far
         self._repeats = 0
@@ -734,11 +739,15 @@ class MusicWindow(ctk.CTkToplevel):
         self.sub_label.grid(row=1, column=0, columnspan=3, sticky="ew", padx=(6, 14))
         self.pos_label = ctk.CTkLabel(body, text="0:00", width=44, text_color="gray")
         self.pos_label.grid(row=2, column=0, padx=(2, 4))
-        self.seek = ctk.CTkSlider(body, from_=0, to=1000, command=self._on_seek_drag)
+        if look.is_nostalgia():                                   # the players of those days had a plain slider
+            self.seek = ctk.CTkSlider(body, from_=0, to=1000, command=self._on_seek_drag)
+            self.seek.bind("<ButtonPress-1>", lambda e: setattr(self, "_dragging", True), add="+")
+            self.seek.bind("<ButtonRelease-1>", self._on_seek_release, add="+")
+        else:                                                     # 〰 the song's wave: click where to go
+            from .waveform import WaveBar
+            self.seek = WaveBar(body, command=self._on_seek_drag, on_release=self._on_seek_release)
         self.seek.set(0)
-        self.seek.grid(row=2, column=1, sticky="ew", pady=6)
-        self.seek.bind("<ButtonPress-1>", lambda e: setattr(self, "_dragging", True), add="+")
-        self.seek.bind("<ButtonRelease-1>", self._on_seek_release, add="+")
+        self.seek.grid(row=2, column=1, sticky="ew", pady=4)
         self.len_label = ctk.CTkLabel(body, text="0:00", width=44, text_color="gray")
         self.len_label.grid(row=2, column=2, padx=(4, 14))
 
@@ -956,18 +965,36 @@ class MusicWindow(ctk.CTkToplevel):
         """The cover changed: its colours are what the player's block glows in while the song plays."""
         self._ambient_colours = ambient.cover_colours(jpg, 3) if jpg else []
 
+    def _get_analyzer(self):
+        if self.analyzer is None:
+            try:
+                from . import visualizer
+                self.analyzer = visualizer.Analyzer()
+            except Exception:  # noqa: BLE001 - no numpy: no wave, no colours of the moment
+                return None
+        return self.analyzer
+
+    def _show_wave(self, length):
+        """〰 The playing song's wave on the progress bar (asked for once; a plain line until it is known)."""
+        if not hasattr(self.seek, "set_levels"):
+            return
+        self.seek.length_ms = length
+        path = self.controller.current_path() if self.controller.state != "stopped" else None
+        levels = None
+        if path and self._get_analyzer() is not None:
+            self.analyzer.want(path)
+            result = self.analyzer.get(path)
+            levels = result[1] if result is not None else None
+        self.seek.set_levels(levels)
+
     def _sound_now(self):
         """(bass, middle, high, loudness) of the playing moment, 0..1 each; None while it is not known."""
         c = self.controller
         path = c.current_path() if c.state == "playing" else None
         if not path:
             return None
-        if self.analyzer is None:
-            try:
-                from . import visualizer
-                self.analyzer = visualizer.Analyzer()
-            except Exception:  # noqa: BLE001 - no numpy: the block keeps the cover's colour
-                return None
+        if self._get_analyzer() is None:
+            return None
         self.analyzer.want(path)
         result = self.analyzer.get(path)
         if result is None:
@@ -2120,6 +2147,8 @@ class MusicWindow(ctk.CTkToplevel):
         self._update_status()
 
     def _on_seek_drag(self, value):
+        if getattr(self.seek, "dragging", False):
+            self._dragging = True
         if self._dragging:
             length = self.controller.length_ms()
             self.pos_label.configure(text=fmt_time(length * value / 1000))
@@ -2156,6 +2185,7 @@ class MusicWindow(ctk.CTkToplevel):
 
     # ------------------------------------------------------------------ sleep timer
     def _set_sleep(self, choice):
+        self._sleep_restore()
         self.sleep_at, self.sleep_after_track = None, False
         if choice == SLEEP_TRACK:
             self.sleep_after_track = True
@@ -2163,6 +2193,7 @@ class MusicWindow(ctk.CTkToplevel):
         elif choice != SLEEP_OFF:
             minutes = int(choice.split()[0])
             self.sleep_at = time.time() + minutes * 60
+            self._sleep_fade = min(SLEEP_FADE_MAX, max(20, minutes * 60 // 4))
             self.note(f"😴 {minutes} dakika sonra müziği durduracağım")
         else:
             self.note("Uyku zamanlayıcısı kapandı")
@@ -2179,23 +2210,51 @@ class MusicWindow(ctk.CTkToplevel):
         elif self.sleep_menu.get() != SLEEP_OFF:
             self.sleep_menu.set(SLEEP_OFF)
 
-    def _check_sleep(self):
-        """Stop the music when the sleep time came or the chosen track ended (before moving on)."""
+    def _check_sleep(self, now=None):
+        """Stop the music when the sleep time came or the chosen track ended (before moving on). Before that
+        it fades out slowly: the last minutes (the last seconds of the song), the volume going down softly."""
         c = self.controller
-        if self.sleep_at and time.time() >= self.sleep_at:
+        now = time.time() if now is None else now
+        if self.sleep_at and now >= self.sleep_at:
             self.sleep_at = None
             if c.state != "stopped":
                 self._remember_place()
                 c.stop()
                 self.note("😴 Uyku zamanı: müziği durdurdum. İyi uykular!", 30)
+            self._sleep_restore()
             self._update_sleep_text()
         elif self.sleep_after_track and c.state == "playing" and c.backend.finished():
             self.sleep_after_track = False
             c.stop()
+            self._sleep_restore()
             self.note("😴 Parça bitti, müziği durdurdum. İyi uykular!", 30)
             self._update_sleep_text()
-        elif self.sleep_at:
-            self._update_sleep_text()
+        else:
+            if self.sleep_at:
+                self._update_sleep_text()
+                self._sleep_quieter(self.sleep_at - now, self._sleep_fade)
+            elif self.sleep_after_track and c.state == "playing" and c.length_ms():
+                self._sleep_quieter((c.length_ms() - c.position_ms()) / 1000, TRACK_FADE)
+
+    def _sleep_quieter(self, left, over):
+        """😴 `left` seconds before the music stops, fading over `over` seconds: the player plays softer (the
+        volume the user chose stays as it is, on the slider and on the disk)."""
+        c = self.controller
+        if c.state != "playing" or left >= over or over <= 0:
+            if self._sleep_fading and left >= over:
+                self._sleep_restore()                         # (moved back in the song, the timer pushed on)
+            return
+        share = max(0.0, left / over) ** 2                     # softly at first, then down to silence
+        if not self._sleep_fading:
+            self._sleep_fading = True
+            self.note("😴 Uyumaya hazırlan: müzik yavaşça kısılıyor…", 10)
+        c.set_volume(int(round(int(self.volume.get()) * share)))
+
+    def _sleep_restore(self):
+        """The fade is over (or was called off): the player's volume is the user's again."""
+        if self._sleep_fading:
+            self._sleep_fading = False
+            self.controller.set_volume(int(self.volume.get()))
 
     # ------------------------------------------------------------------ media keys
     def _check_keys(self):
@@ -2619,8 +2678,10 @@ class MusicWindow(ctk.CTkToplevel):
             set_if_changed(self.len_label, text="0:00")
             if not self._dragging and self.seek.get() != 0:
                 self.seek.set(0)
+            self._show_wave(0)
         else:
             pos, length = c.position_ms(), c.length_ms()
+            self._show_wave(length)
             if not self._dragging:
                 set_if_changed(self.pos_label, text=fmt_time(pos))
                 value = 1000 * pos / length if length else 0
@@ -2657,6 +2718,7 @@ class MusicWindow(ctk.CTkToplevel):
             self._check_sleep()
             self._ramp_alarm()
             self.controller.tick()
+            self._plan_gapless()
             self._count_listening()
             if self.controller.error:
                 self.note(self.controller.error)
@@ -2696,6 +2758,30 @@ class MusicWindow(ctk.CTkToplevel):
                 return
             log.exception("the music window could not update")
         self.after(250, self._tick)
+
+    def _plan_gapless(self):
+        """⏭ The next song waits ready: wake up exactly when this one ends (the quarter-second clock is too coarse)."""
+        c = self.controller
+        left = c.remaining_ms()
+        if left is None or c.ready_next() is None or self._gapless_job is not None or left > 1200:
+            return
+        self._gapless_job = self.after(max(1, int(left / max(0.25, self.store.state.get("speed", 1.0) or 1.0))
+                                           - c.gapless_ahead()), self._gapless_tick)
+
+    def _gapless_tick(self):
+        self._gapless_job = None
+        if self._closed:
+            return
+        c = self.controller
+        for _ in range(8):                                    # a few ms early: wait for the exact moment
+            left = c.remaining_ms()
+            if left is None or left <= c.gapless_ahead() or c.backend.finished():
+                break
+            time.sleep(min(0.01, left / 1000))
+        before = c.current_path()
+        c.tick()
+        if c.current_path() != before:
+            self._after_action()
 
     # ------------------------------------------------------------------ mini player, media panel, taskbar
     def open_mini(self):

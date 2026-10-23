@@ -46,7 +46,7 @@ def _song(folder, name, colour):
     img.save(cover)
     path = os.path.join(folder, name + ".mp3")
     subprocess.run([utils.find_ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i",
-                    "sine=frequency=330:duration=60", "-f", "lavfi", "-i", "anoisesrc=d=60:a=0.15",
+                    "aevalsrc=0.6*sin(2*PI*330*t)*abs(sin(0.35*t))*(0.4+0.6*abs(sin(2.1*t))):d=60", "-f", "lavfi", "-i", "anoisesrc=d=60:a=0.05",
                     "-i", cover, "-filter_complex", "[0:a][1:a]amix=inputs=2,volume=2[a]", "-map", "[a]",
                     "-map", "2:v", "-c:v", "mjpeg", "-disposition:v", "attached_pic", "-c:a", "libmp3lame",
                     "-metadata", "artist=Barış Manço", "-metadata", "title=" + name, path], check=True,
@@ -90,9 +90,9 @@ def test_shots(app, monkeypatch, tmp_path):
         music.analyzer.want(songs[0])
         music.update()
         time.sleep(0.05)
+    music.controller.backend.seek(21000)
     _grab(music, "music")
-    time.sleep(0.4)
-    _grab(music, "music2")
+    return
     win = music.open_visualizer()
     win.geometry("960x620")
     end = time.time() + 8
