@@ -198,8 +198,9 @@ def install_light_resizing():
     made customtkinter redraw each scroll bar whole, colours included, and then force every waiting layout
     at once (update_idletasks), and made the scrolling content take the new width, which laid out all its
     rows again (some 120 texts and buttons redrawn: 160 ms each time). Now a scroll bar only moves its handle (and
-    only when it really moved), and the content takes the new width once the edge stops moving (RESIZE_SETTLE): the
-    edge moves smoothly, the rows settle once."""
+    only when it really moved; its full redraw, update_idletasks included, stays as it was: skipping that
+    crashed Tk in some orders of events), and the content takes the new width once the edge stops moving
+    (RESIZE_SETTLE): the edge moves smoothly, the rows settle once."""
     import tkinter as tk
 
     import customtkinter as ctk
@@ -207,16 +208,6 @@ def install_light_resizing():
     if getattr(bar, "_light", False):
         return
     bar._light = True
-    original_draw = bar._draw
-
-    def _draw(self, no_color_updates=False):
-        canvas = self._canvas
-        canvas.update_idletasks = _nothing                # (Tk draws it with everything else, when idle)
-        try:
-            original_draw(self, no_color_updates)
-        finally:
-            del canvas.update_idletasks
-
     def set(self, start_value, end_value):
         start, end = float(start_value), float(end_value)
         if (start, end) == (self._start_value, self._end_value):
@@ -230,7 +221,7 @@ def install_light_resizing():
         if recolour:                                       # new parts were made: they need their colours
             self._draw()
 
-    bar._draw, bar.set = _draw, set
+    bar.set = set
 
     frame = ctk.CTkScrollableFrame
     original_fit = frame._fit_frame_dimensions_to_canvas
@@ -267,6 +258,7 @@ def install_light_resizing():
     def __init__(self, *args, **kw):
         original_init(self, *args, **kw)
         self._parent_canvas.bind("<Configure>", self._fit_frame_dimensions_to_canvas)
+        self._parent_canvas.bind("<Destroy>", lambda e, frame=self: _let_go(frame), "+")
 
     frame.__init__ = __init__
 
@@ -290,6 +282,21 @@ def _own_configure_only(original_init):
         except tk.TclError:
             pass
     return __init__
+
+
+def _let_go(frame):
+    """The window closes (maybe in the middle of a drag): its picture and its waiting job go now, here. Left to
+    Python, the picture was freed later on whatever thread ran then (the music's, the downloads'), and a Tk image
+    deleted outside Tk's own thread brought the whole program down."""
+    job = getattr(frame, "_fit_job", None)
+    if job is not None:
+        try:
+            frame.after_cancel(job)
+        except Exception:  # noqa: BLE001
+            pass
+        frame._fit_job = None
+    frame._painting_held = False
+    frame.__dict__.pop("_still", None)                     # the last reference: it is freed right here, right now
 
 
 def _hold_painting(frame, hold):
@@ -323,10 +330,6 @@ def _hold_painting(frame, hold):
             canvas.delete("still")
         except tk.TclError:
             pass
-
-
-def _nothing(*_args):
-    return None
 
 
 def _wrap_later(label):

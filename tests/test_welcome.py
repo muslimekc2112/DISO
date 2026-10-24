@@ -73,7 +73,7 @@ def test_whats_new_cards_open_their_features(app, monkeypatch):
 def test_the_new_cards_of_1_2_open_their_features(app, monkeypatch):
     monkeypatch.setattr(player, "new_backend", FakeBackend)
     actions = {card[3] for card in welcome_ui.WHATS_NEW}
-    assert {"extension", "visualizer", "speed", "order", "extras"} <= actions
+    assert {"look", "account", "devices", "share", "karaoke", "tour", "settings"} == actions - {None}
     opened = []
     monkeypatch.setattr(app, "open_extension_guide", lambda: opened.append("guide"))
     app.try_feature("extension")
@@ -138,3 +138,48 @@ def test_the_music_tour_comes_the_first_time_the_player_opens_and_never_beside_t
     app.open_tour()                                                      # and the other one takes its place
     assert app.music_tour_window is None and app.tour_window.winfo_exists() and app.mode == "İndirme modu"
     app.tour_window.finish()
+
+
+@pytest.mark.gui
+def test_some_steps_are_tried_by_hand_and_the_tour_goes_on_by_itself(app, monkeypatch):
+    import time
+    monkeypatch.setattr(welcome_ui, "TRY_DONE_WAIT", 50)
+
+    def wait_for(done, seconds=3):
+        end = time.time() + seconds
+        while not done() and time.time() < end:
+            app.update()
+            time.sleep(0.02)
+        return done()
+
+    tour = app.open_tour()
+    tour.go(+1)                                                          # "Linki buraya yapıştır"
+    assert tour.try_label.winfo_manager() == "grid" and "Ctrl+V" in tour.try_label.cget("text")
+    app.url_entry.insert(0, "https://www.youtube.com/watch?v=xyz")
+    assert wait_for(lambda: tour.step == 2)                              # seen: on to "İndir" by itself
+    assert "İndir" in tour.try_label.cget("text")
+    app.manager.items.append(object())                                    # (as if ⬇ İndir was pressed)
+    assert wait_for(lambda: tour.step == 3)
+    assert tour.try_label.winfo_manager() == ""                          # a step that is only told
+    tour.go(-1)
+    tour.go(+1)                                                          # "İleri" goes on without trying
+    assert tour.step == 3
+    app.manager.items.pop()
+    tour.finish()
+
+
+@pytest.mark.gui
+def test_the_cards_of_1_5_open_their_features(app, monkeypatch):
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
+    opened = []
+    monkeypatch.setattr(app, "open_account", lambda page=None: opened.append(("account", page)))
+    monkeypatch.setattr(app, "_open_settings", lambda tab=None: opened.append(("settings", tab)))
+    monkeypatch.setattr(app, "open_tour", lambda: opened.append(("tour", None)))
+    monkeypatch.setattr(app, "share_list", lambda name: opened.append(("share", name)))
+    for action in ("devices", "look", "settings", "tour", "share", "karaoke"):
+        if action == "karaoke":
+            monkeypatch.setattr(app.music, "set_karaoke", lambda on=None: opened.append(("karaoke", on)))
+        app.try_feature(action)
+    assert opened == [("account", "devices"), ("settings", "Sistem"), ("settings", None), ("tour", None),
+                      ("share", app.music.viewed), ("karaoke", True)]
+    assert app.mode == "Müzik çalar modu"

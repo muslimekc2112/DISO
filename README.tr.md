@@ -46,7 +46,7 @@ Linki yapıştır, gerisini DISO'ya bırak: parçalara bölünüp çok bağlant�
 | 🎵 **Müzik çalar** | Çalma listeleri, boşluksuz geçiş, dalga ilerleme çubuğu, şarkıyla akan sözler, 8 bantlı ekolayzır, çalma hızı ve perde, görselleştirici, mini oynatıcı. |
 | 🔍 **Şarkı bul** | DISO'nun içinden YouTube Music'te ara, 30 saniye önizle, MP3 olarak doğrudan çalma listesine indir. |
 | 🛡 **Güvenli** | Biten her indirme Windows Defender ile taranır. Güncellemeler SHA-256 ile doğrulanır. Sen istemeden hiçbir şey inmez. |
-| 🕹 **Senin görünümün** | Yeni, Klasik ya da **Nostalji** (2000'lerin gri indirme yöneticileri), koyu ya da açık, Türkçe ya da İngilizce. |
+| 🕹 **Senin görünümün** | **Standart** (önerilen: modern, düğmelerde renkli resimler), Yeni, Klasik ya da **Nostalji** (2000'lerin gri indirme yöneticileri); kendi vurgu rengin, koyu ya da açık, Türkçe ya da İngilizce. |
 
 ## 📥 Kurulum
 
@@ -122,6 +122,8 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarı müzik
 
 ### Görünüm
 - **🎨 Müziğin rengi:** çaların bloğu, YouTube'daki ortam ışığı gibi, şarkının her anına göre kapağın renklerinde parlar (⚙ menüsünden kapatılır).
+- **🎤 Karaoke** (⚙ menüsü): şarkıcının sesi kısılır (bas korunur), sözler görselleştiricide akar. Kulaklık ya da iki hoparlörle en iyisi.
+- **🔗 Listeyi arkadaşına gönder** (⚙ menüsü): `K7P2-QM4X` gibi bir kod ve link alırsın; arkadaşın **📥 Paylaşılan listeyi aç** ile açar, şarkılar MP3 olarak iner.
 - **🌌 Görselleştirici:** çubuklar, dalga ya da halka. Halkada kapak ortada ritimle atar; renkler kapaktan gelebilir. Altta ⏮ ⏪5 ⏯ 5⏩ ⏭, tam ekran için **F11**.
 - Çalan şarkının **kapak resmi** ve albümü çalarda görünür; şarkı değişince kapak yenisine erir.
 
@@ -175,8 +177,9 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarı müzik
 
 - **İndirme:** aynı anda kaç indirme (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, **Dene** düğmesiyle), zamanlayıcı ve **tüm indirmeler bitince** ne yapılacağı (DISO'yu kapat / uyut / bilgisayarı kapat).
 - **Sistem:** kapatınca arka planda çalış (sistem tepsisi), Windows ile başlat, bildirimler, günlük dosyası.
-- **Görünüm:** tema (koyu / açık / sistem) ve stil: **Yeni**, **Klasik** ya da **🕹 Nostalji** (menü çubuğu, büyük resimli araç çubuğu, solda kategoriler ve tablo; 2000'lerin indirme yöneticileri gibi, açık ya da koyu gri). Değişiklikten sonra DISO aynı yerde yeniden açılır.
-- **👤 Hesap:** bir DISO hesabına giriş yap (isteğe bağlı); ayarlar, çalma listeleri, kanallar ve geçmiş bilgisayarların arasında eşitlensin.
+- **Görünüm:** tema (koyu / açık / sistem), **vurgu rengi** (pembe, mavi, yeşil, turuncu, mor, kırmızı) ve stil: **Standart (Önerilen)** (yeni bir bilgisayarın ilk görünümü: Yeni'nin renkleri, Nostalji'nin renkli resimleri), **Yeni**, **Klasik** ya da **🕹 Nostalji** (menü çubuğu, büyük resimli araç çubuğu, solda kategoriler ve tablo; 2000'lerin indirme yöneticileri gibi, açık ya da koyu gri). Değişiklikten sonra DISO aynı yerde yeniden açılır.
+- **👤 Hesap:** hesap aç (ad, kullanıcı adı, bağlantıyla doğrulanan Gmail) ya da giriş yap, isteğe bağlı; adın sağ üstte yazar. Ayarlar, çalma listeleri, kanallar ve geçmiş bilgisayarların arasında eşitlenir; yeni bir bilgisayarda listelerin şarkıları tek tıkla iner. **💻 Bağlı bilgisayarlar** hepsini gösterir, istediğinden çıkış yaptırır.
+- **👋 Turlar:** indirme penceresi (ilk açılış) ve müzik çalar (ilk açıldığında) için adım adım tur, bazı adımları kendin denersin; Ayarlar → Yedek ve yardım'dan yeniden açılır.
 - **💾 Yedek ve yardım:** ayarları, çalma listelerini, indirme listesini, geçmişi ve kanalları tek bir `.disoyedek` dosyasına yedekle, başka bir bilgisayarda geri yükle; **📊 İndirme geçmişi**; **⌨ Klavye kısayolları** (her yerde **F1**); sağlık kontrolü ve sorun bildirme.
 - **ℹ Hakkında** (ya da başlıktaki sürüm rozetine tıkla): sürüm, DISO'nun ve verilerinin nerede olduğu. **📋 Detayları kopyala** DISO, Windows, yt-dlp, FFmpeg ve Deno sürümlerini panoya alır.
 
@@ -186,11 +189,14 @@ Seçtiğin her şey hatırlanır.
 DISO, kurulumu ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta Windows Türkçe ise DISO Türkçe, değilse İngilizce başlar. İstediğin zaman sol üstteki **TR | EN** ile ya da Ayarlar → **Dil** ile değiştir (DISO yeniden açılır). Kurulum ve kaldırma pencerelerinde de **Türkçe | English** seçici var; tarayıcı eklentisi tarayıcının dilini kullanır.
 
 ## 🆕 Yenilikler
-En yeni sürüm her zaman [sürümler sayfasında](https://github.com/muslimekc2112/DISO/releases/latest); bütün değişiklikler [`CHANGELOG.tr.md`](CHANGELOG.tr.md) dosyasında. 1.4'ün öne çıkanları:
-- **👤 DISO hesabı** (Ayarlar → Hesap, isteğe bağlı): e-posta ve şifreyle giriş yap; ayarların, çalma listelerin, takip ettiğin kanallar ve indirme geçmişin her bilgisayarda aynı kalsın. Bir bilgisayara özel ayarlar (klasörler, USB, bağlantı noktası, Windows'la başlatma), şarkılar ve videolar taşınmaz.
-- **💾 Yedek** artık takip edilen kanalları da içeriyor.
+En yeni sürüm her zaman [sürümler sayfasında](https://github.com/muslimekc2112/DISO/releases/latest); bütün değişiklikler [`CHANGELOG.tr.md`](CHANGELOG.tr.md) dosyasında. 1.5'in öne çıkanları:
+- **🎨 Standart (Önerilen):** yeni ilk görünüm, modern ve düğmelerde renkli resimler; kendi **vurgu rengin**.
+- **👤 DISO hesabı tamamlandı:** hesap aç (ad, benzersiz kullanıcı adı, bağlantıyla doğrulanan Gmail) ya da giriş yap; adın sağ üstte; **💻 bağlı bilgisayarlar**; yeni bir bilgisayarda veriler ve listelerin şarkıları gelir.
+- Kodla **🔗 listeyi arkadaşına gönder** ve **🎤 karaoke**.
+- İndirme penceresi ve müzik çalar için **👋 turlar**, kendin denediğin adımlarla.
+- **⚡ Ayarlar** anında açılıyor, akıcı genişliyor.
 
-Ondan önce 1.3 serisinde: **〰 dalga ilerleme çubuğu**, **⏭ şarkılar arasında boşluksuz geçiş**, **😴 yavaşça kısılan uyku zamanlayıcısı**, eklentide **📺 dizi modu**, **🎨 müziğin rengi**, **✨ yumuşak geçişler** ve **⚡ daha hızlı** açılış.
+1.4 DISO hesabını getirdi (ayarlar, listeler, kanallar ve geçmiş eşitlenir). Ondan önce 1.3 serisinde: **〰 dalga ilerleme çubuğu**, **⏭ şarkılar arasında boşluksuz geçiş**, **😴 yavaşça kısılan uyku zamanlayıcısı**, eklentide **📺 dizi modu**, **🎨 müziğin rengi**, **✨ yumuşak geçişler** ve **⚡ daha hızlı** açılış.
 
 ## 🛠 Sorun giderme ve sorular
 - **Windows "bilinmeyen yayıncı" diyor.** Paket dijital olarak imzalı değil. **Daha fazla bilgi → Yine de çalıştır**'a bas.
@@ -220,6 +226,7 @@ Ondan önce 1.3 serisinde: **〰 dalga ilerleme çubuğu**, **⏭ şarkılar ara
 `run_tests.bat` (ya da `python -m pytest`) bütün testleri internet gerekmeden çalıştırır: testler yerel bir sunucuyla Range desteği olmayan, bağlantısı kopan ya da bağlantı sınırlayan sunucuları, bir proxy'yi ve PyPI'yi taklit eder. Eklentinin mantığı `node` ile sınanır. İngilizce arayüz ve kurulum gerçekten açılır, ekranda Türkçe yazı kalmadığı denetlenir. FFmpeg, ekran, node ya da aria2 gerektiren testler bunlar yoksa atlanır. Kurulum testleri (`-m installer`) gerçek `DISO-Setup`'ı geçici bir yerde çalıştırır, Başlat menüne ya da kayıt defterine asla dokunmaz.
 - Sadece hızlı testler: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
 - Tek dosya: `python -m pytest tests/test_downloader.py`
+- Ekranına pencere çıkmadan: `python tools/run_hidden.py -- python -m pytest tests` (testler kendi masaüstlerinde çalışır; görev çubuğu isteyen birkaç test orada atlanır)
 - Kurulumu pencere açmadan denetle: `python main.py --selftest sonuc.json`
 
 DISO'nun içinin nasıl çalıştığı, ayrıntısıyla: `NASIL_YAPILDI.txt` (İngilizcesi `HOW_IT_WAS_MADE.txt`).

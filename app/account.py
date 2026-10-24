@@ -78,6 +78,7 @@ MESSAGES = {
     "ALREADY_EXISTS": "Bu kullanıcı adı alınmış, başka birini dene.",
     "BAD_USERNAME": "Kullanıcı adı 3–20 karakter olmalı: küçük harf, rakam, nokta ya da alt çizgi.",
     "MISSING_NAME": "Adını ve soyadını yaz.",
+    "REMOVED": "Bu bilgisayar, hesabından başka bir bilgisayardan çıkarıldı. İstersen yeniden giriş yapabilirsin.",
     "NOT_VERIFIED": "E-posta adresin henüz doğrulanmadı. Gmail'ine gelen bağlantıya tıkla, sonra “Doğruladım” de.",
 }
 
@@ -258,7 +259,15 @@ def check_verified(session=None) -> bool:
     token(session)                                        # the new token says email_verified=true
     _with_profile(session)
     _save(session)
+    _say_here(session)
     return True
+
+
+def _say_here(session):
+    try:
+        _here(session, fresh=True)
+    except AccountError as e:
+        log.info("account: this computer is not listed yet: %s", e)
 
 
 def _profile_url(uid) -> str:
@@ -282,6 +291,117 @@ def _with_profile(session):
                   json={"fields": {k: {"stringValue": str(v)} for k, v in p.items()}})
 
 
+# ------------------------------------------------------------------------------ 💻 the computers of the account
+def device_id() -> str:
+    """This computer's own id (kept even when it signs out: signing in again is the same computer)."""
+    path = os.path.join(app_data_dir(), "account-device.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            found = json.load(f).get("id", "")
+        if found:
+            return found
+    except (OSError, ValueError, AttributeError):
+        pass
+    import uuid
+    new = uuid.uuid4().hex
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"id": new}, f)
+    except OSError:
+        pass
+    return new
+
+
+def _device_url(uid, device=None) -> str:
+    return f"{STORE_URL}/users/{uid}/devices" + (f"/{device}" if device else "")
+
+
+def _here(session, timeout=TIMEOUT, fresh=False):
+    """This computer tells the account it is here (its name, when, DISO's version). fresh: it has just signed in,
+    so an old "signed out from elsewhere" mark of it goes too."""
+    fields = {"name": {"stringValue": socket.gethostname()}, "seen": {"doubleValue": time.time()},
+              "version": {"stringValue": brand.VERSION_LABEL}}
+    params = None
+    if fresh:
+        fields["signed_out"] = {"booleanValue": False}
+    else:
+        params = [("updateMask.fieldPaths", k) for k in fields]          # (keeps a "signed out" mark it may have)
+    _call("PATCH", _device_url(session["uid"], device_id()), timeout=timeout, headers=_headers(session, timeout),
+          json={"fields": fields}, params=params)
+
+
+def _still_signed_in(session, timeout):
+    """Was this computer signed out from another one? Then it forgets the account now."""
+    try:
+        doc = _call("GET", _device_url(session["uid"], device_id()), timeout=timeout,
+                    headers=_headers(session, timeout))
+    except AccountError as e:
+        if e.code == "NOT_FOUND":
+            return True
+        raise
+    if doc.get("fields", {}).get("signed_out", {}).get("booleanValue"):
+        sign_out()
+        _mark_removed()
+        raise AccountError(MESSAGES["REMOVED"], "REMOVED")
+    return True
+
+
+def devices(session=None) -> list:
+    """The computers signed in to the account: [{"id", "name", "seen", "version", "this"}], newest first."""
+    session = session or _session_or_fail()
+    data = _call("GET", _device_url(session["uid"]), headers=_headers(session), params={"pageSize": 100})
+    mine, found = device_id(), []
+    for doc in data.get("documents", []):
+        f = doc.get("fields", {})
+        if f.get("signed_out", {}).get("booleanValue"):
+            continue
+        did = doc.get("name", "").rsplit("/", 1)[-1]
+        found.append({"id": did, "name": f.get("name", {}).get("stringValue", "?"),
+                      "seen": float(f.get("seen", {}).get("doubleValue", 0)),
+                      "version": f.get("version", {}).get("stringValue", ""), "this": did == mine})
+    return sorted(found, key=lambda d: (not d["this"], -d["seen"]))
+
+
+def sign_out_device(device, session=None):
+    """That computer forgets the account the next time it talks to it (at its start, or within minutes)."""
+    session = session or _session_or_fail()
+    _call("PATCH", _device_url(session["uid"], device), headers=_headers(session),
+          params=[("updateMask.fieldPaths", "signed_out")], json={"fields": {"signed_out": {"booleanValue": True}}})
+
+
+def leave():
+    """"Çıkış yap": the account forgets this computer (best it can), then this computer forgets the account."""
+    session = load()
+    if session is not None and session.get("verified"):
+        try:
+            _call("DELETE", _device_url(session["uid"], device_id()), timeout=CLOSE_TIMEOUT,
+                  headers=_headers(session, CLOSE_TIMEOUT))
+        except AccountError as e:
+            log.info("account: this computer stays listed: %s", e)
+    sign_out()
+
+
+def _removed_path():
+    return os.path.join(app_data_dir(), "account-removed")
+
+
+def _mark_removed():
+    try:
+        with open(_removed_path(), "w", encoding="utf-8") as f:
+            f.write(str(time.time()))
+    except OSError:
+        pass
+
+
+def take_removed() -> bool:
+    """This computer was signed out from another one since DISO last asked (said once)."""
+    try:
+        os.remove(_removed_path())
+        return True
+    except OSError:
+        return False
+
+
 def sign_in(address, password) -> dict:
     address = _check(address)
     if not password:
@@ -293,6 +413,7 @@ def sign_in(address, password) -> dict:
         session["verified"] = True
         _with_profile(session)
         _save(session)
+        _say_here(session)
     return session
 
 
@@ -582,6 +703,11 @@ def _sync(mode, timeout, folder, prefer):
     pending = os.path.join(folder, backup.PENDING)
     if mode != "start" and os.path.isdir(pending):
         return done          # files wait for the next start: this computer's copies are already old
+    _still_signed_in(session, timeout)
+    try:
+        _here(session, timeout)
+    except AccountError as e:
+        log.info("account: could not say this computer is here: %s", e)
     cloud = cloud_files(session, timeout)
     st = _state(folder, session["uid"])
     texts = {n: local_text(folder, n) for n in FILES}

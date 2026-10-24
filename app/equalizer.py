@@ -63,6 +63,18 @@ def set_simple(gains, which, value) -> list:
     return clean([g + shift if i in bands else g for i, g in enumerate(gains)])
 
 
+# 🎤 karaoke: the voice of a song is usually in the middle (the same on both sides); taking the middle away
+# takes it away. The bass is in the middle too, so below KARAOKE_KEEP Hz the sound stays as it is.
+KARAOKE_KEEP = 160
+KARAOKE = (f"asplit=2[kl][kh];[kl]lowpass=f={KARAOKE_KEEP}[klo];[kh]highpass=f={KARAOKE_KEEP},stereotools=mlev=0.06"
+           f"[khi];[klo][khi]amix=inputs=2:normalize=0")
+
+
+def sound_filter(gains, karaoke=False) -> str:
+    """The whole -af text of the player: the karaoke (voice away) first, then the equalizer ("" = nothing)."""
+    return ",".join(f for f in (KARAOKE if karaoke else "", ffmpeg_filter(gains)) if f)
+
+
 def ffmpeg_filter(gains) -> str:
     """The -af text for these gains ("" when flat: nothing to do)."""
     gains = clean(gains)

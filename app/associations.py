@@ -19,7 +19,7 @@ def links_from_argv(argv) -> list:
     out = []
     for a in argv or []:
         a = (a or "").strip().strip('"')
-        if a.lower().startswith("magnet:?"):
+        if a.lower().startswith("magnet:?") or a.lower().startswith("diso:liste?"):     # (🔗 a shared playlist)
             out.append(a)
         elif a.lower().endswith(".torrent") and os.path.isfile(a):
             out.append(pathlib.Path(os.path.abspath(a)).as_uri())

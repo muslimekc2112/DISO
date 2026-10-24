@@ -13,6 +13,31 @@ PLAIN = {
     "sürüm okunamadı": "version unreadable", "Kurulu uygulama": "Installed app", "Kaynak koddan": "From source code",
     # ---- 👋 the tours, 🎨 the Standart look
     "Vurgu rengi": "Accent colour",
+    "Standart görünüm": "Standard look",
+    "Modern renkler, düğmelerde renkli resimler. Ayarlar → Görünüm'de kendi vurgu rengini seç: pembe, mavi, yeşil, "
+    "turuncu, mor ya da kırmızı.": "Modern colours, colourful pictures on the buttons. Pick your own accent colour "
+                                  "in Settings → Look: pink, blue, green, orange, purple or red.",
+    "Ad, kullanıcı adı ve Gmail ile hesap aç; adın sağ üstte yazar. Ayarların, listelerin ve geçmişin her "
+    "bilgisayarında aynı; yeni bir bilgisayarda listelerin şarkıları tek tıkla iner.":
+        "Create an account with a name, a user name and Gmail; your name is at the top right. Your settings, lists "
+        "and history are the same on every computer; on a new one your lists' songs download with one click.",
+    "Bağlı bilgisayarlar": "Signed-in computers",
+    "Hesabına giriş yapmış bilgisayarları gör, istediğinden çıkış yaptır.":
+        "See the computers signed in to your account and sign any of them out.",
+    "Listeyi arkadaşına gönder": "Send a list to a friend",
+    "Bir kod ya da link: arkadaşın açınca liste onda da oluşur, şarkılar MP3 olarak iner.":
+        "A code or a link: when your friend opens it the list is made there too and the songs download as MP3.",
+    "Şarkıcının sesi kısılır, sözler ekranda şarkıyla akar. Kulaklıkla en iyisi.":
+        "The singer's voice goes down and the lyrics flow on screen with the song. Best with headphones.",
+    "Yeni turlar": "New tours",
+    "İndirme penceresini ve müzik çaları adım adım anlatır; bazı adımları kendin denersin.":
+        "They explain the download window and the music player step by step; some steps you try yourself.",
+    "Hızlı Ayarlar": "Fast settings",
+    "Ayarlar anında açılıyor, kenarından genişletirken kasmıyor.":
+        "The settings open at once and do not stutter while you resize them.",
+    "👉 Dene: yukarıdaki kutuya bir link yapıştır (Ctrl+V).": "👉 Try it: paste a link into the box above (Ctrl+V).",
+    "👉 Dene: ⬇ İndir'e bas.": "👉 Try it: press ⬇ Download.", "👉 Dene: “Şarkı bul”a tıkla.":
+        "👉 Try it: click “Find songs”.", "✔ Harika!": "✔ Great!",
     "Düğmelerin ve seçili şeylerin rengi; pencerenin tonu da ona uyar (Standart ve Yeni'de; değişince DISO yeniden "
     "açılır)": "The colour of the buttons and of what is selected; the window's tint follows it (in Standard and "
                "Yeni; DISO restarts when it changes)",
@@ -115,6 +140,65 @@ PLAIN = {
         '🎵 Music',
     'Doğrula':
         'Confirm',
+    # ---- 💻 computers, 🔗 shared lists, 🎤 karaoke
+    'Bu bilgisayar, hesabından başka bir bilgisayardan çıkarıldı. İstersen yeniden giriş yapabilirsin.':
+        'This computer was signed out of your account from another computer. You can sign in again if you like.',
+    '💻 Bağlı bilgisayarlar':
+        '💻 Signed-in computers',
+    'Hesabına giriş yapmış bilgisayarlar. Birinden çıkış yaptırırsan, o bilgisayardaki DISO hesabı bir sonraki açılışında (ya da birkaç dakika içinde) unutur.':
+        'The computers signed in to your account. Sign one out and DISO there forgets the account at its next start (or within a few minutes).',
+    'Çıkış yaptır':
+        'Sign out',
+    '‹ Hesabım':
+        '‹ My account',
+    'Henüz bir bilgisayar yok.':
+        'No computers yet.',
+    'Listeyi gönder':
+        'Send the list',
+    'Paylaşılan liste':
+        'Shared list',
+    '📥 Paylaşılan liste':
+        '📥 Shared list',
+    'Hazır! Bu kodu ya da linki arkadaşına gönder:':
+        'Ready! Send this code or link to your friend:',
+    "Arkadaşın DISO'da müzik çaların ⚙ menüsünden “Paylaşılan listeyi aç”a kodu yazar ya da linke tıklar; liste onda da oluşur, şarkılar MP3 olarak iner.":
+        "Your friend types the code into “Open a shared list” in the music player's ⚙ menu in DISO, or clicks the link; the list is made there too and the songs download as MP3.",
+    '📋 Kodu kopyala':
+        '📋 Copy the code',
+    '📋 Linki kopyala':
+        '📋 Copy the link',
+    'Arkadaşının gönderdiği kodu yaz (ör. K7P2-QM4X).':
+        'Type the code your friend sent (e.g. K7P2-QM4X).',
+    '🔍 Listeyi bul':
+        '🔍 Find the list',
+    '⬇ Ekle ve indir':
+        '⬇ Add and download',
+    'Bu bir liste koduna benzemiyor (8 harf ve rakam).':
+        'That does not look like a list code (8 letters and digits).',
+    'Paylaşamadım.':
+        'Could not share it.',
+    'Bu listedeki şarkıların hiçbirini internette bulamadım.':
+        "I could not find any of this list's songs online.",
+    'Bu kodla paylaşılmış bir liste yok. Kodu kontrol et.':
+        'No list was shared with this code. Check the code.',
+    '🔗 Liste paylaşmak için önce DISO hesabına giriş yap':
+        '🔗 Sign in to your DISO account first to share a list',
+    'Bu liste boş: paylaşılacak şarkı yok':
+        'This list is empty: there are no songs to share',
+    '🔗 Bu listeyi arkadaşına gönder…':
+        '🔗 Send this list to a friend…',
+    '📥 Paylaşılan listeyi aç (kod ile)…':
+        '📥 Open a shared list (with a code)…',
+    '   🎤 Karaoke (şarkıcının sesini kıs, sözler ekranda)':
+        "   🎤 Karaoke (the singer's voice down, lyrics on screen)",
+    '✓ 🎤 Karaoke (şarkıcının sesini kıs, sözler ekranda)':
+        "✓ 🎤 Karaoke (the singer's voice down, lyrics on screen)",
+    '🎤 Karaoke için FFmpeg gerekli; Ayarlar → Sağlık kontrolü kurar':
+        '🎤 Karaoke needs FFmpeg; Settings → Health check installs it',
+    '🎤 Karaoke açık: şarkıcının sesi kısıldı, sözler ekranda (kulaklık ya da iki hoparlörle en iyisi). Kapatmak için ⚙ → Karaoke':
+        "🎤 Karaoke on: the singer's voice is down, the lyrics are on screen (best with headphones or two speakers). Turn it off in ⚙ → Karaoke",
+    '🎤 Karaoke kapandı':
+        '🎤 Karaoke off',
     # ---- 👤 the DISO account
     "Bu e-postayla zaten bir hesap var. “Giriş yap”ı dene.": "There already is an account with this e-mail. Try “Sign in”.",
     "E-posta ya da şifre yanlış.": "Wrong e-mail or password.",
@@ -1053,6 +1137,26 @@ PLAIN = {
 }
 
 TEMPLATES = [
+    ('Son görülme: {}',
+     'Last seen: {}'),
+    ('“{}” bilgisayarı hesabından çıkarılsın mı?\n\nOradaki ayarlar ve listeler olduğu gibi kalır, yalnız artık eşitlenmez.',
+     'Sign “{}” out of your account?\n\nThe settings and lists there stay as they are; they are just not synced any more.'),
+    ('“{}” çıkarıldı.',
+     '“{}” was signed out.'),
+    ('{} şarkının linkleri bulunuyor… (biraz sürebilir)',
+     'Finding the links of {} songs… (it may take a while)'),
+    ('📋 Kopyalandı: {}',
+     '📋 Copied: {}'),
+    ('🔗 “{}”',
+     '🔗 “{}”'),
+    ('“{}” · {} paylaştı\n{} şarkı. Listeyi ekleyip şarkıları MP3 olarak indireyim mi?',
+     '“{}” · shared by {}\n{} songs. Shall I add the list and download the songs as MP3?'),
+    ('“{}”\n{} şarkı. Listeyi ekleyip şarkıları MP3 olarak indireyim mi?',
+     '“{}”\n{} songs. Shall I add the list and download the songs as MP3?'),
+    ('📥 “{}”: {} şarkı indiriliyor',
+     '📥 “{}”: downloading {} songs'),
+    ('💻 {}  (bu bilgisayar)',
+     '💻 {}  (this computer)'),
     # 👤 the DISO account
     ("Hesap sunucusu bir hata verdi ({}).", "The account server answered with an error ({})."),
     ("Hesabında başka bir bilgisayardan ({}, {}) gelen ayarlar, listeler, kanallar ve indirme geçmişi var.",

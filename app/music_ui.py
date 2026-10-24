@@ -272,6 +272,7 @@ class MusicWindow(ctk.CTkToplevel):
         controller.gain = self.leveler.gain if store.state["level"] else None
         controller.on_let_go = lambda path: self._release_files([path])
         self.eq_window = None
+        self.karaoke = False                         # 🎤 the voice taken away (not kept: a new start sings again)
         if not equalizer.is_flat(store.state["eq"]):
             self.apply_eq(store.state["eq"], remember=False)
         if (store.state["speed"], store.state["pitch"]) != (1.0, 0):
@@ -338,6 +339,8 @@ class MusicWindow(ctk.CTkToplevel):
                  ("⏰ Müzikli alarm…", self.open_alarm), ("👤 YouTube Music hesabım…", self.open_google),
                  ("📊 Dinleme istatistiklerim…", self.open_stats), ("⌨ Kısayolları ayarla…", self.open_keys),
                  ("🌌 Görselleştirici", self.open_visualizer),
+                 ((("✓ " if self.karaoke else "   ") + "🎤 Karaoke (şarkıcının sesini kıs, sözler ekranda)"),
+                  lambda: self.set_karaoke()),
                  ("🌌🎤 Görselleştirici + şarkıyla akan sözler", lambda: self.open_visualizer(lyrics_on=True)),
                  ("⏩ Çalma hızı ve perde", self.speed_menu_items()),
                  (level, lambda: self.set_level(not self.store.state["level"])),
@@ -348,6 +351,10 @@ class MusicWindow(ctk.CTkToplevel):
         shortcuts = getattr(self.app, "open_shortcuts", None)
         if shortcuts:
             items += [None, ("⌨ Klavye kısayolları  (F1)", shortcuts)]
+        share = getattr(self.app, "share_list", None)
+        if share:
+            items += [None, ("🔗 Bu listeyi arkadaşına gönder…", lambda: share(self.viewed)),
+                      ("📥 Paylaşılan listeyi aç (kod ile)…", self.app.open_shared)]
         tour = getattr(self.app, "open_music_tour", None)
         if tour:
             items.append(("👋 Müzik çalar turu", tour))
@@ -394,7 +401,7 @@ class MusicWindow(ctk.CTkToplevel):
     def apply_eq(self, gains, remember=True) -> bool:
         """Put this equalizer setting on the sound (both voices of a cross-fade). False: not possible here."""
         gains = equalizer.clean(gains)
-        text = equalizer.ffmpeg_filter(gains)
+        text = equalizer.sound_filter(gains, self.karaoke)
         ok = True
         for backend in (self.controller.backend, self.controller.spare):
             if backend is not None and hasattr(backend, "set_filter"):
@@ -402,6 +409,22 @@ class MusicWindow(ctk.CTkToplevel):
         if ok and remember:
             self.store.set_state(eq=gains)
         return ok
+
+    def set_karaoke(self, on=None):
+        """🎤 Karaoke: the song's voice is taken away and its lyrics flow over the visualizer, to sing along."""
+        on = not self.karaoke if on is None else bool(on)
+        self.karaoke = on
+        if not self.apply_eq(self.store.state["eq"], remember=False):
+            self.karaoke = False
+            self.note("🎤 Karaoke için FFmpeg gerekli; Ayarlar → Sağlık kontrolü kurar", 10)
+            return False
+        if on:
+            self.note("🎤 Karaoke açık: şarkıcının sesi kısıldı, sözler ekranda (kulaklık ya da iki hoparlörle en "
+                      "iyisi). Kapatmak için ⚙ → Karaoke", 12)
+            self.open_visualizer(lyrics_on=True)
+        else:
+            self.note("🎤 Karaoke kapandı", 5)
+        return True
 
     def open_eq(self):
         from .eq_ui import EqualizerWindow

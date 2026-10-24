@@ -37,6 +37,16 @@ collect_ignore_glob = [] if sys.platform.startswith("win") else ["test_setup_*.p
 
 # ------------------------------------------------------------------------- isolation
 @pytest.fixture(autouse=True)
+def same_look():
+    """A test that changes the look (style, accent colour) does not leave it to the next ones."""
+    from app import look
+    before = (look.style_name(), look.accent_name())
+    yield
+    if (look.style_name(), look.accent_name()) != before:
+        look.apply(before[0], accent=before[1])
+
+
+@pytest.fixture(autouse=True)
 def isolated_home(tmp_path, monkeypatch):
     home = tmp_path / "home"
     (home / "AppData" / "Local").mkdir(parents=True)                          # like a real profile

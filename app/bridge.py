@@ -166,7 +166,8 @@ class Bridge:
                 urls = data.get("urls") if data else None
                 if not isinstance(urls, list):
                     return self._send(400, {"error": "urls required"})
-                urls = [u for u in urls[:MAX_URLS] if isinstance(u, str) and is_url(u)]
+                urls = [u for u in urls[:MAX_URLS] if isinstance(u, str)
+                        and (is_url(u) or u.lower().startswith("diso:liste?"))]          # (🔗 a shared playlist)
                 if not urls:
                     return self._send(400, {"error": "no valid http(s) link"})
                 self._send(200, bridge.api.add(urls, media_extra(data, {}), kind))

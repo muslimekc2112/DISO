@@ -11,6 +11,14 @@ from app import taskbar
 pytestmark = [pytest.mark.gui, pytest.mark.skipif(sys.platform != "win32", reason="Windows only")]
 
 
+def _has_taskbar():
+    """The thumbnail buttons live on the taskbar: a desktop of its own (tools/run_hidden.py) has none."""
+    return bool(sys.platform == "win32" and ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None))
+
+
+needs_taskbar = pytest.mark.skipif(not _has_taskbar(), reason="no taskbar on this desktop")
+
+
 @pytest.fixture
 def window():
     tk = pytest.importorskip("tkinter")
@@ -38,6 +46,7 @@ def test_the_icons_are_drawn(tmp_path):
             assert im.format == "ICO"
 
 
+@needs_taskbar
 def test_buttons_are_added_and_a_click_comes_through(window, tmp_path):
     bar = taskbar.ThumbBar()
     hwnd = frame(window)
@@ -60,6 +69,7 @@ def test_buttons_are_added_and_a_click_comes_through(window, tmp_path):
     assert bar.pressed.empty()                                  # detached: the window is its old self again
 
 
+@needs_taskbar
 def test_other_messages_still_reach_the_window(window, tmp_path):
     bar = taskbar.ThumbBar()
     assert bar.attach(frame(window), str(tmp_path))

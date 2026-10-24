@@ -9,28 +9,17 @@ from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
 # (icon, title, text, what "Dene" opens — see App.try_feature)
 WHATS_NEW = [
-    ("👤", "DISO hesabı", "Ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun: "
-     "e-postanla giriş yap, gerisini DISO eşitler.", "account"),
-    ("〰", "Dalga çubuğu", "İlerleme çubuğu şarkının ses dalgası oldu: tıkla, oraya atla. Şarkılar arasında boşluk da "
-     "kalmadı.", "visualizer_bar"),
-    ("📺", "Dizi modu", "Dizi sayfasındaki bölümleri eklenti bulur, sırayla açıp videolarını yakalar ve dizinin "
-     "klasörüne “Bölüm 01, 02 …” diye indirir.", "extension"),
-    ("✨", "Yumuşak geçişler", "Pencereler belirerek açılır, müzik çalara geçiş kararak olur, kapaklar birbirine "
-     "dönüşür. Ayarlar da anında açılıyor.", None),
-    ("🎞", "Her siteden video", "Tarayıcıda oynayan videoyu eklenti kendisi bulur, simgesinde kaç tane olduğu yazar. "
-     "Seç, kaliteyi ve altyazıyı belirle, indir; site desteklenmese bile.", "extension"),
-    ("🌌", "Yeni görselleştirici", "Halkanın ortasında şarkının kapağı ritimle atar, renkler kapaktan gelir; ⏮ ⏪ ⏯ ⏩ ⏭ "
-     "düğmeleri de orada.", "visualizer"),
-    ("⏩", "Çalma hızı ve ⏪5 / 5⏩", "0.25x'ten 4x'e hız, istersen perde. → / ← 5 saniye sarar, ↑ / ↓ sesi açar "
-     "ve kısar (basılı tutunca hızlanır).", "speed"),
-    ("⇅", "Listeyi sırala", "Kendi sıran, son eklenen başta ya da sonda, A → Z, Z → A, en popüler başta. Kendi sıran hep "
-     "saklı kalır.", "order"),
-    ("🎨", "Müziğin rengi", "Çaların bloğu, YouTube'daki ışık gibi, şarkının o anına göre kapağın renklerinde "
-     "parlar: bas, orta ve tiz her an rengi değiştirir.", None),
-    ("🛡", "Her indirmede Defender", "İnen her dosya (torrent klasörleri dahil) Windows Defender ile taranır; sonucu "
-     "indirmenin altında yazar.", "extras"),
-    ("🔔", "Bildirimler DISO'dan", "Bildirimler artık “Windows PowerShell” adıyla değil, DISO'nun adı ve simgesiyle gelir.",
-     None),
+    ("🎨", "Standart görünüm", "Modern renkler, düğmelerde renkli resimler. Ayarlar → Görünüm'de kendi vurgu rengini "
+     "seç: pembe, mavi, yeşil, turuncu, mor ya da kırmızı.", "look"),
+    ("👤", "DISO hesabı", "Ad, kullanıcı adı ve Gmail ile hesap aç; adın sağ üstte yazar. Ayarların, listelerin ve "
+     "geçmişin her bilgisayarında aynı; yeni bir bilgisayarda listelerin şarkıları tek tıkla iner.", "account"),
+    ("💻", "Bağlı bilgisayarlar", "Hesabına giriş yapmış bilgisayarları gör, istediğinden çıkış yaptır.", "devices"),
+    ("🔗", "Listeyi arkadaşına gönder", "Bir kod ya da link: arkadaşın açınca liste onda da oluşur, şarkılar MP3 "
+     "olarak iner.", "share"),
+    ("🎤", "Karaoke", "Şarkıcının sesi kısılır, sözler ekranda şarkıyla akar. Kulaklıkla en iyisi.", "karaoke"),
+    ("👋", "Yeni turlar", "İndirme penceresini ve müzik çaları adım adım anlatır; bazı adımları kendin denersin.",
+     "tour"),
+    ("⚡", "Hızlı Ayarlar", "Ayarlar anında açılıyor, kenarından genişletirken kasmıyor.", "settings"),
 ]
 
 # (icon, title, text, the attribute of the widget to outline or None). The download window's tour comes at the
@@ -98,6 +87,24 @@ MUSIC_TOUR = [
      "Turu Ayarlar → Yedek ve yardım'dan yeniden açarsın. Keyifli dinlemeler!", "menu_btn"),
 ]
 TOUR = DOWNLOAD_TOUR
+
+
+def _view_is_find(music, _start):
+    from .music_ui import VIEW_FIND
+    return music.view_switch.get() == VIEW_FIND
+
+
+# 👉 the steps you try yourself (by the part they point at): what to do, and how the tour sees it was done. The
+# tour then goes on by itself; "İleri" works all the same.
+TRY = {
+    "url_entry": ("Dene: yukarıdaki kutuya bir link yapıştır (Ctrl+V).", None,
+                  lambda app, _start: bool(app.url_entry.get().strip())),
+    "download_btn": ("Dene: ⬇ İndir'e bas.", lambda app: len(app.manager.items),
+                     lambda app, start: len(app.manager.items) > start),
+    "view_switch": ("Dene: “Şarkı bul”a tıkla.", None, _view_is_find),
+}
+TRY_EVERY = 250                # ms: how often the tour looks whether it was done
+TRY_DONE_WAIT = 1100           # ms: "✔ Harika!" stays this long before the next step
 GAP = 14                       # px between the tour window and the part it talks about
 TOUR_WIDTH = 470
 
@@ -165,10 +172,13 @@ class TourWindow(ctk.CTkToplevel):
         self.head.grid(row=2, column=0, padx=20, pady=(2, 2))
         self.text = ctk.CTkLabel(self, text="", wraplength=410, justify="center")
         self.text.grid(row=3, column=0, padx=24, pady=(2, 8))
+        self.try_label = ctk.CTkLabel(self, text="", text_color=look.ACCENT if look.is_new() else ("#1F6AA5", "#6CB6FF"),
+                                      font=ctk.CTkFont(weight="bold"), wraplength=410)
         self.dots = ctk.CTkLabel(self, text="", text_color="gray")
         self.dots.grid(row=4, column=0)
+        self._try_job = None
         foot = ctk.CTkFrame(self, fg_color="transparent")
-        foot.grid(row=5, column=0, pady=(10, 16))
+        foot.grid(row=6, column=0, pady=(10, 16))
         self.skip_btn = ctk.CTkButton(foot, text="Atla", width=80, fg_color="transparent", border_width=1,
                                       text_color=("gray20", "gray85"), command=self.finish)
         self.skip_btn.pack(side="left", padx=6)
@@ -193,6 +203,7 @@ class TourWindow(ctk.CTkToplevel):
         self.next_btn.configure(text="Başla 🚀" if self.step == len(self.steps) - 1 else "İleri ›")
         widget = getattr(self.owner, target, None) if target else None
         self._outline(widget)
+        self._start_try(target if widget is not None else None)
         self._fit()
         self._place_near(widget)
 
@@ -204,6 +215,40 @@ class TourWindow(ctk.CTkToplevel):
             self.geometry(f"{TOUR_WIDTH}x{int(tk.Toplevel.winfo_reqheight(self) / scale) + 4}")
         except (tk.TclError, ValueError, AttributeError):
             pass
+
+    def _start_try(self, target):
+        """A step you try yourself: "👉 Dene: …", then "✔ Harika!" and on to the next one when it was done."""
+        if self._try_job is not None:
+            self.after_cancel(self._try_job)
+            self._try_job = None
+        what = TRY.get(target)
+        if what is None:
+            self.try_label.grid_remove()
+            return
+        text, start, _done = what
+        self.try_label.configure(text="👉 " + text)
+        self.try_label.grid(row=4, column=0, pady=(0, 6))
+        self.dots.grid(row=5, column=0)
+        try:
+            self._try_start = start(self.owner) if start else None
+        except Exception:  # noqa: BLE001 - then it is only told, not watched
+            return
+        step = self.step
+        self._try_job = self.after(TRY_EVERY, lambda: self._watch_try(step, target))
+
+    def _watch_try(self, step, target):
+        self._try_job = None
+        if self.step != step or not self.winfo_exists():
+            return
+        try:
+            done = TRY[target][2](self.owner, self._try_start)
+        except Exception:  # noqa: BLE001 - not watched any more
+            return
+        if not done:
+            self._try_job = self.after(TRY_EVERY, lambda: self._watch_try(step, target))
+            return
+        self.try_label.configure(text="✔ Harika!")
+        self._try_job = self.after(TRY_DONE_WAIT, lambda: self.step == step and self.go(+1))
 
     def go(self, step):
         if self.step + step >= len(self.steps):
@@ -259,6 +304,12 @@ class TourWindow(ctk.CTkToplevel):
             pass
 
     def finish(self, finished=True):
+        if self._try_job is not None:
+            try:
+                self.after_cancel(self._try_job)
+            except tk.TclError:
+                pass
+            self._try_job = None
         self._outline(None)
         if self.on_done is not None:
             try:

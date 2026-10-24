@@ -12,7 +12,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from . import account, look
+from . import account, look, sharing
 from .logs import log
 from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
@@ -123,7 +123,7 @@ class AccountWindow(ctk.CTkToplevel):
         page = page or self.default_page()
         if page in ("signin", "signup") and (account.signed_in() or account.waiting()):
             page = self.default_page()
-        if page in ("account", "first") and not account.signed_in():
+        if page in ("account", "first", "devices") and not account.signed_in():
             page = self.default_page()
         if page == "verify" and not account.waiting():
             page = self.default_page()
@@ -306,11 +306,27 @@ class AccountWindow(ctk.CTkToplevel):
         self.songs_btn.grid(row=6, column=0, pady=3)
         if not away:
             self.songs_btn.configure(state="disabled")
+        self.devices_btn = self._plain(box, "💻 Bağlı bilgisayarlar", self.show_devices, width=260)
+        self.devices_btn.grid(row=7, column=0, pady=3)
         self.password_btn = self._plain(box, "🔑 Şifreyi değiştir", self.change_password, width=260)
-        self.password_btn.grid(row=7, column=0, pady=3)
+        self.password_btn.grid(row=8, column=0, pady=3)
         self.sign_out_btn = self._plain(box, "Çıkış yap", self.sign_out, width=260)
-        self.sign_out_btn.grid(row=8, column=0, pady=3)
-        self._status(box, 9)
+        self.sign_out_btn.grid(row=9, column=0, pady=3)
+        self._status(box, 10)
+
+    def _page_devices(self, box):
+        """💻 The computers signed in to the account; any other one can be signed out from here."""
+        self._title(box, "💻 Bağlı bilgisayarlar")
+        self._hint(box, "Hesabına giriş yapmış bilgisayarlar. Birinden çıkış yaptırırsan, o bilgisayardaki DISO "
+                        "hesabı bir sonraki açılışında (ya da birkaç dakika içinde) unutur.", 1)
+        self.device_rows = ctk.CTkFrame(box, fg_color="transparent")
+        self.device_rows.grid(row=2, column=0, sticky="ew")
+        self.device_rows.columnconfigure(0, weight=1)
+        ctk.CTkLabel(self.device_rows, text="Bekle…", text_color="gray").grid(row=0, column=0)
+        self.back_btn = self._plain(box, "‹ Hesabım", lambda: self.show("account"), width=140)
+        self.back_btn.grid(row=3, column=0, pady=(12, 0))
+        self._status(box, 4)
+        self.after(10, lambda: self._run(account.devices, self._show_devices))
 
     # ------------------------------------------------------------------ work off the window's thread
     def _say(self, text, color=None):
@@ -435,6 +451,41 @@ class AccountWindow(ctk.CTkToplevel):
         else:
             self._say("✔ Eşitlendi: her şey zaten aynı", OK_COLOR)
 
+    def show_devices(self):
+        self.show("devices")
+
+    def _show_devices(self, found):
+        for w in self.device_rows.winfo_children():
+            w.destroy()
+        self.device_buttons = {}
+        for i, d in enumerate(found):
+            row = ctk.CTkFrame(self.device_rows)
+            row.grid(row=i, column=0, sticky="ew", pady=3)
+            row.columnconfigure(0, weight=1)
+            name = d["name"] + ("  (bu bilgisayar)" if d["this"] else "")
+            ctk.CTkLabel(row, text="💻 " + name, anchor="w", font=ctk.CTkFont(weight="bold")).grid(
+                row=0, column=0, sticky="ew", padx=10, pady=(6, 0))
+            seen = f"Son görülme: {when(d['seen'])}" if d["seen"] else ""
+            ctk.CTkLabel(row, text=" · ".join(x for x in (seen, "DISO " + d["version"] if d["version"] else "") if x),
+                         anchor="w", text_color="gray", font=ctk.CTkFont(size=11)).grid(
+                row=1, column=0, sticky="ew", padx=10, pady=(0, 6))
+            if not d["this"]:
+                b = ctk.CTkButton(row, text="Çıkış yaptır", width=110, fg_color="transparent", border_width=1,
+                                  text_color=("gray20", "gray85"), command=lambda d=d: self.sign_out_device(d))
+                b.grid(row=0, column=1, rowspan=2, padx=10)
+                self.device_buttons[d["id"]] = b
+        if not found:
+            ctk.CTkLabel(self.device_rows, text="Henüz bir bilgisayar yok.", text_color="gray").grid(row=0, column=0)
+        self._fit()
+
+    def sign_out_device(self, d):
+        if not messagebox.askyesno("DISO", f"“{d['name']}” bilgisayarı hesabından çıkarılsın mı?\n\nOradaki "
+                                           "ayarlar ve listeler olduğu gibi kalır, yalnız artık eşitlenmez.",
+                                   parent=self):
+            return
+        self._run(lambda: (account.sign_out_device(d["id"]), account.devices())[1], lambda found: (
+            self._show_devices(found), self._say(f"“{d['name']}” çıkarıldı.", OK_COLOR)))
+
     def download_songs(self):
         n = self.app.download_away_songs()
         if n:
@@ -449,9 +500,7 @@ class AccountWindow(ctk.CTkToplevel):
         if not messagebox.askyesno("DISO", "Hesaptan çıkılsın mı?\n\nBu bilgisayardaki ayarların ve listelerin "
                                            "olduğu gibi kalır, yalnız artık eşitlenmez.", parent=self):
             return
-        account.sign_out()
-        self.app.account_changed()
-        self.show("signin")
+        self._run(account.leave, lambda _: self.show("signin"))
 
     def reset(self):
         address = self.email_entry.get().strip()
@@ -461,3 +510,152 @@ class AccountWindow(ctk.CTkToplevel):
         self._run(lambda: account.reset_password(address),
                   lambda _: self._say(f"Şifre yenileme bağlantısı {address} adresine gönderildi. E-postanı kontrol "
                                       "et (gereksiz klasörüne de bak).", OK_COLOR))
+
+
+class _Small(ctk.CTkToplevel):
+    """A small window that does its internet work on a worker thread (like AccountWindow)."""
+
+    def __init__(self, app, title):
+        super().__init__(app)
+        set_window_icon(self)
+        self.app, self.busy = app, False
+        self.title(f"DISO • {title}")
+        self.geometry("440x330")
+        self.resizable(False, False)
+        self.columnconfigure(0, weight=1)
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def run(self, work, then, failed=None):
+        if self.busy:
+            return
+        self.busy = True
+
+        def job():
+            try:
+                result, error = work(), None
+            except account.AccountError as e:
+                result, error = None, e
+            except Exception:  # noqa: BLE001 - shown in the window, the details go to the log
+                log.exception("sharing failed")
+                result, error = None, account.AccountError("Beklenmedik bir hata oldu. Ayrıntısı günlükte.")
+            self.app._ui_calls.put(lambda: self._finish(then, failed, result, error))
+        threading.Thread(target=job, daemon=True, name="sharing").start()
+
+    def _finish(self, then, failed, result, error):
+        self.busy = False
+        try:
+            if not self.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        if error is not None:
+            (failed or (lambda e: None))(error)
+        else:
+            then(result)
+
+
+class ShareWindow(_Small):
+    """🔗 Sending a playlist: its songs are looked up, kept in the account, and the code / link is shown to copy."""
+
+    def __init__(self, app, name, tracks):
+        super().__init__(app, "Listeyi gönder")
+        self.name = name
+        ctk.CTkLabel(self, text=f"🔗 “{name}”", font=ctk.CTkFont(size=20, weight="bold"), wraplength=400).grid(
+            row=0, column=0, pady=(18, 4))
+        self.status = ctk.CTkLabel(self, text=f"{len(tracks)} şarkının linkleri bulunuyor… (biraz sürebilir)",
+                                   text_color="gray", wraplength=400)
+        self.status.grid(row=1, column=0, padx=20)
+        self.code_label = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=34, weight="bold"),
+                                       text_color=look.ACCENT if look.is_new() else ("#1F6AA5", "#6CB6FF"))
+        self.code_label.grid(row=2, column=0, pady=(14, 2))
+        self.link_label = ctk.CTkLabel(self, text="", text_color="gray")
+        self.link_label.grid(row=3, column=0)
+        self.hint = ctk.CTkLabel(self, text="", wraplength=400, justify="center", font=ctk.CTkFont(size=12))
+        self.hint.grid(row=4, column=0, padx=20, pady=(8, 4))
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.grid(row=5, column=0, pady=(8, 16))
+        self.copy_code_btn = ctk.CTkButton(row, text="📋 Kodu kopyala", width=130, state="disabled",
+                                           command=lambda: self.copy(sharing.pretty(self.code)))
+        self.copy_code_btn.pack(side="left", padx=4)
+        self.copy_link_btn = ctk.CTkButton(row, text="📋 Linki kopyala", width=130, state="disabled",
+                                           command=lambda: self.copy(sharing.link(self.code)))
+        self.copy_link_btn.pack(side="left", padx=4)
+        ctk.CTkButton(row, text="Kapat", width=80, fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=self.destroy).pack(side="left", padx=4)
+        self.code = None
+        self.run(lambda: sharing.share(name, app.song_links(tracks)), self.shared, self.failed)
+
+    def shared(self, code):
+        self.code = code
+        self.status.configure(text="Hazır! Bu kodu ya da linki arkadaşına gönder:")
+        self.code_label.configure(text=sharing.pretty(code))
+        self.link_label.configure(text=sharing.link(code))
+        self.hint.configure(text="Arkadaşın DISO'da müzik çaların ⚙ menüsünden “Paylaşılan listeyi aç”a kodu yazar "
+                                 "ya da linke tıklar; liste onda da oluşur, şarkılar MP3 olarak iner.")
+        self.copy_code_btn.configure(state="normal")
+        self.copy_link_btn.configure(state="normal")
+
+    def failed(self, error):
+        self.status.configure(text=str(error), text_color=ERROR_COLOR)
+
+    def copy(self, text):
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.hint.configure(text=f"📋 Kopyalandı: {text}", text_color=OK_COLOR)
+
+
+class OpenSharedWindow(_Small):
+    """📥 A friend's playlist: the code typed (or come with a link), what it holds shown, then made here."""
+
+    def __init__(self, app):
+        super().__init__(app, "Paylaşılan liste")
+        ctk.CTkLabel(self, text="📥 Paylaşılan liste", font=ctk.CTkFont(size=20, weight="bold")).grid(
+            row=0, column=0, pady=(18, 4))
+        ctk.CTkLabel(self, text="Arkadaşının gönderdiği kodu yaz (ör. K7P2-QM4X).", text_color="gray").grid(
+            row=1, column=0)
+        self.code_entry = ctk.CTkEntry(self, width=200, justify="center", font=ctk.CTkFont(size=18, weight="bold"))
+        self.code_entry.grid(row=2, column=0, pady=(10, 4))
+        self.code_entry.bind("<Return>", lambda e: self.look_up())
+        self.info = ctk.CTkLabel(self, text="", wraplength=400, justify="center")
+        self.info.grid(row=3, column=0, padx=20, pady=(6, 4))
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.grid(row=4, column=0, pady=(8, 16))
+        self.look_btn = ctk.CTkButton(row, text="🔍 Listeyi bul", width=130, command=self.look_up)
+        self.look_btn.pack(side="left", padx=4)
+        self.take_btn = ctk.CTkButton(row, text="⬇ Ekle ve indir", width=140, state="disabled", command=self.take)
+        self.take_btn.pack(side="left", padx=4)
+        ctk.CTkButton(row, text="Kapat", width=80, fg_color="transparent", border_width=1,
+                      text_color=("gray20", "gray85"), command=self.destroy).pack(side="left", padx=4)
+        self.shared = None
+        self.after(80, lambda: self.code_entry.winfo_exists() and self.code_entry.focus_set())
+
+    def open_code(self, code):
+        self.code_entry.delete(0, "end")
+        self.code_entry.insert(0, sharing.pretty(code))
+        self.look_up()
+
+    def look_up(self):
+        code = sharing.clean_code(self.code_entry.get())
+        if not code:
+            self.info.configure(text="Bu bir liste koduna benzemiyor (8 harf ve rakam).", text_color=ERROR_COLOR)
+            return
+        self.info.configure(text="Bekle…", text_color=("gray20", "gray85"))
+        self.take_btn.configure(state="disabled")
+        self.run(lambda: sharing.fetch(code), self.found,
+                 lambda e: self.info.configure(text=str(e), text_color=ERROR_COLOR))
+
+    def found(self, shared):
+        self.shared = shared
+        n = len(shared["songs"])
+        if shared["by"]:
+            text = f"“{shared['name']}” · {shared['by']} paylaştı\n{n} şarkı. Listeyi ekleyip şarkıları MP3 olarak indireyim mi?"
+        else:
+            text = f"“{shared['name']}”\n{n} şarkı. Listeyi ekleyip şarkıları MP3 olarak indireyim mi?"
+        self.info.configure(text=text, text_color=("gray20", "gray85"))
+        self.take_btn.configure(state="normal" if shared["songs"] else "disabled")
+
+    def take(self):
+        if self.shared:
+            self.app.take_shared(self.shared)
+            self.destroy()
+

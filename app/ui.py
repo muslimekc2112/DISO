@@ -1491,6 +1491,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self._spare_job = None
         self.account_window = None               # 👤 the DISO account
         self.account_offer = None
+        self.share_window = None                 # 🔗 a playlist being sent
+        self.open_shared_window = None           # 📥 a friend's playlist being opened
         self.account_buttons = []                # the account at the top right (refreshed by account_changed)
         if links:                                # 🧲 started with a .torrent / magnet: link
             self.after(800, lambda: self.add_urls(list(links)))
@@ -1531,6 +1533,8 @@ class App(NostalgiaWindow, ctk.CTk):
         if not minimized:
             self.after(EXTENSION_OFFER_DELAY, self._maybe_offer_extension)
             self.after(ACCOUNT_OFFER_DELAY, self._maybe_offer_account)
+        if account.take_removed():               # 👤 signed out from another computer while DISO was closed
+            self.after(1500, lambda: self.notice("👤 " + account.MESSAGES["REMOVED"], 15))
         if account.take_redownload():            # 👤 the lists came from the account: their songs come now
             self.after(ACCOUNT_SONGS_DELAY, self.download_away_songs)
         if not os.environ.get("PYTEST_CURRENT_TEST"):
@@ -2014,6 +2018,63 @@ class App(NostalgiaWindow, ctk.CTk):
             self.music.reload()
         self._find_song_lyrics(items)
 
+    # ---- 🔗 a playlist sent to a friend / opened from a friend
+    def song_links(self, tracks):
+        """[{"title", "artist", "url"}] for these songs: their link from the download history (or list), else the
+        song looked up on YouTube Music by artist and title. Runs on a worker thread (the internet)."""
+        links = {os.path.basename(e["path"]).lower(): e["url"] for e in list(self.history.entries)
+                 if e.get("path") and e.get("url")}
+        links.update({os.path.basename(it.final_path).lower(): it.url for it in list(self.manager.items)
+                      if it.final_path and it.url})
+        out = []
+        for t in tracks:
+            artist, title = player.artist_and_title(t)
+            url = links.get(os.path.basename(t["path"]).lower(), "")
+            if not url:
+                try:
+                    found = music_search.search(title, artist, limit=1)
+                except Exception as e:  # noqa: BLE001 - that one is left out
+                    log.info("shared song not found (%s): %s", title, e)
+                    found = []
+                url = found[0]["url"] if found else ""
+            if url:
+                out.append({"title": title, "artist": artist, "url": url})
+        return out
+
+    def share_list(self, name):
+        """🔗 Send a playlist: its songs' links go into the account under a code; a friend opens it with that."""
+        from .account_ui import ShareWindow
+        if not account.signed_in():
+            self.notice("🔗 Liste paylaşmak için önce DISO hesabına giriş yap", 10)
+            self.open_account("signin")
+            return None
+        tracks = list(self._store().tracks(name))
+        if not tracks:
+            self.notice("Bu liste boş: paylaşılacak şarkı yok", 8)
+            return None
+        return self._single("share_window", lambda: ShareWindow(self, name, tracks))
+
+    def open_shared(self, link=None):
+        """📥 A friend's playlist, by its code (asked for when not given): made here, its songs downloaded."""
+        from . import sharing
+        from .account_ui import OpenSharedWindow
+        code = sharing.clean_code(link) if link else None
+        win = self._single("open_shared_window", lambda: OpenSharedWindow(self))
+        if code:
+            win.open_code(code)
+        return win
+
+    def take_shared(self, shared):
+        """The friend's list comes in: a list with its name, its songs downloaded into it in order."""
+        if self.mode != MODE_MUSIC:
+            self._switch_mode(MODE_MUSIC)
+        added, name = self.download_playlist([{"url": s["url"], "title": s.get("title", "")} for s in shared["songs"]],
+                                             shared["name"])
+        if self.music is not None:
+            self.music.show_list(name)
+            self.music.note(f"📥 “{name}”: {added} şarkı indiriliyor", 10)
+        return added, name
+
     def account_changed(self):
         """Signed in / out or synced: the button at the top right and the line in the settings say so."""
         for btn in [*self.account_buttons, getattr(self.music, "account_btn", None)]:
@@ -2057,6 +2118,9 @@ class App(NostalgiaWindow, ctk.CTk):
                 if e.code in account.SESSION_GONE:
                     self._ui_calls.put(lambda: (self.account_changed(), self.notice(
                         "👤 Hesap oturumunun süresi doldu: Ayarlar → Hesap'tan yeniden giriş yap", 12)))
+                elif e.code == "REMOVED":
+                    account.take_removed()
+                    self._ui_calls.put(lambda: (self.account_changed(), self.notice("👤 " + str(e), 15)))
             except Exception:  # noqa: BLE001 - never more than a line in the log
                 log.exception("account sync failed")
             else:
@@ -2236,6 +2300,9 @@ class App(NostalgiaWindow, ctk.CTk):
         (unless that is switched off in the settings). With 'Oynatma listesi' ticked the link is
         opened as a playlist first (see _playlist_ready). `kind` ("video", "audio" ...) overrides
         what is chosen in the window."""
+        from . import sharing
+        for link in [u for u in urls if sharing.is_link(u)]:             # 🔗 a shared playlist: it is opened
+            self.open_shared(link)
         s = self._settings()
         if kind:
             s.kind = kind
@@ -2566,6 +2633,20 @@ class App(NostalgiaWindow, ctk.CTk):
             return self._open_settings("Ekstralar")
         if action == "account":
             return self.open_account()
+        if action == "devices":
+            return self.open_account("devices")
+        if action == "look":
+            return self._open_settings("Sistem")
+        if action == "settings":
+            return self._open_settings()
+        if action == "tour":
+            return self.open_tour()
+        if action in ("share", "karaoke"):                  # 🔗 / 🎤 in the music player
+            if self.mode != MODE_MUSIC:
+                self._switch_mode(MODE_MUSIC)
+            if self.music is None:
+                return None
+            return self.share_list(self.music.viewed) if action == "share" else self.music.set_karaoke(True)
         return None
 
     def _open_settings(self, tab=None):

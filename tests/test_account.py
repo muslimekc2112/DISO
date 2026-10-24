@@ -18,6 +18,8 @@ class FakeFirebase:
         self.docs = {}           # uid -> {doc id: fields}
         self.profiles = {}       # uid -> fields
         self.usernames = {}      # name -> uid
+        self.devices = {}        # uid -> {device id: fields}
+        self.shared = {}         # code -> fields
         self.mails = []          # (kind, e-mail)
         self.refused_refresh = None
         self.offline = False
@@ -86,7 +88,18 @@ class FakeFirebase:
             return {"id_token": self._token(uid), "refresh_token": data["refresh_token"], "expires_in": "3600"}
         assert url.startswith(account.STORE_URL)
         path = url[len(account.STORE_URL):].strip("/").split("/")
-        uid, verified = self.tokens.get(headers.get("Authorization", "")[len("Bearer "):], (None, False))
+        uid, verified = self.tokens.get((headers or {}).get("Authorization", "")[len("Bearer "):], (None, False))
+        if path[0] == "shared":                                    # 🔗 shared lists: anyone reads, the owner makes
+            if method == "GET":
+                if path[1] not in self.shared:
+                    self._refuse("NOT_FOUND", 404, sentence=True)
+                return {"fields": self.shared[path[1]]}
+            if not verified or json["fields"]["owner"]["stringValue"] != uid:
+                self._refuse("PERMISSION_DENIED", 403, sentence=True)
+            if params["documentId"] in self.shared:
+                self._refuse("ALREADY_EXISTS", 409, sentence=True)
+            self.shared[params["documentId"]] = json["fields"]
+            return {}
         if path == ["usernames"]:                                  # create usernames/<documentId>
             if uid is None or json["fields"]["uid"]["stringValue"] != uid:
                 self._refuse("PERMISSION_DENIED", 403, sentence=True)
@@ -96,6 +109,23 @@ class FakeFirebase:
             return {}
         if path[1] != uid or not verified:                         # the rules
             self._refuse("PERMISSION_DENIED", 403, sentence=True)
+        if path[2] == "devices":
+            devices = self.devices.setdefault(uid, {})
+            if len(path) == 3:
+                return {"documents": [{"name": f"users/{uid}/devices/{d}", "fields": f}
+                                      for d, f in devices.items()]} if devices else {}
+            if method == "GET":
+                if path[3] not in devices:
+                    self._refuse("NOT_FOUND", 404, sentence=True)
+                return {"fields": devices[path[3]]}
+            if method == "DELETE":
+                devices.pop(path[3], None)
+                return {}
+            mask = [v for k, v in (params or []) if k == "updateMask.fieldPaths"]
+            doc = devices.setdefault(path[3], {}) if mask else {}
+            doc.update({k: v for k, v in json["fields"].items() if not mask or k in mask})
+            devices[path[3]] = doc
+            return {}
         if path[2] == "info":
             if method == "GET":
                 if uid not in self.profiles:
@@ -422,3 +452,98 @@ def test_the_offer_at_start_until_dont_show_again(app):
     app._maybe_offer_account()
     assert app.account_offer is None
     app.withdraw()
+
+
+# ------------------------------------------------------------------------------ 💻 the computers of the account
+def test_each_computer_is_listed_and_can_be_signed_out_from_another(cloud, monkeypatch, tmp_path):
+    ready(cloud)
+    me = account.device_id()
+    assert account.device_id() == me                                    # the same computer stays the same
+    assert [d["this"] for d in account.devices()] == [True]
+    other = "laptop-123"                                                # another computer of the account
+    cloud.devices["u1"][other] = {"name": {"stringValue": "LAPTOP"}, "seen": {"doubleValue": 1.0}}
+    found = account.devices()
+    assert [d["name"] for d in found][1:] == ["LAPTOP"] and found[0]["this"]
+    account.sign_out_device(other)
+    assert [d["id"] for d in account.devices()] == [me]                  # signed out: not listed any more
+    # and this computer, signed out from elsewhere, forgets the account at its next sync
+    cloud.devices["u1"][me]["signed_out"] = {"booleanValue": True}
+    with pytest.raises(account.AccountError, match="başka bir bilgisayardan çıkarıldı") as e:
+        account.sync("up", folder=str(tmp_path))
+    assert e.value.code == "REMOVED" and not account.signed_in() and account.take_removed()
+    assert not account.take_removed()                                   # said once
+    account.sign_in("ali@gmail.com", "gizli123")                         # signing in again: listed again
+    assert account.signed_in() and [d["id"] for d in account.devices()] == [me]
+    assert account.sync("up", folder=str(tmp_path)) is not None          # a sync keeps the mark as it is
+
+
+def test_signing_out_here_takes_this_computer_off_the_list(cloud):
+    ready(cloud)
+    assert account.device_id() in cloud.devices["u1"]
+    account.leave()
+    assert not account.signed_in() and cloud.devices["u1"] == {}
+
+
+# ------------------------------------------------------------------------------ 🔗 a playlist sent to a friend
+def test_a_code_is_read_however_it_is_written():
+    from app import sharing
+    assert sharing.clean_code("k7p2-qm4x") == sharing.clean_code(" K7P2 QM4X ") == "K7P2QM4X"
+    assert sharing.clean_code("diso:liste?K7P2-QM4X") == "K7P2QM4X" and sharing.is_link("diso:liste?K7P2-QM4X")
+    assert sharing.clean_code("K7P2-QM40") is None                       # 0 is never in a code (O / 0)
+    assert sharing.clean_code("abc") is None and sharing.clean_code("") is None
+    code = sharing.new_code()
+    assert len(code) == 8 and sharing.clean_code(sharing.link(code)) == code
+
+
+def test_a_list_is_shared_by_its_owner_and_opened_by_anyone(cloud, monkeypatch):
+    from app import sharing
+    songs = [{"title": "Firuze", "artist": "Sezen Aksu", "url": "https://youtube.com/watch?v=1"},
+             {"title": "bulunamadı", "artist": "", "url": ""}]
+    with pytest.raises(account.AccountError, match="giriş yapılmamış"):
+        sharing.share("Gece", songs)                                     # sending needs an account
+    ready(cloud)
+    codes = iter(["AAAA2222", "AAAA2222", "BBBB3333"])
+    monkeypatch.setattr(sharing, "new_code", lambda: next(codes))
+    assert sharing.share("Gece", songs) == "AAAA2222"
+    assert sharing.share("Sabah", songs) == "BBBB3333"                   # a taken code: another one
+    account.sign_out()                                                   # opening needs no account
+    got = sharing.fetch("AAAA2222")
+    assert got["name"] == "Gece" and got["by"] == "Ali Yılmaz" and [s["title"] for s in got["songs"]] == ["Firuze"]
+    with pytest.raises(account.AccountError, match="Bu kodla paylaşılmış bir liste yok"):
+        sharing.fetch("ZZZZ9999")
+
+
+def test_a_shared_link_opens_the_list_window_and_its_songs_come(app, cloud, monkeypatch):
+    from app import associations, sharing
+    assert associations.links_from_argv(["diso:liste?AAAA-2222"]) == ["diso:liste?AAAA-2222"]
+    cloud.shared["AAAA2222"] = {"name": {"stringValue": "Gece"}, "by": {"stringValue": "Ali"},
+                                "songs": {"stringValue": json.dumps([{"title": "Firuze", "url": "https://y/1"}])}}
+    taken = []
+    monkeypatch.setattr(app, "download_playlist", lambda results, title: taken.append((results, title)) or (1, title))
+    monkeypatch.setattr(app, "_switch_mode", lambda mode: None)
+    app.add_urls(["diso:liste?AAAA-2222"])                               # (as a click on the link brings it)
+    win = app.open_shared_window
+    run_until(app, lambda: win.shared is not None)
+    assert "Gece" in win.info.cget("text") and win.take_btn.cget("state") == "normal"
+    win.take()
+    assert taken == [([{"url": "https://y/1", "title": "Firuze"}], "Gece")] and not win.winfo_exists()
+
+
+def test_sending_a_list_finds_its_songs_links(app, cloud, monkeypatch, tmp_path):
+    from app import music_search
+    ready(cloud)
+    song = tmp_path / "Sezen Aksu - Firuze.mp3"
+    song.write_bytes(b"x")
+    other = tmp_path / "Tarkan - Kuzu Kuzu.mp3"
+    other.write_bytes(b"x")
+    app.history.entries.append({"path": str(song), "url": "https://youtube.com/watch?v=firuze"})
+    monkeypatch.setattr(music_search, "search", lambda title, artist="", limit=0: [{"url": "https://y/kuzu"}])
+    name = app.new_music_list("Gece")
+    app._store().add(name, [str(song), str(other)])
+    win = app.share_list(name)
+    run_until(app, lambda: win.code is not None)
+    shared = list(cloud.shared.values())[0]
+    urls = [s["url"] for s in json.loads(shared["songs"]["stringValue"])]
+    assert urls == ["https://youtube.com/watch?v=firuze", "https://y/kuzu"]
+    assert win.code_label.cget("text") == win.code[:4] + "-" + win.code[4:]
+    win.destroy()

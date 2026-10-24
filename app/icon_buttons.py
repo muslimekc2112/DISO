@@ -22,7 +22,7 @@ PICTURES = {
 # only with words after them: on their own they are the player's keys
 WITH_WORDS = {"▶": "start_all", "⏸": "pause_all"}
 SMALL, BIG = 18, 24            # picture sizes: a normal button, a tall one (44 px and more)
-_images = {}
+_images = {}                   # (only when there is no window at all yet)
 _installed = False
 active = False                 # the look in use is "Standart" (set by look.apply)
 
@@ -40,15 +40,21 @@ def split(text):
 
 
 def picture(name, size, master=None):
-    """The picture as a CTkImage. One per Tk interpreter: a CTkImage keeps the Tk images it made, and those belong
-    to the interpreter that was running then (a second one would find "pyimage12 does not exist")."""
+    """The picture as a CTkImage. Kept on the window's root: a CTkImage keeps the Tk images it made, and those
+    belong to that root's interpreter. (Kept by the interpreter's id() it went wrong: after one was gone, a new one
+    could get the same id and was handed images that no longer existed: a crash.)"""
     import tkinter
     root = master if master is not None else tkinter._default_root
-    key = (id(root.tk) if root is not None else 0, name, size)
-    if key not in _images:
+    try:
+        root = root._root() if root is not None else None
+    except AttributeError:
+        root = None
+    cache = root.__dict__.setdefault("_diso_pictures", {}) if root is not None else _images
+    key = (name, size)
+    if key not in cache:
         img = classic_icons.image(name, size * 2)          # drawn twice as big: sharp on a scaled screen
-        _images[key] = ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
-    return _images[key]
+        cache[key] = ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
+    return cache[key]
 
 
 def _size(widget, height=None):

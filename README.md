@@ -46,7 +46,7 @@ Paste a link and leave the rest to DISO: **files** split into parts over many co
 | 🎵 **Music player** | Playlists, gapless playback, a wave progress bar, lyrics that scroll with the song, an 8-band equalizer, playing speed and pitch, a visualizer, a mini player. |
 | 🔍 **Find songs** | Search YouTube Music inside DISO, preview 30 seconds and download as MP3 straight into a playlist. |
 | 🛡 **Safe** | Every finished download is scanned by Windows Defender. Updates are checked with SHA-256. Nothing is downloaded without you asking. |
-| 🕹 **Your look** | New, Classic or **Nostalgia** (the grey download managers of the 2000s), dark or light, English or Turkish. |
+| 🕹 **Your look** | **Standard** (recommended: modern, with colourful pictures on the buttons), New, Classic or **Nostalgia** (the grey download managers of the 2000s); an accent colour of your own, dark or light, English or Turkish. |
 
 ## 📥 Installing
 
@@ -122,6 +122,8 @@ The **Download mode | Music player mode** switch at the bottom of the window ope
 
 ### Looks
 - **🎨 The colour of the music:** the player's block glows in the cover's colours with every moment of the song, like YouTube's ambient light (can be turned off in the ⚙ menu).
+- **🎤 Karaoke** (⚙ menu): the singer's voice goes down (the bass stays) and the lyrics flow on the visualizer. Best with headphones or two speakers.
+- **🔗 Send a list to a friend** (⚙ menu): you get a code like `K7P2-QM4X` and a link; your friend opens it with **📥 Open a shared list** and the songs download as MP3.
 - **🌌 Visualizer:** bars, wave or ring. In the ring the cover beats in the middle; the colours can come from the cover. ⏮ ⏪5 ⏯ 5⏩ ⏭ at the bottom, **F11** for full screen.
 - The playing song's **cover art** and album show in the player, and the cover melts into the next one when the song changes.
 
@@ -175,8 +177,9 @@ For **Chrome, Edge, Brave, Opera, Vivaldi** and Firefox, like IDM's.
 
 - **Downloads:** how many at the same time (1–8), a total **speed limit**, automatic retries, a **proxy** (http / socks5, with a **Test** button), the scheduler, and what to do **when all downloads finish** (close DISO / sleep / shut down the PC).
 - **System:** keep running when closed (system tray), start with Windows, notifications, the log file.
-- **Look:** theme (dark / light / system) and style: **New**, **Classic** or **🕹 Nostalgia** (a menu bar, a toolbar of big pictures, categories on the left and a table, like the download managers of the 2000s, in light or dark grey). DISO opens again at the same place after a change.
-- **👤 Account:** sign in to a DISO account (optional) and the settings, playlists, channels and history are synced between your computers.
+- **Look:** theme (dark / light / system), **accent colour** (pink, blue, green, orange, purple, red) and style: **Standard (Recommended)** (the first look of a new computer: New's colours with Nostalgia's colourful pictures), **New**, **Classic** or **🕹 Nostalgia** (a menu bar, a toolbar of big pictures, categories on the left and a table, like the download managers of the 2000s, in light or dark grey). DISO opens again at the same place after a change.
+- **👤 Account:** create one (name, user name, Gmail confirmed by a link) or sign in, optional; your name is at the top right. The settings, playlists, channels and history are synced between your computers; on a new computer the lists' songs can be downloaded with one click. **💻 Signed-in computers** lists them all and signs any of them out.
+- **👋 Tours:** a step-by-step tour of the download window (first start) and of the music player (the first time it opens), some steps tried by hand; open them again in Settings → Backup and help.
 - **💾 Backup and help:** back up settings, playlists, the download list, history and channels in one `.disoyedek` file and restore it on another PC; **📊 Download history**; **⌨ Keyboard shortcuts** (**F1** everywhere); the health check and problem reports.
 - **ℹ About** (or click the version badge in the title): the version and where DISO and its data are. **📋 Copy details** copies the versions of DISO, Windows, yt-dlp, FFmpeg and Deno.
 
@@ -186,11 +189,14 @@ Everything you choose is remembered.
 DISO, its setup and its browser extension speak **English and Turkish**. On the first start DISO is in Turkish if Windows is, and in English otherwise. Switch at any time with **TR | EN** at the top left, or Settings → **Language** (DISO restarts). The setup and uninstall windows have a **Türkçe | English** switch too; the browser extension follows the browser's language.
 
 ## 🆕 What's new
-The newest version is always on the [releases page](https://github.com/muslimekc2112/DISO/releases/latest); every change is in [`CHANGELOG.md`](CHANGELOG.md). The highlights of 1.4:
-- **👤 DISO account** (Settings → Account, optional): sign in with an e-mail and a password, and your settings, playlists, followed channels and download history stay the same on every computer. Settings of one computer (folders, USB, port, starting with Windows), songs and videos do not travel.
-- **💾 Backups** now include the followed channels too.
+The newest version is always on the [releases page](https://github.com/muslimekc2112/DISO/releases/latest); every change is in [`CHANGELOG.md`](CHANGELOG.md). The highlights of 1.5:
+- **🎨 Standard (Recommended):** a new first look, modern with colourful pictures on the buttons, and an **accent colour** of your own.
+- **👤 DISO account, finished:** create an account (name, unique user name, Gmail confirmed by a link) or sign in; your name at the top right; **💻 signed-in computers**; on a new computer the data and the lists' songs come along.
+- **🔗 Send a playlist to a friend** with a code, and **🎤 karaoke**.
+- **👋 Tours** of the download window and the music player, with steps you try yourself.
+- **⚡ Settings** open at once and resize smoothly.
 
-Before that, in the 1.3 line: a **〰 wave progress bar**, **⏭ no gap between songs**, a **😴 sleep timer that fades out**, **📺 series mode** in the browser extension, **🎨 the colour of the music**, **✨ soft transitions** and a **⚡ faster** start.
+1.4 brought the DISO account (settings, playlists, channels and history synced). Before that, in the 1.3 line: a **〰 wave progress bar**, **⏭ no gap between songs**, a **😴 sleep timer that fades out**, **📺 series mode** in the browser extension, **🎨 the colour of the music**, **✨ soft transitions** and a **⚡ faster** start.
 
 ## 🛠 Troubleshooting and questions
 - **Windows says "unknown publisher".** The package is not digitally signed. Press **More info → Run anyway**.
@@ -220,6 +226,7 @@ The name, publisher, version and GitHub address are in one place: `app/brand.py`
 `run_tests.bat` (or `python -m pytest`) runs every test, with no internet needed: the tests imitate servers without Range support, servers that drop or limit connections, a proxy and PyPI on a local server. The extension's logic is tested with `node`. The English interface and setup are really opened, and the tests check that no Turkish text is left on screen. Tests that need FFmpeg, a display, node or aria2 are skipped when those are missing. The setup tests (`-m installer`) run the real `DISO-Setup` in a temporary place and never touch your Start menu or registry.
 - Only the quick tests: `python -m pytest -m "not gui and not ffmpeg and not exe and not installer"`
 - One file: `python -m pytest tests/test_downloader.py`
+- Without windows popping up on your screen: `python tools/run_hidden.py -- python -m pytest tests` (the tests run on a desktop of their own; the few that need the taskbar are skipped there)
 - Check the installation without a window: `python main.py --selftest result.json`
 
 How DISO works inside, in detail: `HOW_IT_WAS_MADE.txt` (in Turkish: `NASIL_YAPILDI.txt`).
