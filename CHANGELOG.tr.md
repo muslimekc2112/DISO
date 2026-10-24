@@ -3,6 +3,9 @@
 **[English](CHANGELOG.md) | Türkçe**
 
 ## 1.5
+- **🎨 Yeni görünüm: Standart (Önerilen).** DISO ilk kez açıldığında bu görünümle gelir. "Yeni"nin modern renkleri ve yuvarlak düzeni, "Nostalji"nin renkli, parlak simgeleriyle birleşti: düğmelerdeki tek renkli emojiler yerine renkli resimler (pano, dosya, mıknatıs, telefon, ayarlar, ekolayzır, hesap…). Düğmeler sakin, ana "⬇ İndir" vurgu renginde. Eski görünümler Ayarlar → Görünüm stili'nde duruyor; var olan kullanıcıların seçimi değişmez.
+- **👋 Yeni eğitim turları:** indirme penceresi için 13 adımlık tur ilk açılışta, müzik çalar için 12 adımlık tur müzik çalar ilk açıldığında gelir; ikisi hiç aynı anda açılmaz. Tur penceresi anlattığı yerin hemen yanına gelir ve orayı çerçeveler. Ayarlar → Yedek ve yardım → "Turu yeniden göster" ve müzik çaların ⚙ menüsünden yeniden açılır.
+- **👤 Nostalji'de de hesap:** araç çubuğunun sağ ucunda adın (ya da "Giriş yap").
 - **👤 Hesap aç ve Giriş yap ayrı ekranlar:** hesap açarken ad, soyad, kullanıcı adı (benzersiz), Gmail ve iki kez şifre istenir. Gmail'e bir doğrulama bağlantısı gider; hesap ancak bağlantıya tıklayıp "Doğruladım" deyince açılır ("Gmail'i aç", "Tekrar gönder", "Vazgeç" düğmeleri var).
 - **Sağ üstte hesap:** indirme penceresinde ve müzik çalarda sağ üstte adın yazar; giriş yapılmamışsa "👤 Giriş yap", doğrulama bekleniyorsa "👤 Doğrula". Hesap penceresinde baş harflerinle bir yuvarlak, ad, @kullanıcı adı, e-posta, son eşitleme, "Şifreyi değiştir" ve "Çıkış yap".
 - **Her açılışta "Bir DISO hesabı aç?"** sorusu (hesap yokken), "Bir daha gösterme"ye basana kadar.

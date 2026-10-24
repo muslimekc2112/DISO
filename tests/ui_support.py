@@ -2,6 +2,8 @@
 `make_app` / `app` fixtures (a real, hidden window with a private home folder) and helpers."""
 import gc
 
+import tkinter as tk
+
 import pytest
 
 from app import notify, updater
@@ -58,6 +60,7 @@ def make_app(monkeypatch, isolated_home):
     monkeypatch.setitem(config.DEFAULTS, "last_version", brand.VERSION_LABEL)  # not a first run: no welcome note in the way
     monkeypatch.setitem(config.DEFAULTS, "extension_ask", False)              # nor the "add the extension?" window
     monkeypatch.setitem(config.DEFAULTS, "account_ask", False)                # nor "make a DISO account?"
+    monkeypatch.setitem(config.DEFAULTS, "music_tour_done", True)            # nor the music player's tour
     monkeypatch.setattr(ui.tray, "TrayIcon", FakeTray)
     monkeypatch.setattr(ui.startup, "set_enabled", lambda on, *a, **k: notes["startup"].append(on) or True)
     monkeypatch.setattr(updater.Updater, "start", lambda self: None)          # no network
@@ -94,7 +97,9 @@ def make_app(monkeypatch, isolated_home):
     def make(minimized=False):
         try:
             app = ui.App(minimized=minimized)
-        except Exception as e:  # noqa: BLE001 - no display
+        except tk.TclError as e:
+            if "display" not in str(e).lower():
+                raise                            # a real error must fail the test, not hide as "no display"
             pytest.skip(f"no display: {e}")
         if not minimized:
             app.withdraw()

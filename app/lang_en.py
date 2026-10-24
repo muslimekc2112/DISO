@@ -11,6 +11,110 @@ PLAIN = {
     "yok (lazım olunca kendim indiririm)": "none (I'll download it when needed)",
     "yok (YouTube'un bazı biçimleri eksik gelebilir)": "none (some YouTube formats may be missing)",
     "sürüm okunamadı": "version unreadable", "Kurulu uygulama": "Installed app", "Kaynak koddan": "From source code",
+    # ---- 👋 the tours, 🎨 the Standart look
+    "Vurgu rengi": "Accent colour",
+    "Düğmelerin ve seçili şeylerin rengi; pencerenin tonu da ona uyar (Standart ve Yeni'de; değişince DISO yeniden "
+    "açılır)": "The colour of the buttons and of what is selected; the window's tint follows it (in Standard and "
+               "Yeni; DISO restarts when it changes)",
+    "Pembe": "Pink", "Mavi": "Blue", "Yeşil": "Green", "Turuncu": "Orange", "Kırmızı": "Red",
+    "DISO'ya hoş geldin!":
+        'Welcome to DISO!',
+    "Video, müzik, dosya, torrent… Hepsini buradan indirirsin; indirdiğin müzikleri de müzik çalarda dinlersin. Bu kısa tur indirme penceresini baştan sona gösterir. İstediğin an “Atla”ya basabilirsin; turu Ayarlar → Yedek ve yardım'dan yeniden açarsın.":
+        'Videos, music, files, torrents… You download all of it here, and listen to the music in the music player. This short tour shows the download window from top to bottom. Press “Skip” whenever you like; you can open the tour again in Settings → Backup and help.',
+    'Linki buraya yapıştır':
+        'Paste the link here',
+    "YouTube, Instagram, TikTok, X ya da herhangi bir dosya linki. Birden fazla linki araya boşluk koyarak bir kerede yapıştırabilirsin. Enter'a basmak da indirmeyi başlatır.":
+        'YouTube, Instagram, TikTok, X or any file link. Paste several links at once with a space between them. Pressing Enter starts the download too.',
+    'Linki yapıştırınca buna bas. DISO linkin ne olduğunu kendisi anlar: video mu, müzik mi, oynatma listesi mi, düz dosya mı.':
+        'Press this after pasting the link. DISO works out by itself what the link is: a video, music, a playlist or a plain file.',
+    'Hızlı düğmeler':
+        'Quick buttons',
+    'Soldan sağa: panodakini yapıştır, bir metin dosyasındaki bütün linkleri al, .torrent dosyası ekle, telefondan link gönder, bir linkin bilgilerine bak, indirme geçmişi, takip ettiğin kanallar. Bir düğmenin ne yaptığını unutursan üstünde bekle, söylerim.':
+        "From left to right: paste from the clipboard, take every link in a text file, add a .torrent file, send a link from the phone, look at a link's details, download history, the channels you follow. If you forget what a button does, rest the mouse on it and I'll tell you.",
+    'Ne indirilecek?':
+        'What to download?',
+    '“Otomatik” çoğu zaman doğru seçer. Yalnız ses istiyorsan MP3, görüntü istiyorsan MP4 seç. Yanlarında video kalitesi, MP3 kalitesi, bağlantı sayısı (hız), giriş çerezleri (giriş isteyen videolar için) ve altyazı var.':
+        '“Automatic” picks right most of the time. Choose MP3 for sound only, MP4 for the picture. Next to it: video quality, MP3 quality, connections (speed), login cookies (for videos that need a login) and subtitles.',
+    'Nereye insin?':
+        'Where should it go?',
+    'İndirilenler bu klasöre gider. “Klasör Seç” ile değiştir. “Türe göre klasör” açıksa videolar, müzikler, arşivler kendi klasörlerine ayrılır.':
+        'Downloads go into this folder. Change it with “Choose folder”. With “Folders by type” videos, music and archives go into folders of their own.',
+    'İnenler burada: ilerleme, hız ve kalan süre. Satıra sağ tıkla: duraklat, yeniden başlat, klasörde göster, sil, müzik listesine ekle… Çift tık dosyayı açar. Üstteki arama ve süzgeçle bulursun.':
+        'Your downloads are here: progress, speed and time left. Right-click a row: pause, start again, show in folder, delete, add to a music list… A double click opens the file. Find them with the search and the filter above.',
+    'Hepsini birden':
+        'All at once',
+    'Hepsini başlat, hepsini duraklat, bitenleri temizle. Panoyu izle açıksa kopyaladığın her linki DISO kendisi yakalar.':
+        'Start all, pause all, clear the finished ones. With “Watch the clipboard” on, DISO catches every link you copy.',
+    "Aynı anda kaç indirme, hız sınırı, zamanlayıcı (gece indir), bildirimler, Windows'la başlat, görünüm ve dil, yedek… Hepsi burada.":
+        'How many downloads at once, a speed limit, the scheduler (download at night), notifications, starting with Windows, look and language, backup… All of it is here.',
+    'Tarayıcı eklentisini kurarsan sayfadaki videoya sağ tıklayıp “DISO ile indir” dersin; eklenti sayfadaki videoları kendisi de bulur. 📱 düğmesiyle telefondan link gönderirsin.':
+        'With the browser extension you right-click a video and choose “Download with DISO”; the extension also finds the videos on a page by itself. With 📱 you send links from your phone.',
+    'Hesabın':
+        'Your account',
+    'Bir DISO hesabı açarsan ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olur. Başka bir bilgisayarda listelerindeki şarkıları da tek tıkla indirirsin.':
+        "With a DISO account your settings, playlists, channels and history are the same on every computer. On another computer you download your lists' songs with one click.",
+    'En alttaki “Müzik çalar modu”na geç: şarkı ara, MP3 indir, listelerini çal, sözleriyle dinle. Orayı ilk açtığında ona da kısa bir tur var.':
+        'Switch to “Music player mode” at the bottom: find songs, download MP3s, play your lists, listen with lyrics. The first time you open it, it has a short tour of its own.',
+    'Hazırsın!':
+        "You're ready!",
+    'F1 bütün klavye kısayollarını gösterir. Bir sorun olursa Ayarlar → Sağlık kontrolü çoğunu tek tıkla düzeltir. İyi indirmeler!':
+        'F1 shows every keyboard shortcut. If something goes wrong, Settings → Health check fixes most of it with one click. Happy downloading!',
+    'Müzik çalara hoş geldin!':
+        'Welcome to the music player!',
+    'İndirdiğin şarkıları burada dinlersin; internetten yenilerini bulup MP3 olarak indirirsin. Bu tur çaları baştan sona gösterir; “Atla” ile istediğin an çıkarsın.':
+        'Listen to the songs you downloaded here, and find new ones on the internet to download as MP3. This tour shows the player from top to bottom; leave it any time with “Skip”.',
+    'Listelerim ve Şarkı bul':
+        'My lists and Find songs',
+    "“Listelerim” çalma listelerini gösterir. “Şarkı bul”a geçince YouTube Music'te ara: önizle, beğendiğini ⬇ ile MP3 indir. İnen şarkı hangi listeye gideceğini sorar.":
+        '“My lists” shows your playlists. Switch to “Find songs” to search YouTube Music: preview, and download what you like as MP3 with ⬇. A downloaded song asks which list it goes to.',
+    'Buradan liste seç; yanındaki ＋ yeni liste açar, ✎ adını değiştirir. Sağdaki menü sıralar: kendi sıran, A → Z, en çok dinlenen… Kendi sıran hep saklı kalır. ✨ akıllı listeler (en çok dinlenenler, son eklenenler) kendiliğinden dolar.':
+        'Choose a list here; ＋ next to it makes a new one, ✎ renames it. The menu on the right orders it: your own order, A → Z, most played… Your own order is always kept. ✨ Smart lists (most played, recently added) fill themselves.',
+    'Şarkılar':
+        'Songs',
+    'Çift tık çalar. Sürükleyerek sıra değiştir, sağ tıkla: başka listeye ekle, sözler, etiketleri düzenle, klasörde göster, sil. Alttaki düğmelerle dosya ya da bütün bir klasör eklersin.':
+        'A double click plays. Drag to change the order; right-click: add to another list, lyrics, edit tags, show in folder, delete. The buttons below add files or a whole folder.',
+    'Çalar':
+        'Player',
+    '⏮ önceki, ⏪5 / 5⏩ beş saniye sar, ▶ çal / duraklat, ⏭ sonraki, ⏹ durdur. Klavyede boşluk çalar / durdurur, ← → sarar, ↑ ↓ sesi açar ve kısar (basılı tutunca hızlanır).':
+        '⏮ previous, ⏪5 / 5⏩ five seconds back / forward, ▶ play / pause, ⏭ next, ⏹ stop. On the keyboard Space plays / pauses, ← → go back / forward, ↑ ↓ turn the volume up and down (faster when held).',
+    'İlerleme çubuğu şarkının ses dalgasıdır: yüksek yerler uzun çubuk. İstediğin yere tıkla ya da sürükle, oraya atlar.':
+        "The progress bar is the song's sound wave: loud parts are tall bars. Click or drag anywhere to jump there.",
+    'Hız, tekrar, uyku':
+        'Speed, repeat, sleep',
+    '1x düğmesi çalma hızını 0.25x ile 4x arasında değiştirir (istersen perdeyle). Karışık, Tekrar (şarkı / liste) ve 😴 Uyku: seçtiğin sürede müzik yavaşça kısılıp durur.':
+        'The 1x button changes the speed between 0.25x and 4x (with the pitch if you like). Shuffle, Repeat (song / list) and 😴 Sleep: the music fades out and stops after the time you choose.',
+    'Bas, orta, tiz; ya da “Gelişmiş” ile 8 bant. Ayar şarkı ortasında bile kesintisiz değişir.':
+        'Bass, middle, treble; or 8 bands with “Advanced”. It changes without a break, even in the middle of a song.',
+    'Müziğe göre oynayan çubuklar, dalga ya da halka; ortada şarkının kapağı ritimle atar. 🎤 ile sözler şarkıyla birlikte akar. Tam ekran yapabilirsin.':
+        "Bars, a wave or a ring dancing to the music; the song's cover beats in the middle. With 🎤 the lyrics flow with the song. It can go full screen.",
+    'Küçük, hep üstte duran bir çalar: başka bir şeyle uğraşırken müziği yönet.':
+        'A small player that stays on top: control the music while you do something else.',
+    'YouTube Music':
+        'YouTube Music',
+    'Google hesabınla bağlanırsan YouTube Music listelerini görür, istediklerini ya da hepsini indirirsin.':
+        'Connect your Google account to see your YouTube Music lists and download some or all of them.',
+    'Daha fazlası':
+        'More',
+    "⚙ menüsünde şarkılar arası geçiş, alarm, istatistikler, günlük karışık, kısayollar var. Turu Ayarlar → Yedek ve yardım'dan yeniden açarsın. Keyifli dinlemeler!":
+        'The ⚙ menu has the gap between songs, an alarm, statistics, a daily mix and the shortcuts. Open the tour again in Settings → Backup and help. Enjoy the music!',
+    'Standart (Önerilen)':
+        'Standard (Recommended)',
+    'Kısa tur':
+        'Short tour',
+    'Müzik çalar turu':
+        'Music player tour',
+    '👋 Müzik çalar turu':
+        '👋 Music player tour',
+    'Turu yeniden göster':
+        'Show the tour again',
+    'Pencerenin her yerini adım adım anlatan kısa tur':
+        'A short tour that explains every part of the window, step by step',
+    '👋 İndirme':
+        '👋 Downloads',
+    '🎵 Müzik':
+        '🎵 Music',
+    'Doğrula':
+        'Confirm',
     # ---- 👤 the DISO account
     "Bu e-postayla zaten bir hesap var. “Giriş yap”ı dene.": "There already is an account with this e-mail. Try “Sign in”.",
     "E-posta ya da şifre yanlış.": "Wrong e-mail or password.",

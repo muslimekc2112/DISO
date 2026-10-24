@@ -348,6 +348,9 @@ class MusicWindow(ctk.CTkToplevel):
         shortcuts = getattr(self.app, "open_shortcuts", None)
         if shortcuts:
             items += [None, ("⌨ Klavye kısayolları  (F1)", shortcuts)]
+        tour = getattr(self.app, "open_music_tour", None)
+        if tour:
+            items.append(("👋 Müzik çalar turu", tour))
         return items
 
     def _build_menu_bar(self):

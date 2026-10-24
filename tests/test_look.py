@@ -66,11 +66,12 @@ def test_the_entry_border_follows_the_style(new_look):
 
 
 def test_the_style_is_a_saved_setting(isolated_home):
-    assert DEFAULTS["look"] == "Yeni" and look.DEFAULT_STYLE == "Yeni"
+    assert DEFAULTS["look"] == "Standart" and look.DEFAULT_STYLE == "Standart"
     cfg = Config()
     cfg.set("look", "Klasik")
     assert Config().get("look") == "Klasik"
-    assert set(look.STYLES) == {"Yeni", "Klasik", "Nostalji"}
+    assert look.STYLES == ["Standart", "Yeni", "Klasik", "Nostalji"]                # the recommended one first
+    assert look.label("Standart") == "Standart (Önerilen)" and look.style_of("Standart (Önerilen)") == "Standart"
 
 
 def test_the_palette_is_readable_in_both_modes():
@@ -100,7 +101,7 @@ def test_every_window_can_be_built_in_the_new_style(new_look, make_app, monkeypa
     app._open_updates()
     app._ensure_music()
     app.update()
-    assert app.settings_panel.look_menu.get() == "Yeni"
+    assert app.settings_panel.look_menu.get() == "Standart (Önerilen)"          # (the saved one: the default)
     selected = ttk.Style().lookup("Music.Treeview", "background", ["selected"])
     assert selected in (look.ACCENT[0], look.ACCENT[1])
     app._switch_mode(MODE_MUSIC)
@@ -165,4 +166,4 @@ def test_a_wrong_saved_style_falls_back_to_the_default(isolated_home, make_app):
     d.mkdir(exist_ok=True)
     (d / "settings.json").write_text(json.dumps({"look": "Neon"}), encoding="utf-8")
     app = make_app()
-    assert app.cfg.get("look") == "Yeni"
+    assert app.cfg.get("look") == "Standart"

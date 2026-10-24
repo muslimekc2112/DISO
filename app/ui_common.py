@@ -1,4 +1,5 @@
 """Small helpers shared by the download window and the music window."""
+import time
 
 
 def fit_geometry(win, width, height, margin=(40, 120)):
@@ -188,6 +189,160 @@ def fit_wrap(label):
         pass
 
 
+RESIZE_SETTLE = 90       # ms without a size change: the edge stopped; the scrolling content takes the width
+WRAP_AFTER = 120         # ms after the last size change: the long texts wrap to their new width
+
+
+def install_light_resizing():
+    """Dragging the edge of a window with a lot in it (the settings) ran at 5 pictures a second: every pixel
+    made customtkinter redraw each scroll bar whole, colours included, and then force every waiting layout
+    at once (update_idletasks), and made the scrolling content take the new width, which laid out all its
+    rows again (some 120 texts and buttons redrawn: 160 ms each time). Now a scroll bar only moves its handle (and
+    only when it really moved), and the content takes the new width once the edge stops moving (RESIZE_SETTLE): the
+    edge moves smoothly, the rows settle once."""
+    import tkinter as tk
+
+    import customtkinter as ctk
+    bar = ctk.CTkScrollbar
+    if getattr(bar, "_light", False):
+        return
+    bar._light = True
+    original_draw = bar._draw
+
+    def _draw(self, no_color_updates=False):
+        canvas = self._canvas
+        canvas.update_idletasks = _nothing                # (Tk draws it with everything else, when idle)
+        try:
+            original_draw(self, no_color_updates)
+        finally:
+            del canvas.update_idletasks
+
+    def set(self, start_value, end_value):
+        start, end = float(start_value), float(end_value)
+        if (start, end) == (self._start_value, self._end_value):
+            return
+        self._start_value, self._end_value = start, end
+        lo, hi = self._get_scrollbar_values_for_minimum_pixel_size()
+        recolour = self._draw_engine.draw_rounded_scrollbar(
+            self._apply_widget_scaling(self._current_width), self._apply_widget_scaling(self._current_height),
+            self._apply_widget_scaling(self._corner_radius), self._apply_widget_scaling(self._border_spacing),
+            lo, hi, self._orientation)
+        if recolour:                                       # new parts were made: they need their colours
+            self._draw()
+
+    bar._draw, bar.set = _draw, set
+
+    frame = ctk.CTkScrollableFrame
+    original_fit = frame._fit_frame_dimensions_to_canvas
+
+    def _fit_frame_dimensions_to_canvas(self, event=None):
+        job = getattr(self, "_fit_job", None)
+        if job is not None:
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                pass
+            self._fit_job = None
+        if not getattr(self, "_fitted_at", 0.0):          # its first size: at once (nothing is on the screen yet)
+            self._fitted_at = time.monotonic()
+            original_fit(self, event)
+        else:                                              # the edge is moving: the rows wait until it stops,
+            _hold_painting(self, True)                     # and are not painted again and again meanwhile
+            self._fit_job = self.after(RESIZE_SETTLE, lambda: _fit_now(self))
+
+    def _fit_now(self):
+        self._fit_job = None
+        self._fitted_at = time.monotonic()
+        _hold_painting(self, False)
+        try:
+            original_fit(self, None)
+        except tk.TclError:
+            pass
+        repaint(self._parent_canvas)
+
+    frame._fit_frame_dimensions_to_canvas = _fit_frame_dimensions_to_canvas
+    # the frame bound the old function by name when it was made: frames made from now on use the new one
+    original_init = frame.__init__
+
+    def __init__(self, *args, **kw):
+        original_init(self, *args, **kw)
+        self._parent_canvas.bind("<Configure>", self._fit_frame_dimensions_to_canvas)
+
+    frame.__init__ = __init__
+
+    # A window's own size handler was bound to the window, and Tk runs a window's bindings for every widget in
+    # it too: one size change of the settings window called it some 200 times (each one a Python event and two
+    # size questions). It now hears only the window itself.
+    for cls in (ctk.CTk, ctk.CTkToplevel):
+        cls.__init__ = _own_configure_only(cls.__init__)
+
+
+def _own_configure_only(original_init):
+    import tkinter as tk
+
+    def __init__(self, *args, **kw):
+        original_init(self, *args, **kw)
+        try:
+            tk.Misc.unbind(self, "<Configure>")
+            tag = f"own-size-{id(self)}"
+            self.bindtags((tag, *self.bindtags()))
+            self.bind_class(tag, "<Configure>", self._update_dimensions_event)
+        except tk.TclError:
+            pass
+    return __init__
+
+
+def _hold_painting(frame, hold):
+    """While a window's edge is dragged, the rows of its scrolling content stand still (they take the new width
+    when it stops), yet Windows painted their hundreds of little windows again at every pixel: that was what
+    made the drag slow. Meanwhile a picture of them stands in their place (the same pixels, one image to paint)."""
+    import sys
+    import tkinter as tk
+    if bool(getattr(frame, "_painting_held", False)) == hold or not sys.platform.startswith("win"):
+        return
+    canvas = frame._parent_canvas
+    try:
+        if hold:
+            from PIL import ImageGrab, ImageTk
+            x, y, w, h = canvas.winfo_rootx(), canvas.winfo_rooty(), canvas.winfo_width(), canvas.winfo_height()
+            if w < 20 or h < 20 or not canvas.winfo_viewable():
+                return
+            shot = ImageTk.PhotoImage(ImageGrab.grab(bbox=(x, y, x + w, y + h), all_screens=True), master=canvas)
+            frame._still = shot                            # (kept: a Tk image nobody holds disappears)
+            canvas.create_image(canvas.canvasx(0), canvas.canvasy(0), image=shot, anchor="nw", tags="still")
+            canvas.itemconfigure(frame._create_window_id, state="hidden")
+        else:
+            canvas.itemconfigure(frame._create_window_id, state="normal")
+            canvas.delete("still")
+            frame._still = None
+        frame._painting_held = hold
+    except (tk.TclError, OSError, ValueError):
+        frame._painting_held = False
+        try:
+            canvas.itemconfigure(frame._create_window_id, state="normal")
+            canvas.delete("still")
+        except tk.TclError:
+            pass
+
+
+def _nothing(*_args):
+    return None
+
+
+def _wrap_later(label):
+    """fit_wrap once the size stops changing (every change of a wrap lays the window out again)."""
+    job = getattr(label, "_wrap_job", None)
+    if job is not None:
+        try:
+            label.after_cancel(job)
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        label._wrap_job = label.after(WRAP_AFTER, lambda: (setattr(label, "_wrap_job", None), fit_wrap(label)))
+    except Exception:  # noqa: BLE001 - closed meanwhile
+        pass
+
+
 def install_wrap_to_fit():
     """Every CTkLabel made with a wraplength follows the width of its row (see fit_wrap)."""
     import tkinter as tk
@@ -203,7 +358,7 @@ def install_wrap_to_fit():
         original(self, *args, **kw)
         if kw.get("wraplength"):
             self._wrap_max = kw["wraplength"]
-            tk.Misc.bind(self, "<Configure>", lambda e, label=self: fit_wrap(label), "+")
+            tk.Misc.bind(self, "<Configure>", lambda e, label=self: _wrap_later(label), "+")
 
     cls.__init__ = __init__
 

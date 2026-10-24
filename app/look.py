@@ -4,8 +4,9 @@ window laid out like the download managers of that time: see app/classic_ui.py).
 before any window exists, by recoloring customtkinter's theme tables; no widget has to know about it."""
 import customtkinter as ctk
 
-STYLES = ["Yeni", "Klasik", "Nostalji"]
-DEFAULT_STYLE = "Yeni"
+STYLES = ["Standart", "Yeni", "Klasik", "Nostalji"]
+DEFAULT_STYLE = "Standart"
+LABELS = {"Standart": "Standart (Önerilen)"}     # how a style is called in the menus
 
 # every colour is (light mode, dark mode)
 WINDOW = ("#F7F1F9", "#120A18")
@@ -21,6 +22,14 @@ ACCENT_TEXT = ("#FFFFFF", "#1A0A1F")
 ACCENT_SOFT = ("#F6E1F4", "#3B2342")
 ACCENT_DEEP = ("#B02FAB", "#9B2A98")          # white text stays readable on it
 SEGMENT_TRACK = ("#7C6A85", "#34253F")
+BUTTON = ("#F0E6F4", "#2A1C35")             # "Standart": a button's calm face
+
+# 🎨 the accent colour ("Yeni" and "Standart"): the whole palette above is turned to its hue, then made readable
+# again where a hue is lighter than pink (text on a button, white on a selected tab)
+ACCENTS = {"Pembe": None, "Mavi": 215, "Yeşil": 150, "Turuncu": 24, "Mor": 262, "Kırmızı": 352}
+DEFAULT_ACCENT = "Pembe"
+PALETTE = ("WINDOW", "CARD", "CARD_HIGH", "INPUT", "BORDER", "TRACK", "TEXT", "ACCENT", "ACCENT_HOVER", "ACCENT_TEXT",
+           "ACCENT_SOFT", "ACCENT_DEEP", "SEGMENT_TRACK", "BUTTON", "STATE_IDLE")
 STATE_DONE = "#2F9E63"
 STATE_ERROR = "#CF4B45"
 STATE_PAUSED = "#D9962B"
@@ -68,14 +77,100 @@ N_DARK = dict(N_LIGHT, **{
 })
 globals().update(N_LIGHT)
 
+_BASE = {name: globals()[name] for name in PALETTE}       # the pink palette as drawn
+_shift = 0.0                  # degrees the palette's hue is turned by (0: pink)
+_accent = DEFAULT_ACCENT
 _active = "Klasik"
 _dark = False                 # "Nostalji" in dark grey
 _FONT = "Segoe UI"
 _N_FONT = "Tahoma"
 
 
+def _rgb(hex_colour):
+    h = hex_colour.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def _hex(rgb):
+    return "#" + "".join(f"{round(max(0, min(1, v)) * 255):02X}" for v in rgb)
+
+
+def _turn(hex_colour, degrees):
+    import colorsys
+    h, l, s = colorsys.rgb_to_hls(*_rgb(hex_colour))
+    return _hex(colorsys.hls_to_rgb((h + degrees / 360) % 1, l, s))
+
+
+def _t(pair):
+    """A (light, dark) colour pair of the pink palette, in the chosen accent's hue."""
+    return tuple(_turn(c, _shift) for c in pair) if _shift else pair
+
+
+def luminance(hex_colour):
+    def lin(v):
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(v) for v in _rgb(hex_colour))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a, b):
+    la, lb = sorted((luminance(a), luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def _readable(colour, text, need=4.6):
+    """colour made darker (or lighter, under dark text) until text on it reads well."""
+    import colorsys
+    h, l, s = colorsys.rgb_to_hls(*_rgb(colour))
+    lighter = luminance(text) < 0.2
+    for _ in range(80):
+        if contrast(colour, text) >= need:
+            break
+        l = min(0.97, l + 0.01) if lighter else max(0.03, l - 0.01)
+        colour = _hex(colorsys.hls_to_rgb(h, l, s))
+    return colour
+
+
+def use_accent(name):
+    """Turn the palette to an accent colour (a name of ACCENTS; an unknown one is pink). Returns the name used."""
+    global _shift, _accent
+    import colorsys
+    name = name if name in ACCENTS else DEFAULT_ACCENT
+    hue = ACCENTS[name]
+    base_hue = colorsys.rgb_to_hls(*_rgb(_BASE["ACCENT"][0]))[0] * 360
+    _accent, _shift = name, (0.0 if hue is None else hue - base_hue)
+    g = globals()
+    for key, pair in _BASE.items():
+        g[key] = _t(pair)
+    if _shift:
+        white = "#FFFFFF"
+        g["ACCENT"] = (_readable(g["ACCENT"][0], white), _readable(g["ACCENT"][1], g["ACCENT_TEXT"][1]))
+        g["ACCENT_HOVER"] = (_readable(g["ACCENT_HOVER"][0], white, 4.0), g["ACCENT_HOVER"][1])
+        g["ACCENT_DEEP"] = tuple(_readable(c, white) for c in g["ACCENT_DEEP"])
+        g["SEGMENT_TRACK"] = tuple(_readable(c, white) for c in g["SEGMENT_TRACK"])
+    return name
+
+
+def accent_name() -> str:
+    return _accent
+
+
 def is_new() -> bool:
-    return _active == "Yeni"
+    """Our own palette: "Yeni", and "Standart" (the same with colourful pictures on the buttons)."""
+    return _active in ("Yeni", "Standart")
+
+
+def is_standard() -> bool:
+    return _active == "Standart"
+
+
+def label(style) -> str:
+    return LABELS.get(style, style)
+
+
+def style_of(label_text) -> str:
+    """The style a menu's text stands for."""
+    return next((s for s, text in LABELS.items() if text == label_text), label_text)
 
 
 def is_nostalgia() -> bool:
@@ -130,50 +225,58 @@ def _set(theme, widget, **values):
             table[key] = list(value) if isinstance(value, tuple) else value
 
 
-def apply(style=DEFAULT_STYLE, theme="Açık") -> str:
+def apply(style=DEFAULT_STYLE, theme="Açık", accent=None) -> str:
     """Load the base theme, then recolor it for the chosen style. Returns the style in use. `theme` (the
     "Görünüm" setting) only matters to "Nostalji", which takes its light or dark colours from it here."""
     global _active, _dark
     ctk.ThemeManager.load_theme("blue")                    # start from the stock tables every time
+    use_accent(accent if style in ("Yeni", "Standart") and accent else DEFAULT_ACCENT)
     _dark = style == "Nostalji" and wants_dark(theme)
     globals().update(N_DARK if _dark else N_LIGHT)
     if style == "Nostalji":
         _active = "Nostalji"
         _apply_nostalgia(ctk.ThemeManager.theme)
         return _active
-    if style != "Yeni":
+    from . import icon_buttons
+    icon_buttons.active = style == "Standart"
+    if icon_buttons.active:
+        icon_buttons.install()
+    if style not in ("Yeni", "Standart"):
         _active = "Klasik"
         return _active
-    _active = "Yeni"
+    _active = style
     t = ctk.ThemeManager.theme
     _set(t, "CTk", fg_color=WINDOW)
     _set(t, "CTkToplevel", fg_color=WINDOW)
     _set(t, "CTkFrame", corner_radius=14, fg_color=CARD, top_fg_color=CARD_HIGH, border_color=BORDER)
     _set(t, "CTkButton", corner_radius=10, fg_color=ACCENT, hover_color=ACCENT_HOVER, border_color=BORDER,
-         text_color=ACCENT_TEXT, text_color_disabled=("#C0B2C8", "#6A5878"))
+         text_color=ACCENT_TEXT, text_color_disabled=_t(("#C0B2C8", "#6A5878")))
     _set(t, "CTkLabel", text_color=TEXT)
     _set(t, "CTkEntry", corner_radius=10, border_width=1, fg_color=INPUT, border_color=BORDER,
-         text_color=TEXT, placeholder_text_color=("#9C8AA6", "#7A6A88"))
+         text_color=TEXT, placeholder_text_color=_t(("#9C8AA6", "#7A6A88")))
     _set(t, "CTkCheckBox", corner_radius=6, border_width=2, fg_color=ACCENT, hover_color=ACCENT_HOVER,
-         border_color=("#8F7C99", "#5A4668"), checkmark_color=ACCENT_TEXT, text_color=TEXT)
-    _set(t, "CTkSwitch", fg_color=("#D3C6DA", "#3B2A47"), progress_color=ACCENT,
+         border_color=_t(("#8F7C99", "#5A4668")), checkmark_color=ACCENT_TEXT, text_color=TEXT)
+    _set(t, "CTkSwitch", fg_color=_t(("#D3C6DA", "#3B2A47")), progress_color=ACCENT,
          button_color=("#FFFFFF", "#F2F3F8"), button_hover_color=("#F4F4F4", "#FFFFFF"), text_color=TEXT)
-    _set(t, "CTkRadioButton", fg_color=ACCENT, hover_color=ACCENT_HOVER, border_color=("#8F7C99", "#5A4668"),
+    _set(t, "CTkRadioButton", fg_color=ACCENT, hover_color=ACCENT_HOVER, border_color=_t(("#8F7C99", "#5A4668")),
          text_color=TEXT)
     _set(t, "CTkProgressBar", fg_color=TRACK, progress_color=ACCENT)
     _set(t, "CTkSlider", fg_color=TRACK, progress_color=ACCENT, button_color=ACCENT,
          button_hover_color=ACCENT_HOVER)
     _set(t, "CTkOptionMenu", corner_radius=10, fg_color=CARD_HIGH, button_color=ACCENT,
-         button_hover_color=ACCENT_HOVER, text_color=TEXT, text_color_disabled=("#C0B2C8", "#6A5878"))
+         button_hover_color=ACCENT_HOVER, text_color=TEXT, text_color_disabled=_t(("#C0B2C8", "#6A5878")))
     _set(t, "CTkComboBox", corner_radius=10, fg_color=INPUT, border_color=BORDER, button_color=ACCENT,
          button_hover_color=ACCENT_HOVER, text_color=TEXT)
-    _set(t, "CTkScrollbar", button_color=("#CDBFD4", "#443255"), button_hover_color=("#B3A3BC", "#5B4770"))
+    _set(t, "CTkScrollbar", button_color=_t(("#CDBFD4", "#443255")), button_hover_color=_t(("#B3A3BC", "#5B4770")))
     _set(t, "CTkSegmentedButton", corner_radius=10, border_width=2, fg_color=SEGMENT_TRACK, selected_color=ACCENT_DEEP,
-         selected_hover_color=("#8E2390", "#B335AE"), unselected_color=SEGMENT_TRACK,
-         unselected_hover_color=("#6A5774", "#40304D"), text_color=("#FFFFFF", "#F1F2F7"))
+         selected_hover_color=_t(("#8E2390", "#B335AE")), unselected_color=SEGMENT_TRACK,
+         unselected_hover_color=_t(("#6A5774", "#40304D")), text_color=("#FFFFFF", "#F1F2F7"))
     _set(t, "CTkTextbox", corner_radius=10, fg_color=INPUT, border_color=BORDER, text_color=TEXT)
     _set(t, "CTkScrollableFrame", label_fg_color=CARD_HIGH)
     _set(t, "DropdownMenu", fg_color=CARD, hover_color=ACCENT_SOFT, text_color=TEXT)
+    if style == "Standart":       # calm buttons: the colourful pictures stand out; the accent marks the main ones
+        _set(t, "CTkButton", fg_color=BUTTON, hover_color=ACCENT_SOFT, border_width=1, border_color=BORDER,
+             text_color=TEXT)
     _set_font(t, _FONT)
     return _active
 

@@ -3,6 +3,9 @@
 **English | [Türkçe](CHANGELOG.tr.md)**
 
 ## 1.5
+- **🎨 A new look: Standard (Recommended).** DISO opens with it the first time. The modern colours and round shapes of "Yeni" together with the colourful, glossy pictures of "Nostalji": colourful pictures instead of the flat emoji on the buttons (clipboard, file, magnet, phone, settings, equalizer, account…). The buttons are calm, the main "⬇ Download" one in the accent colour. The other looks are still in Settings → Look style; existing users keep their choice.
+- **👋 New tours:** a 13-step tour of the download window at the first start, a 12-step tour of the music player the first time it opens; never both at once. The tour window sits right next to the part it talks about and outlines it. Open them again in Settings → Backup and help → "Show the tour again", or from the music player's ⚙ menu.
+- **👤 The account in Nostalji too:** your name (or "Sign in") at the right end of the toolbar.
 - **👤 Separate "Create account" and "Sign in" screens:** creating an account asks for a name, a surname, a user name (unique), a Gmail address and the password twice. A confirmation link goes to the Gmail; the account opens only after the link is clicked and "I confirmed" is pressed ("Open Gmail", "Send again", "Cancel" are there).
 - **The account at the top right:** in the download window and the music player your name is at the top right; "👤 Sign in" when signed out, "👤 Confirm" while the e-mail waits. The account window shows a circle with your initials, your name, @user name, e-mail, last sync, "Change password" and "Sign out".
 - **"Create a DISO account?" at every start** (while there is none), until "Don't show again".

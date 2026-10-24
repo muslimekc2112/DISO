@@ -216,6 +216,194 @@ def _hourglass(img):
     d.polygon([(64, 74), (88, 104), (40, 104)], fill=(230, 185, 80))
 
 
+def _person(img, colour=BLUE):
+    d = ImageDraw.Draw(img)
+    d.ellipse((38, 8, 90, 60), fill=_darker(colour, 0.7))
+    d.ellipse((42, 12, 86, 56), fill=_lighter(colour, 0.25))
+    d.pieslice((12, 62, 116, 166), 180, 360, fill=_darker(colour, 0.7))
+    d.pieslice((16, 66, 112, 162), 180, 360, fill=colour)
+
+
+def _magnifier(img):
+    d = ImageDraw.Draw(img)
+    d.line((76, 76, 116, 116), fill=(120, 80, 40), width=22)
+    d.ellipse((8, 8, 88, 88), fill=(70, 70, 80))
+    d.ellipse((18, 18, 78, 78), fill=(185, 220, 250))
+    d.ellipse((28, 26, 52, 44), fill=(235, 245, 255))
+
+
+def _magnet(img):
+    d = ImageDraw.Draw(img)
+    d.arc((14, 10, 114, 110), 180, 360, fill=RED, width=30)
+    d.rectangle((14, 58, 44, 92), fill=RED)
+    d.rectangle((84, 58, 114, 92), fill=RED)
+    d.rectangle((14, 92, 44, 118), fill=(205, 205, 210))
+    d.rectangle((84, 92, 114, 118), fill=(205, 205, 210))
+
+
+def _phone(img):
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((32, 4, 96, 124), 12, fill=(45, 45, 55))
+    d.rectangle((38, 18, 90, 104), fill=(95, 165, 235))
+    d.ellipse((58, 108, 70, 120), fill=(150, 150, 160))
+    d.rectangle((54, 9, 74, 13), fill=(120, 120, 130))
+
+
+def _disk(img):
+    d = ImageDraw.Draw(img)
+    d.polygon([(10, 10), (104, 10), (118, 24), (118, 118), (10, 118)], fill=BLUE)
+    d.rectangle((30, 10, 92, 46), fill=(225, 230, 240))
+    d.rectangle((72, 16, 84, 40), fill=(60, 70, 90))
+    d.rectangle((26, 66, 102, 118), fill=WHITE)
+    _lines(img, (34, 78, 94, 112), 3)
+
+
+def _key(img):
+    d = ImageDraw.Draw(img)
+    d.ellipse((8, 8, 64, 64), fill=_darker(YELLOW, 0.7))
+    d.ellipse((14, 14, 58, 58), fill=YELLOW)
+    d.ellipse((26, 26, 46, 46), fill=(0, 0, 0, 0))
+    d.line((52, 52, 116, 116), fill=_darker(YELLOW, 0.7), width=18)
+    d.line((52, 52, 116, 116), fill=YELLOW, width=10)
+    d.line((92, 92, 104, 80), fill=YELLOW, width=12)
+    d.line((106, 106, 118, 94), fill=YELLOW, width=12)
+
+
+def _pencil(img):
+    d = ImageDraw.Draw(img)
+    d.polygon([(90, 10), (118, 38), (44, 112), (16, 84)], fill=ORANGE)
+    d.polygon([(90, 10), (118, 38), (106, 50), (78, 22)], fill=(235, 120, 140))
+    d.polygon([(16, 84), (44, 112), (8, 120)], fill=(240, 215, 170))
+    d.polygon([(8, 120), (14, 104), (24, 114)], fill=INK)
+
+
+def _trash(img):
+    d = ImageDraw.Draw(img)
+    d.rectangle((14, 20, 114, 32), fill=(110, 115, 125))
+    d.rectangle((48, 8, 80, 20), fill=(110, 115, 125))
+    d.polygon([(24, 36), (104, 36), (96, 122), (32, 122)], fill=(150, 155, 165))
+    for x in (44, 62, 80):
+        d.rectangle((x, 48, x + 6, 110), fill=(105, 110, 120))
+
+
+def _bell(img):
+    d = ImageDraw.Draw(img)
+    d.pieslice((22, 14, 106, 98), 180, 360, fill=_darker(YELLOW, 0.75))
+    d.rectangle((22, 56, 106, 92), fill=_darker(YELLOW, 0.75))
+    d.pieslice((26, 18, 102, 94), 180, 360, fill=YELLOW)
+    d.rectangle((26, 56, 102, 92), fill=YELLOW)
+    d.rounded_rectangle((10, 88, 118, 104), 6, fill=_darker(YELLOW, 0.75))
+    d.ellipse((54, 100, 74, 120), fill=(150, 100, 40))
+
+
+def _globe(img):
+    d = ImageDraw.Draw(img)
+    _ball(img, (8, 8, 120, 120), BLUE)
+    d.ellipse((30, 26, 70, 62), fill=GREEN)
+    d.ellipse((62, 66, 100, 100), fill=GREEN)
+    d.ellipse((76, 30, 96, 48), fill=GREEN)
+
+
+def _star(img, colour=YELLOW):
+    import math
+    d = ImageDraw.Draw(img)
+    pts = [(64 + (58 if i % 2 == 0 else 24) * math.sin(math.pi * i / 5),
+            68 - (58 if i % 2 == 0 else 24) * math.cos(math.pi * i / 5)) for i in range(10)]
+    d.polygon(pts, fill=_darker(colour, 0.75))
+    d.polygon([(64 + (x - 64) * 0.86, 68 + (y - 68) * 0.86) for x, y in pts], fill=colour)
+
+
+def _keyboard(img):
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((6, 30, 122, 104), 10, fill=(70, 72, 82))
+    for row, y in enumerate((40, 60)):
+        for x in range(16 - row * 4, 110, 18):
+            d.rounded_rectangle((x, y, x + 13, y + 13), 3, fill=(225, 228, 235))
+    d.rounded_rectangle((32, 82, 96, 94), 3, fill=(225, 228, 235))
+
+
+def _heart(img, colour=RED):
+    d = ImageDraw.Draw(img)
+    for grow, c in ((0, _darker(colour, 0.7)), (5, colour)):
+        d.ellipse((10 + grow, 18 + grow, 66 - grow, 74 - grow), fill=c)
+        d.ellipse((62 + grow, 18 + grow, 118 - grow, 74 - grow), fill=c)
+        d.polygon([(14 + grow, 56), (114 - grow, 56), (64, 116 - grow)], fill=c)
+
+
+def _rocket(img):
+    d = ImageDraw.Draw(img)
+    d.polygon([(30, 74), (12, 96), (40, 90)], fill=RED)
+    d.polygon([(54, 98), (32, 116), (38, 88)], fill=RED)
+    d.polygon([(116, 12), (66, 30), (30, 74), (54, 98), (98, 62)], fill=(215, 220, 230))
+    d.ellipse((70, 38, 92, 60), fill=BLUE)
+    d.polygon([(30, 98), (18, 112), (26, 104)], fill=ORANGE)
+    d.polygon([(34, 92), (14, 120), (40, 100)], fill=ORANGE)
+
+
+def _mail(img):
+    d = ImageDraw.Draw(img)
+    d.rectangle((8, 26, 120, 104), fill=(110, 110, 120))
+    d.rectangle((12, 30, 116, 100), fill=WHITE)
+    d.polygon([(12, 30), (116, 30), (64, 72)], fill=(225, 230, 240))
+    d.line((12, 30, 64, 72, 116, 30), fill=(140, 140, 150), width=4)
+
+
+def _puzzle(img, colour=GREEN):
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((14, 34, 104, 118), 8, fill=_darker(colour, 0.72))
+    d.rounded_rectangle((18, 38, 100, 114), 6, fill=colour)
+    d.ellipse((46, 10, 76, 40), fill=colour)
+    d.ellipse((92, 60, 122, 90), fill=colour)
+
+
+def _bug(img):
+    d = ImageDraw.Draw(img)
+    for y in (52, 74, 96):
+        d.line((14, y - 10, 114, y + 10), fill=INK, width=6)
+        d.line((14, y + 10, 114, y - 10), fill=INK, width=6)
+    d.ellipse((30, 34, 98, 120), fill=RED)
+    d.line((64, 40, 64, 118), fill=INK, width=5)
+    d.ellipse((44, 12, 84, 46), fill=INK)
+    d.ellipse((48, 62, 58, 72), fill=INK)
+    d.ellipse((72, 84, 82, 94), fill=INK)
+
+
+def _mic(img):
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((42, 6, 86, 78), 22, fill=(90, 95, 110))
+    d.rounded_rectangle((46, 10, 82, 74), 18, fill=(160, 165, 180))
+    d.arc((26, 30, 102, 94), 0, 180, fill=INK, width=7)
+    d.line((64, 94, 64, 116), fill=INK, width=7)
+    d.line((42, 118, 86, 118), fill=INK, width=8)
+
+
+def _sliders(img):
+    d = ImageDraw.Draw(img)
+    for x, y, c in ((26, 40, BLUE), (64, 84, GREEN), (102, 56, ORANGE)):
+        d.line((x, 12, x, 116), fill=(90, 95, 110), width=8)
+        d.rounded_rectangle((x - 16, y - 10, x + 16, y + 10), 5, fill=_darker(c, 0.7))
+        d.rounded_rectangle((x - 13, y - 7, x + 13, y + 7), 4, fill=c)
+
+
+def _headphones(img):
+    d = ImageDraw.Draw(img)
+    d.arc((14, 10, 114, 110), 180, 360, fill=(70, 72, 82), width=12)
+    d.rounded_rectangle((8, 62, 40, 116), 10, fill=PURPLE)
+    d.rounded_rectangle((88, 62, 120, 116), 10, fill=PURPLE)
+
+
+def _picture(img):
+    d = ImageDraw.Draw(img)
+    d.rectangle((8, 18, 120, 110), fill=(120, 90, 60))
+    d.rectangle((14, 24, 114, 104), fill=(160, 210, 245))
+    d.polygon([(14, 104), (52, 56), (82, 92), (96, 76), (114, 104)], fill=GREEN)
+    d.ellipse((84, 32, 104, 52), fill=YELLOW)
+
+
+def _plus_only(img):
+    _plus(img, 64, 64, 56)
+
+
 # name -> drawing; the toolbar's and the small ones share them
 def _draw(name):
     img = _canvas()
@@ -298,6 +486,8 @@ def _draw(name):
         _bang(img)
     elif name == "queue":
         _hourglass(img)
+    elif name in DRAWINGS:                     # the "Standart" look's pictures
+        DRAWINGS[name](img)
     else:
         raise KeyError(name)
     return img
@@ -325,6 +515,14 @@ def photo(master, name, size, disabled=False):
     return found
 
 
+DRAWINGS = {
+    "person": _person, "search": _magnifier, "magnet": _magnet, "phone": _phone, "disk": _disk, "key": _key,
+    "pencil": _pencil, "trash": _trash, "bell": _bell, "globe": _globe, "star": _star, "keyboard": _keyboard,
+    "heart": _heart, "rocket": _rocket, "mail": _mail, "puzzle": _puzzle, "bug": _bug, "mic": _mic,
+    "sliders": _sliders, "headphones": _headphones, "picture": _picture, "plus": _plus_only,
+    "check": lambda img: _check(img, 64, 64, 48, width=22),
+}
 NAMES = ("add", "resume", "pause", "pause_all", "start_all", "delete", "delete_done", "options", "scheduler",
          "update", "music", "channels", "history", "download", "info", "paste", "file_links", "folder",
-         "video", "audio", "archive", "document", "program", "other", "unfinished", "finished", "error", "queue")
+         "video", "audio", "archive", "document", "program", "other", "unfinished", "finished", "error", "queue",
+         *DRAWINGS)

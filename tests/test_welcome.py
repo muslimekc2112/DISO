@@ -36,10 +36,12 @@ def test_the_tour_walks_through_and_outlines_what_it_tells_about(app):
     tour = app.open_tour()
     assert app.open_tour() is tour
     assert tour.head.cget("text").endswith("hoş geldin!") and tour.back_btn.cget("state") == "disabled"
+    assert tour.count.cget("text") == f"1 / {len(welcome_ui.DOWNLOAD_TOUR)}"
+    tour.go(+1)
     assert int(app.url_entry.cget("border_width")) == 3                # the link box is pointed at
     tour.go(+1)
     assert int(app.url_entry.cget("border_width")) != 3                 # and let go at the next step
-    for _ in range(len(welcome_ui.TOUR) - 2):
+    for _ in range(len(welcome_ui.TOUR) - 3):
         tour.go(+1)
     assert tour.next_btn.cget("text") == "Başla 🚀"
     tour.go(+1)
@@ -91,3 +93,48 @@ def test_the_new_cards_of_1_2_open_their_features(app, monkeypatch):
     while len(opened) < 3 and __import__("time").time() < end:
         app.update()
     assert opened == ["guide", "speed", "order"]
+
+
+@pytest.mark.gui
+def test_every_step_of_both_tours_points_at_something_real(app, monkeypatch):
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
+    assert app._ensure_music()
+    for steps, owner in ((welcome_ui.DOWNLOAD_TOUR, app), (welcome_ui.MUSIC_TOUR, app.music)):
+        assert len(steps) >= 12                                          # a real tour, not five lines
+        for _, _, _, target in steps:
+            assert target is None or getattr(owner, target, None) is not None, target
+        tour = welcome_ui.TourWindow(owner, steps)
+        for i, (_, _, _, target) in enumerate(steps):
+            tour.step = i
+            tour.show()
+            assert (tour._outlined is not None) == bool(target), target          # each one is really pointed at
+        tour.finish()
+
+
+@pytest.mark.gui
+def test_the_music_tour_comes_the_first_time_the_player_opens_and_never_beside_the_other(app, monkeypatch):
+    monkeypatch.setattr(player, "new_backend", FakeBackend)
+    app.cfg.set("music_tour_done", False)
+    tour = app.open_tour()                                               # the download window's tour is open
+    app._switch_mode("Müzik çalar modu")
+    assert not tour.winfo_exists() and app.tour_window is None           # it goes when the player comes
+    app._maybe_music_tour()
+    music_tour = app.music_tour_window
+    assert music_tour is not None and music_tour.winfo_exists() and music_tour.owner is app.music
+    assert music_tour._outlined is None                                  # the welcome: the whole player
+    music_tour.go(+1)
+    assert music_tour._outlined[0] is app.music.view_switch               # it points into the player
+    app._switch_mode("İndirme modu")
+    assert not music_tour.winfo_exists() and not app.cfg.get("music_tour_done")   # closed by the switch: not seen
+    app._switch_mode("Müzik çalar modu")
+    app._maybe_music_tour()
+    app.music_tour_window.finish()                                       # "Atla" / walked to the end: seen
+    assert app.cfg.get("music_tour_done") is True
+    app.music_tour_window = None
+    app._maybe_music_tour()
+    assert app.music_tour_window is None                                 # only once
+    app.open_music_tour()                                                # but again whenever asked for
+    assert app.music_tour_window.winfo_exists()
+    app.open_tour()                                                      # and the other one takes its place
+    assert app.music_tour_window is None and app.tour_window.winfo_exists() and app.mode == "İndirme modu"
+    app.tour_window.finish()

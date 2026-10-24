@@ -185,7 +185,8 @@ def test_a_paused_stream_goes_on_where_it_stopped(site, tmp_path):
     def slow_then_pause(handler):
         path = handler.path.split("?")[0]
         if path.endswith(".ts"):
-            time.sleep(0.05)                             # a slow server: the pause comes in the middle
+            time.sleep(0.1)                              # a slow server: the pause comes in the middle (16
+                                                         # fragments at a time: a fast one ran past the pause)
         result = original(handler)
         if path.endswith(".ts"):
             with Site.lock:

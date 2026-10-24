@@ -72,13 +72,15 @@ DEFAULTS = {
     "bridge_on": True,
     "bridge_port": 17653,
     "theme": "Koyu",
-    "look": "Yeni",
+    "accent": "Pembe",                  # 🎨 the accent colour of "Standart" / "Yeni" (look.ACCENTS)
+    "look": "Standart",                 # "Standart (Önerilen)": the first look of a new computer
     "language": "Türkçe",                # the interface language (app/i18n.py)
     "last_version": "",                 # the version that last ran: a new one is announced once
     "update_announced": "",             # the newest DISO on GitHub that was already told about (once per version)
     "extension_seen": False,            # the browser extension has talked to DISO (so it is in a browser)
     "extension_ask": True,              # offer to add the browser extension (until it is added, or "don't ask again")
     "extension_ask_after": 0,
+    "music_tour_done": False,           # 🎵 the music player's tour was seen (it comes the first time it opens)
     "account_ask": True,                # 👤 "make a DISO account?" at every start (until "don't show again")           # "remind me later": not before this time (seconds since 1970)
     # list
     "sort": "Yeni üstte",
@@ -94,6 +96,7 @@ class Config:
         self.data = dict(DEFAULTS)
         self.saved = set()                  # the keys that came from the file (not defaults)
         self._lock = threading.Lock()
+        self.watchers = []                    # fn(key) after a setting changed
         self._load()
 
     def _load(self):
@@ -123,6 +126,11 @@ class Config:
                 return
             self.data[key] = value
             self._write()
+        for fn in list(self.watchers):        # (e.g. the settings window made in advance shows old values now)
+            try:
+                fn(key)
+            except Exception:  # noqa: BLE001 - a watcher never stops a setting
+                pass
 
     def _write(self):
         try:

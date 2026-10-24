@@ -239,6 +239,18 @@ class ToolButton(tk.Frame):
     config = configure
 
 
+
+class AccountToolButton(ToolButton):
+    """👤 The account on the toolbar: the name when signed in, "Giriş yap" when not (see app/account_ui.py)."""
+
+    def __init__(self, master, app, size=32):
+        from .account_ui import button_text
+        super().__init__(master, "person", button_text()[2:], app.open_account, size=size)
+
+    def refresh(self):
+        from .account_ui import button_text
+        self.configure(text=button_text()[2:])
+
 class StatusLabel(tk.Label):
     """A plain Tk label whose text goes through the interface language like customtkinter's do."""
 
@@ -532,7 +544,7 @@ class NostalgiaWindow:
         self._look_var = tk.StringVar(value=look.style_name())
         styles = tk.Menu(view, tearoff=0)
         for name in look.STYLES:
-            styles.add_radiobutton(label=name, value=name, variable=self._look_var,
+            styles.add_radiobutton(label=look.label(name), value=name, variable=self._look_var,
                                    command=lambda n=name: self._n_choose("look", n))
         view.add_cascade(label="Görünüm stili", menu=styles)
         self._theme_var = tk.StringVar(value=self.cfg.get("theme"))
@@ -640,6 +652,9 @@ class NostalgiaWindow:
         self.updates_btn = buttons["update"]
         self.channels_btn = buttons["channels"]
         self.history_button = buttons["history"]
+        self.account_btn = AccountToolButton(row, self, size=size)       # 👤 the account, at the right end
+        self.account_btn.pack(side="right", padx=1)
+        self.account_buttons.append(self.account_btn)
 
     # ---- the new-download box: address and the choices
     def _n_address(self):

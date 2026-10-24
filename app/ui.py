@@ -35,11 +35,13 @@ from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED,
 from .segmented_downloader import LIMITER, check_connection, set_proxy
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
 from .ui_common import (animations_on, cross_fade, fade_in, fade_out_and, guard_color_emoji, install_bring_forward,
-                        install_smooth_scrolling, install_soft_windows, install_wrap_to_fit, no_window_animation)
+                        install_light_resizing, install_smooth_scrolling, install_soft_windows, install_wrap_to_fit,
+                        no_window_animation)
 
 guard_color_emoji()                 # Linux with an old libXft: before the first window
 install_smooth_scrolling()
 install_wrap_to_fit()
+install_light_resizing()
 from .utils import (MAC, WINDOWS, app_data_dir, clip_text, default_download_dir, extract_urls, find_ffmpeg,
                     human_duration, human_eta, human_size, is_url, normalize_url, open_file, open_in_file_manager,
                     parse_time, resource_path, urls_from_file)
@@ -59,6 +61,14 @@ ACCOUNT_FIRST_SYNC = 60_000    # ms after the start: the first time what changed
 ACCOUNT_CLOSE_WAIT = 8         # s: the longest a closing waits for the account to take what changed
 ACCOUNT_OFFER_DELAY = 2500     # ms after the start: "make a DISO account?" (while there is none)
 ACCOUNT_OFFER_RETRY = 3000     # ms: another window is asking something: the account waits its turn
+SETTINGS_PREPARE_AFTER = 7000  # ms after the start: the settings window is made unseen (⚡ it opens at once)
+SETTINGS_PREPARE_AGAIN = 2500  # ms after it closed (or a setting changed elsewhere): made again
+# settings the settings window does not show (the option bar, the list ...): a change keeps the one made in advance
+SETTINGS_NOT_SHOWN = frozenset({"folder", "kind", "quality", "bitrate", "connections", "cookies", "playlist", "subs",
+                                "cover", "sort_folders", "sort", "filter", "category", "clip_watch", "last_version",
+                                "update_announced", "extension_seen", "extension_ask_after", "restart_view",
+                                "music_tour_done"})
+MUSIC_TOUR_DELAY = 900        # ms after the music player first shows: its tour (once it has settled)
 ACCOUNT_SONGS_DELAY = 5000     # ms after the start: the lists' songs that came with the account are downloaded
 EXTENSION_LATER = 3 * 24 * 3600         # s: "remind me later" asks again after three days
 BAD = "#b23b3b"
@@ -460,10 +470,13 @@ class UpdatePanel(ctk.CTkToplevel):
 class SettingsPanel(ctk.CTkToplevel):
     """Everything that is not in the option bar, in groups. Changes apply at once."""
 
-    def __init__(self, app):
+    def __init__(self, app, hidden=False):
         super().__init__(app)
         set_window_icon(self)
         self.app = app
+        self.hidden = hidden                           # ⚡ made in advance, out of sight: reveal() shows it at once
+        if hidden:
+            self.withdraw()
         self._shown_softly = True                      # ✨ unseen while its groups are made, then it fades in once
         if animations_on():
             try:
@@ -471,8 +484,8 @@ class SettingsPanel(ctk.CTkToplevel):
             except TclError:
                 pass
         self.title("Ayarlar")
-        w, h = fit_geometry(self, 620, 720)
-        self.minsize(min(560, w), min(420, h))
+        w, h = fit_geometry(self, 680, 720)
+        self.minsize(min(660, w), min(420, h))             # (the buttons at the bottom keep their room)
         self.transient(app)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
@@ -545,9 +558,32 @@ class SettingsPanel(ctk.CTkToplevel):
             pending.pop(0)()
         self._show_built()
 
+    def destroy(self):
+        app = self.app
+        super().destroy()
+        if not self.__dict__.get("hidden"):
+            try:
+                app._prepare_settings_later()          # ⚡ the next one is made unseen, ready for next time
+            except (TclError, AttributeError):
+                pass
+
+    def reveal(self):
+        """The window made in advance comes out: everything in it is already there."""
+        self.hidden = False
+        self.build_rest()
+        try:
+            if animations_on():
+                self.attributes("-alpha", 0.0)
+            self.deiconify()
+            self.update_idletasks()
+            if animations_on():
+                fade_in(self)
+        except TclError:
+            pass
+
     def _show_built(self):
         """Every group is there: laid out unseen, then the window fades in whole (no group popping in)."""
-        if self.__dict__.get("_built_shown") or not animations_on():
+        if self.__dict__.get("_built_shown") or not animations_on() or self.__dict__.get("hidden"):
             return
         self._built_shown = True
         try:
@@ -710,10 +746,16 @@ class SettingsPanel(ctk.CTkToplevel):
         self.theme_menu.set(cfg.get("theme"))
         self._add(card, "Görünüm", "Koyu ya da açık gri (değişince DISO yeniden açılır)" if self.nostalgia
                   else "Koyu, açık ya da Windows ne derse o", self.theme_menu)
-        self.look_menu = ctk.CTkOptionMenu(card, values=look.STYLES, width=150,
-                                           command=lambda v: app.apply_setting("look", v))
-        self.look_menu.set(cfg.get("look"))
+        self.look_menu = ctk.CTkOptionMenu(card, values=[look.label(s) for s in look.STYLES], width=170,
+                                           command=lambda v: app.apply_setting("look", look.style_of(v)))
+        self.look_menu.set(look.label(cfg.get("look")))
         self._add(card, "Görünüm stili", "Renk ve şekil takımı (değişince DISO yeniden açılır)", self.look_menu)
+        if not self.nostalgia:
+            self.accent_menu = ctk.CTkOptionMenu(card, values=list(look.ACCENTS), width=170,
+                                                 command=lambda v: app.apply_setting("accent", v))
+            self.accent_menu.set(cfg.get("accent"))
+            self._add(card, "Vurgu rengi", "Düğmelerin ve seçili şeylerin rengi; pencerenin tonu da ona uyar "
+                      "(Standart ve Yeni'de; değişince DISO yeniden açılır)", self.accent_menu)
         self.language_menu = ctk.CTkOptionMenu(card, values=list(i18n.LANGUAGES), width=150,
                                                command=lambda v: app.apply_setting("language", v))
         self.language_menu.set(cfg.get("language"))
@@ -735,6 +777,12 @@ class SettingsPanel(ctk.CTkToplevel):
         self._add(card, "Yedeği geri yükle", "Başka bilgisayardan ya da eskiden aldığın yedeği geri getir", self.restore_button)
         self.history_settings_button = ctk.CTkButton(card, text="📊 Geçmiş", width=150, command=app.open_history)
         self._add(card, "İndirme geçmişi", "Ne zaman ne indi, ne kadar hızlı", self.history_settings_button)
+        tours = ctk.CTkFrame(card, fg_color="transparent")
+        self.tour_button = ctk.CTkButton(tours, text="👋 İndirme", width=96, command=app.open_tour)
+        self.tour_button.pack(side="left", padx=(0, 4))
+        self.music_tour_button = ctk.CTkButton(tours, text="🎵 Müzik", width=96, command=app.open_music_tour)
+        self.music_tour_button.pack(side="left")
+        self._add(card, "Turu yeniden göster", "Pencerenin her yerini adım adım anlatan kısa tur", tours)
         self.shortcuts_button = ctk.CTkButton(card, text="⌨ Kısayollar", width=150, command=app.open_shortcuts)
         self._add(card, "Klavye kısayolları", "F1 ile her yerden açılır", self.shortcuts_button)
         self.health_button = ctk.CTkButton(card, text="🩺 Sağlık kontrolü", width=150, command=app.open_health)
@@ -1386,7 +1434,7 @@ class App(NostalgiaWindow, ctk.CTk):
         self.cfg.sanitize({
             "kind": list(KIND_LABELS), "quality": ve.QUALITIES, "bitrate": ve.BITRATES,
             "connections": CONNECTIONS, "cookies": ve.BROWSERS, "speed_limit": list(SPEED_LIMITS),
-            "sort": SORTS, "filter": FILTERS, "subs": SUBTITLE_CHOICES, "theme": list(THEMES), "look": look.STYLES,
+            "sort": SORTS, "filter": FILTERS, "subs": SUBTITLE_CHOICES, "theme": list(THEMES), "look": look.STYLES, "accent": list(look.ACCENTS),
             "language": list(i18n.LANGUAGES),
             "auto_retry": list(AUTO_RETRY.values()),
         })
@@ -1439,6 +1487,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self.history = history.History()         # every finished download, also after it leaves the list
         self.phone_link = None                   # 📱 the little web page the phone sends links to
         self.phone_window = None
+        self._spare_settings = None              # ⚡ the settings window made in advance (unseen)
+        self._spare_job = None
         self.account_window = None               # 👤 the DISO account
         self.account_offer = None
         self.account_buttons = []                # the account at the top right (refreshed by account_changed)
@@ -1453,6 +1503,7 @@ class App(NostalgiaWindow, ctk.CTk):
         self.shortcuts_window = None
         self.health_window = None
         self.tour_window = None                  # 👋 the first start's tour
+        self.music_tour_window = None            # 🎵 the music player's tour (the first time it opens)
         self.whats_new_window = None             # 🎉 what came with this version
         self.channel_store = channels.Store()             # 📺 followed channels: new videos are announced, never downloaded
         self.channel_watcher = channels.Watcher(self.channel_store)
@@ -1485,6 +1536,8 @@ class App(NostalgiaWindow, ctk.CTk):
         if not os.environ.get("PYTEST_CURRENT_TEST"):
             self.after(MUSIC_PREPARE_AFTER, self._prepare_music)       # ⚡ the first switch to the player is instant
             self.after(ACCOUNT_FIRST_SYNC, self._account_tick)         # 👤 what changed here goes to the account
+            self.after(SETTINGS_PREPARE_AFTER, self._prepare_settings)  # ⚡ the settings open at once
+            self.cfg.watchers.append(lambda key: self._ui_calls.put(lambda: self._setting_changed(key)))
         if self.cfg.get("tray_on_close") or minimized:
             self._ensure_tray()
         if minimized:
@@ -1558,7 +1611,7 @@ class App(NostalgiaWindow, ctk.CTk):
         ctk.CTkLabel(head, text="Linki yapıştır, gerisini bana bırak • Dosya, video, MP3 • YouTube, Instagram, TikTok, X…",
                      text_color="gray").grid(row=1, column=1, sticky="nw")
 
-        row = ctk.CTkFrame(self, fg_color="transparent")
+        row = self.link_row = ctk.CTkFrame(self, fg_color="transparent")
         row.grid(row=1, column=0, sticky="ew", padx=16, pady=(6, 0))
         row.columnconfigure(0, weight=1)
         hint = "Linki buraya yapıştır (birden fazlaysa araya boşluk koy)…"
@@ -1578,11 +1631,15 @@ class App(NostalgiaWindow, ctk.CTk):
         # 📺 followed channels; "📺 3" when 3 new videos came
         self.channels_btn = ctk.CTkButton(row, text="📺", width=48, height=44, command=self.open_channels)
         self.channels_btn.grid(row=0, column=7, padx=(0, 8))
-        ctk.CTkButton(row, text="⬇  İndir", height=44, width=130, font=ctk.CTkFont(size=16, weight="bold"),
-                      command=self.add_from_entry).grid(row=0, column=8)
+        main = {"fg_color": look.ACCENT, "hover_color": look.ACCENT_HOVER, "text_color": look.ACCENT_TEXT,
+                "border_width": 0} if look.is_standard() else {}   # (Standart: the one accent button)
+        self.download_btn = ctk.CTkButton(row, text="⬇  İndir", height=44, width=130,
+                                          font=ctk.CTkFont(size=16, weight="bold"), command=self.add_from_entry,
+                                          **main)
+        self.download_btn.grid(row=0, column=8)
 
     def _build_options(self):
-        opt = ctk.CTkFrame(self)
+        opt = self.options_frame = ctk.CTkFrame(self)
         opt.grid(row=2, column=0, sticky="ew", padx=16, pady=10)
         for c in range(6):
             opt.columnconfigure(c, weight=1)
@@ -1651,7 +1708,7 @@ class App(NostalgiaWindow, ctk.CTk):
         ctk.CTkButton(folder, text="Klasör Seç", width=110, height=34, command=self._pick_folder).grid(row=0, column=1)
 
     def _build_toolbar(self):
-        bar = ctk.CTkFrame(self, fg_color="transparent")
+        bar = self.list_tools = ctk.CTkFrame(self, fg_color="transparent")
         bar.grid(row=3, column=0, sticky="ew", padx=16, pady=(0, 6))
         ctk.CTkLabel(bar, text="İndirmeler", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left", padx=(4, 12))
         ctk.CTkButton(bar, text="▶ Hepsini başlat", width=130, height=30,
@@ -1662,8 +1719,8 @@ class App(NostalgiaWindow, ctk.CTk):
                       command=self.clear_finished).pack(side="left", padx=3)
         ctk.CTkButton(bar, text="🗑 Hepsini temizle", width=130, height=30, fg_color="transparent", border_width=1,
                       text_color=("gray20", "gray85"), command=self.clear_all).pack(side="left", padx=3)
-        ctk.CTkButton(bar, text="⚙ Ayarlar", width=100, height=30,
-                      command=self._open_settings).pack(side="right", padx=3)
+        self.settings_btn = ctk.CTkButton(bar, text="⚙ Ayarlar", width=100, height=30, command=self._open_settings)
+        self.settings_btn.pack(side="right", padx=3)
         self.updates_btn = ctk.CTkButton(bar, text="⟳ Güncellemeler", width=120, height=30,
                                          command=self._open_updates)
         self.updates_btn.pack(side="right", padx=3)
@@ -1880,8 +1937,8 @@ class App(NostalgiaWindow, ctk.CTk):
             if (self._closing or getattr(self, "_started_hidden", False) or self.state() == "withdrawn"
                     or account.signed_in() or account.waiting() or not self.cfg.get("account_ask")):
                 return
-            busy = [getattr(self, n, None) for n in ("tour_window", "whats_new_window", "extension_offer",
-                                                     "account_window")]
+            busy = [getattr(self, n, None) for n in ("tour_window", "music_tour_window", "whats_new_window",
+                                                     "extension_offer", "account_window")]
             if any(w is not None and w.winfo_exists() for w in busy):
                 self.after(ACCOUNT_OFFER_RETRY, self._maybe_offer_account)      # one question at a time
                 return
@@ -2438,8 +2495,39 @@ class App(NostalgiaWindow, ctk.CTk):
             self.after(1200, self.open_tour if not last else self.open_whats_new)
 
     def open_tour(self):
+        """👋 The download window's tour (the first start; again from the settings)."""
         from .welcome_ui import TourWindow
+        self._close_tour("music_tour_window")                      # never two tours at once
+        if self.mode == MODE_MUSIC:
+            self._switch_mode(MODE_DOWNLOAD)
         return self._single("tour_window", lambda: TourWindow(self))
+
+    def open_music_tour(self):
+        """🎵 The music player's tour (the first time the player opens; again from the settings or its ⚙ menu)."""
+        from .welcome_ui import MUSIC_TOUR, TourWindow
+        self._close_tour("tour_window")
+        if self.mode != MODE_MUSIC:
+            self._switch_mode(MODE_MUSIC)
+        if self.music is None:
+            return None
+        return self._single("music_tour_window", lambda: TourWindow(
+            self.music, MUSIC_TOUR, "Müzik çalar turu", on_done=lambda finished: finished and self.cfg.set(
+                "music_tour_done", True)))
+
+    def _close_tour(self, attr):
+        win = getattr(self, attr, None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.finish(finished=False)
+        except TclError:
+            pass
+        setattr(self, attr, None)
+
+    def _maybe_music_tour(self):
+        """The first time the music player is opened: its tour (once; "Atla" counts as seen)."""
+        if self._closing or self.mode != MODE_MUSIC or self.cfg.get("music_tour_done"):
+            return
+        self.open_music_tour()
 
     def open_whats_new(self):
         from .welcome_ui import WhatsNewWindow
@@ -2490,9 +2578,57 @@ class App(NostalgiaWindow, ctk.CTk):
                 return
         except TclError:
             pass
-        self.settings_panel = SettingsPanel(self)
+        spare, self._spare_settings = self._spare_settings, None
+        try:
+            if spare is not None and spare.winfo_exists():
+                self.settings_panel = spare                # ⚡ made in advance: there at once
+                spare.reveal()
+                self._bring_to_front(spare)
+            else:
+                spare = None
+        except TclError:
+            spare = None
+        if spare is None:
+            self.settings_panel = SettingsPanel(self)
         if tab:
             self.settings_panel.show_tab(tab)
+
+    def _prepare_settings(self):
+        """⚡ Make the settings window unseen while nothing else happens, so opening it is instant (some 120
+        controls: it took close to a second). Made again after it is closed, or when a setting changed elsewhere."""
+        self._spare_job = None
+        if self._closing or os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        try:
+            if self._spare_settings is not None and self._spare_settings.winfo_exists():
+                return
+            panel = self.settings_panel
+            if panel is not None and panel.winfo_exists():
+                return                                     # one is open: the next is made when it closes
+        except TclError:
+            pass
+        try:
+            self._spare_settings = SettingsPanel(self, hidden=True)
+        except Exception:  # noqa: BLE001 - then it is made when asked for, as before
+            log.exception("could not make the settings in advance")
+            self._spare_settings = None
+
+    def _prepare_settings_later(self, ms=SETTINGS_PREPARE_AGAIN):
+        if self._spare_job is not None or self._closing:
+            return
+        self._spare_job = self.after(ms, self._prepare_settings)
+
+    def _setting_changed(self, key):
+        """A setting changed while the settings window made in advance waits: it would show the old value."""
+        spare = self._spare_settings
+        if spare is None or key in SETTINGS_NOT_SHOWN:
+            return
+        self._spare_settings = None
+        try:
+            spare.destroy()
+        except TclError:
+            pass
+        self._prepare_settings_later()
 
     def _on_language_switch(self, short):
         name = LANGUAGE_SHORT.get(short)
@@ -2534,7 +2670,7 @@ class App(NostalgiaWindow, ctk.CTk):
             # Not inside the dropdown's own callback: on Windows that still runs inside the native
             # menu loop, and re-coloring every widget there can leave the buttons without clicks.
             self.after(80, self._apply_theme, value)
-        elif key == "look":
+        elif key in ("look", "accent"):
             self.after(150, self._offer_restart)
         elif key == "language":
             self._show_language()
@@ -3452,8 +3588,12 @@ class App(NostalgiaWindow, ctk.CTk):
                 return
             self.mode = MODE_MUSIC
             self.music.mode_bar.set(MODE_MUSIC)
+            self._close_tour("tour_window")                    # the download window's tour talks about the other one
             self._hand_over_window(self, self.music)
+            if not self.cfg.get("music_tour_done"):
+                self.after(MUSIC_TOUR_DELAY, self._maybe_music_tour)
         else:
+            self._close_tour("music_tour_window")
             self.mode = MODE_DOWNLOAD
             self.mode_bar.set(MODE_DOWNLOAD)
             if self.music is not None and self.music.winfo_viewable():
