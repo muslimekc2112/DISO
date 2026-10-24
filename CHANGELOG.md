@@ -2,6 +2,14 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 1.5
+- **👤 Separate "Create account" and "Sign in" screens:** creating an account asks for a name, a surname, a user name (unique), a Gmail address and the password twice. A confirmation link goes to the Gmail; the account opens only after the link is clicked and "I confirmed" is pressed ("Open Gmail", "Send again", "Cancel" are there).
+- **The account at the top right:** in the download window and the music player your name is at the top right; "👤 Sign in" when signed out, "👤 Confirm" while the e-mail waits. The account window shows a circle with your initials, your name, @user name, e-mail, last sync, "Change password" and "Sign out".
+- **"Create a DISO account?" at every start** (while there is none), until "Don't show again".
+- **First sign-in on another computer:** choose "Bring the data to this computer" or "Send this computer's data to the account", and "Download the lists' songs too". The songs come as MP3 from their link in the download history (or found on YouTube Music by artist + title) and take their old places in the lists. "⬇ Download the lists' missing songs" is always in the account window.
+- **Fixed:** songs of lists that came from another computer could count as "deleted" (their files were not there yet) and be dropped, which then went back to the account and emptied the lists on the first computer. Songs in DISO's music folder now point into each computer's own music folder; those not here yet wait instead of being dropped.
+- **Fixed:** with e-mail sign-in switched off in Firebase, a plain explanation instead of "OPERATION_NOT_ALLOWED".
+
 ## 1.4
 - **👤 DISO account:** make an account or sign in with an e-mail and a password in Settings → Account (optional). Your settings, playlists, followed channels and download history stay the same on every computer. When DISO opens, what changed on another computer comes in; when it closes and every 10 minutes, what changed here goes to the account. Settings of this computer (folders, USB, port, starting with Windows) do not travel, and neither do songs and videos. When the same file changed on two computers, the account's wins and the local one is kept as `.before-sync`. At the first sign-in, if both sides hold different data, DISO asks which to keep. "Forgot my password" mails a link for a new one.
 - **💾 Backups** now include the followed channels too.

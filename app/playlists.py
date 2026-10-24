@@ -129,6 +129,8 @@ def _clean_track(t):
         out["duration"] = t["duration"]
     if t.get("probed") is True:
         out["probed"] = True
+    if t.get("away") is True and not os.path.isfile(t["path"]):     # 👤 came from another computer, not here yet
+        out["away"] = True
     if isinstance(t.get("added"), (int, float)) and not isinstance(t["added"], bool):
         out["added"] = float(t["added"])
     return out
@@ -392,9 +394,10 @@ class PlaylistStore:
         self.save()
 
     def missing_paths(self) -> set:
-        """The files of every list that were deleted (see is_gone). Safe to call from any thread."""
+        """The files of every list that were deleted (see is_gone). Safe to call from any thread. A song that came
+        with the account from another computer ("away": its file is not here yet) is not deleted: it waits."""
         with self._lock:
-            paths = {t["path"] for tracks in self.lists.values() for t in tracks}
+            paths = {t["path"] for tracks in self.lists.values() for t in tracks if not t.get("away")}
         return {p for p in paths if is_gone(p)}
 
     def prune(self, paths) -> dict:
@@ -426,6 +429,7 @@ class PlaylistStore:
                     if new:
                         t["path"] = os.path.abspath(new)
                         t["title"] = os.path.splitext(os.path.basename(new))[0]
+                        t.pop("away", None)                           # 👤 the song came: it is here now
                         changed += 1
             for old, new in moves:
                 stat = self.stats.pop(file_key(old), None)

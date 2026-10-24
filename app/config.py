@@ -78,7 +78,8 @@ DEFAULTS = {
     "update_announced": "",             # the newest DISO on GitHub that was already told about (once per version)
     "extension_seen": False,            # the browser extension has talked to DISO (so it is in a browser)
     "extension_ask": True,              # offer to add the browser extension (until it is added, or "don't ask again")
-    "extension_ask_after": 0,           # "remind me later": not before this time (seconds since 1970)
+    "extension_ask_after": 0,
+    "account_ask": True,                # 👤 "make a DISO account?" at every start (until "don't show again")           # "remind me later": not before this time (seconds since 1970)
     # list
     "sort": "Yeni üstte",
     "filter": "Hepsi",

@@ -323,6 +323,9 @@ class MusicWindow(ctk.CTkToplevel):
         self.vis_btn.grid(row=0, column=6, padx=(8, 0))
         self.menu_btn = ctk.CTkButton(head, text="⚙", width=40, height=32, command=self._open_player_menu)
         self.menu_btn.grid(row=0, column=7, padx=(8, 0))
+        from .account_ui import AccountButton
+        self.account_btn = AccountButton(head, self.app)          # 👤 the account, at the top right
+        self.account_btn.grid(row=0, column=8, padx=(8, 0))
 
     def player_menu_items(self):
         """The ⚙ menu: cross-fade length, the mini player, the keyboard shortcuts."""

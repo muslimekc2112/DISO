@@ -57,6 +57,9 @@ EXTENSION_OFFER_DELAY = 4000            # ms after the start: "add DISO to your 
 MUSIC_PREPARE_AFTER = 3500     # ms after the start: the music window is made in the background (⚡)
 ACCOUNT_FIRST_SYNC = 60_000    # ms after the start: the first time what changed here goes to the account (👤)
 ACCOUNT_CLOSE_WAIT = 8         # s: the longest a closing waits for the account to take what changed
+ACCOUNT_OFFER_DELAY = 2500     # ms after the start: "make a DISO account?" (while there is none)
+ACCOUNT_OFFER_RETRY = 3000     # ms: another window is asking something: the account waits its turn
+ACCOUNT_SONGS_DELAY = 5000     # ms after the start: the lists' songs that came with the account are downloaded
 EXTENSION_LATER = 3 * 24 * 3600         # s: "remind me later" asks again after three days
 BAD = "#b23b3b"
 BAD_HOVER = "#8f2e2e"
@@ -1437,6 +1440,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self.phone_link = None                   # 📱 the little web page the phone sends links to
         self.phone_window = None
         self.account_window = None               # 👤 the DISO account
+        self.account_offer = None
+        self.account_buttons = []                # the account at the top right (refreshed by account_changed)
         if links:                                # 🧲 started with a .torrent / magnet: link
             self.after(800, lambda: self.add_urls(list(links)))
         self.after(2000, self._associate)
@@ -1474,6 +1479,9 @@ class App(NostalgiaWindow, ctk.CTk):
         self._started_hidden = minimized
         if not minimized:
             self.after(EXTENSION_OFFER_DELAY, self._maybe_offer_extension)
+            self.after(ACCOUNT_OFFER_DELAY, self._maybe_offer_account)
+        if account.take_redownload():            # 👤 the lists came from the account: their songs come now
+            self.after(ACCOUNT_SONGS_DELAY, self.download_away_songs)
         if not os.environ.get("PYTEST_CURRENT_TEST"):
             self.after(MUSIC_PREPARE_AFTER, self._prepare_music)       # ⚡ the first switch to the player is instant
             self.after(ACCOUNT_FIRST_SYNC, self._account_tick)         # 👤 what changed here goes to the account
@@ -1543,6 +1551,10 @@ class App(NostalgiaWindow, ctk.CTk):
                                                       command=self._on_language_switch)
         self.language_switch.set(LANGUAGE_NAMES[self.cfg.get("language")])
         self.language_switch.pack(side="left", padx=(10, 0), pady=(8, 0))
+        from .account_ui import AccountButton
+        self.account_btn = AccountButton(head, self)          # 👤 the account, at the top right
+        self.account_btn.grid(row=0, column=2, rowspan=2, sticky="ne")
+        self.account_buttons.append(self.account_btn)
         ctk.CTkLabel(head, text="Linki yapıştır, gerisini bana bırak • Dosya, video, MP3 • YouTube, Instagram, TikTok, X…",
                      text_color="gray").grid(row=1, column=1, sticky="nw")
 
@@ -1844,11 +1856,17 @@ class App(NostalgiaWindow, ctk.CTk):
         return self._single("phone_window", lambda: PhoneWindow(self, self.phone_link))
 
     # ------------------------------------------------------------------ 👤 the DISO account
-    def open_account(self):
+    def open_account(self, page=None):
+        """The account window ("signin", "signup" ...; None: what fits: the account, or signing in)."""
         from .account_ui import AccountWindow
-        return self._single("account_window", lambda: AccountWindow(self))
+        win = self._single("account_window", lambda: AccountWindow(self, page))
+        if page and win.page != page and not win.busy:
+            win.show(page)
+        return win
 
     def account_text(self) -> str:
+        if account.waiting():
+            return f"E-postanı doğrula: {account.email()}"
         if not account.signed_in():
             return "Giriş yap: ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun"
         last = account.last_sync()
@@ -1856,8 +1874,97 @@ class App(NostalgiaWindow, ctk.CTk):
             return f"{account.email()} ile giriş yapıldı"
         return f"{account.email()} ile giriş yapıldı · son eşitleme {time.strftime('%d.%m %H:%M', time.localtime(last))}"
 
+    def _maybe_offer_account(self):
+        """At start, without an account: "make one?" — every start, until "Bir daha gösterme"."""
+        try:
+            if (self._closing or getattr(self, "_started_hidden", False) or self.state() == "withdrawn"
+                    or account.signed_in() or account.waiting() or not self.cfg.get("account_ask")):
+                return
+            busy = [getattr(self, n, None) for n in ("tour_window", "whats_new_window", "extension_offer",
+                                                     "account_window")]
+            if any(w is not None and w.winfo_exists() for w in busy):
+                self.after(ACCOUNT_OFFER_RETRY, self._maybe_offer_account)      # one question at a time
+                return
+            from .account_ui import AccountOffer
+            self.account_offer = AccountOffer(self, on_never=lambda: self.cfg.set("account_ask", False))
+        except Exception:  # noqa: BLE001 - only a suggestion: never in the way
+            log.exception("account offer")
+
+    # ---- 👤 the lists' songs that came from another computer
+    def away_songs(self):
+        """[(path, track)] of the songs in the lists whose files are not on this computer yet (they came with the
+        account from another one), each once."""
+        if self.playlist_store is None and not os.path.isfile(os.path.join(app_data_dir(), "playlists.json")):
+            return []
+        store, seen, songs = self._store(), set(), []
+        for name in store.user_names():
+            for t in store.tracks(name):
+                key = playlists.file_key(t["path"])
+                if t.get("away") and key not in seen and not os.path.isfile(t["path"]):
+                    seen.add(key)
+                    songs.append((t["path"], t))
+        return songs
+
+    def download_away_songs(self) -> int:
+        """⬇ Download them again as MP3: the link from the download history (it travelled too), else the song looked
+        up on YouTube Music by its artist and title. Each one takes its old place in every list when it is done.
+        Returns how many are looked for."""
+        songs = self.away_songs()
+        if not songs:
+            self.notice("Listelerdeki bütün şarkılar bu bilgisayarda", 6)
+            return 0
+        links = {os.path.basename(e["path"]).lower(): e["url"] for e in list(self.history.entries)
+                 if e.get("path") and e.get("url")}
+        running = {it.group for it in list(self.manager.items) if getattr(it, "origin", "") == "music-restore"
+                   and it.state in ACTIVE_STATES}
+        songs = [(p, t) for p, t in songs if p not in running]
+
+        def work():
+            found = []
+            for path, track in songs:
+                url = links.get(os.path.basename(path).lower(), "")
+                if not url:
+                    artist, title = player.artist_and_title(track)
+                    try:
+                        results = music_search.search(title, artist, limit=1)
+                    except Exception as e:  # noqa: BLE001 - that one is not found; the others go on
+                        log.info("away song not found (%s): %s", title, e)
+                        results = []
+                    url = results[0]["url"] if results else ""
+                if url:
+                    found.append((path, url, track))
+            self._ui_calls.put(lambda: self._queue_away(found, len(songs)))
+        threading.Thread(target=work, daemon=True, name="away-songs").start()
+        self.notice(f"⬇ Listelerdeki {len(songs)} şarkı aranıyor…", 8)
+        return len(songs)
+
+    def _queue_away(self, found, total):
+        settings = self.song_settings()
+        for path, url, track in found:
+            it = self.manager.add_song(url, track.get("tag_title") or track.get("title", ""), settings,
+                                       origin="music-restore")
+            it.group = path                       # the song it replaces (kept with the download list)
+        self.manager.save()
+        missed = total - len(found)
+        self.notice(f"⬇ Listelerdeki {len(found)} şarkı indiriliyor" +
+                    (f" ({missed} tanesi bulunamadı)" if missed else ""), 10)
+
+    def _songs_back_in_place(self, items):
+        """A downloaded-again song takes the place of the one that was away, in every list."""
+        moves = [(it.group, it.final_path) for it in items
+                 if it.group and it.final_path and os.path.isfile(it.final_path)]
+        if moves and self._store().rename_paths(moves) and self.music is not None:
+            self.music.reload()
+        self._find_song_lyrics(items)
+
     def account_changed(self):
-        """Signed in / out or synced: the line in the settings says so."""
+        """Signed in / out or synced: the button at the top right and the line in the settings say so."""
+        for btn in [*self.account_buttons, getattr(self.music, "account_btn", None)]:
+            try:
+                if btn is not None and btn.winfo_exists():
+                    btn.refresh()
+            except TclError:
+                pass
         panel = self.settings_panel
         hint = panel.__dict__.get("account_hint") if panel is not None else None   # (not built yet: nothing to do)
         try:
@@ -3136,7 +3243,10 @@ class App(NostalgiaWindow, ctk.CTk):
         listed = [it for it in items if getattr(it, "origin", "") == "music-list"]
         if listed:
             self._songs_into_their_list(listed)
-        items = [it for it in items if it not in found and it not in listed]
+        back = [it for it in items if getattr(it, "origin", "") == "music-restore"]
+        if back:
+            self._songs_back_in_place(back)
+        items = [it for it in items if it not in found and it not in listed and it not in back]
         if not self.cfg.get("auto_music"):
             return
         added = {}

@@ -47,6 +47,49 @@ PLAIN = {
         "Sign out of the account?\n\nThe settings and lists on this computer stay as they are; they are just "
         "not synced any more.",
     "Önce e-posta adresini yaz.": "Type your e-mail address first.",
+    "Hesap sunucusunda e-postayla giriş kapalı. DISO'nun Firebase ayarında Email/Password açılmalı.":
+        "Signing in with an e-mail is switched off on the account server. Email/Password must be enabled in "
+        "DISO's Firebase settings.",
+    "Bu kullanıcı adı alınmış, başka birini dene.": "This user name is taken, try another one.",
+    "Kullanıcı adı 3–20 karakter olmalı: küçük harf, rakam, nokta ya da alt çizgi.":
+        "The user name must be 3–20 characters: lowercase letters, digits, dots or underscores.",
+    "Adını ve soyadını yaz.": "Type your name and surname.",
+    "E-posta adresin henüz doğrulanmadı. Gmail'ine gelen bağlantıya tıkla, sonra “Doğruladım” de.":
+        "Your e-mail address is not confirmed yet. Click the link in your Gmail, then press “I confirmed”.",
+    "👤 Doğrula": "👤 Confirm", "👤 Giriş yap": "👤 Sign in",
+    "DISO hesabınla giriş yap: ayarların, listelerin, kanalların ve geçmişin gelsin.":
+        "Sign in with your DISO account: your settings, lists, channels and history come along.",
+    "Hesabın yok mu? Hesap aç": "No account? Create one", "Zaten hesabın var mı? Giriş yap":
+        "Already have an account? Sign in",
+    "Bilgilerini yaz. Gmail adresine bir doğrulama bağlantısı göndereceğiz; hesabın ona tıklayınca açılır.":
+        "Fill in your details. We will send a confirmation link to your Gmail; your account opens when you click it.",
+    "Ad": "Name", "Soyad": "Surname", "Kullanıcı adı": "User name", "Gmail": "Gmail",
+    "Şifre (en az 6 karakter)": "Password (at least 6 characters)", "Şifre (tekrar)": "Password (again)",
+    "📧 E-postanı doğrula": "📧 Confirm your e-mail",
+    "Bu adrese bir doğrulama bağlantısı gönderdik. Gmail'ini aç, DISO'dan gelen e-postadaki bağlantıya tıkla, "
+    "sonra buraya dönüp “Doğruladım” de. Gelmediyse gereksiz (spam) klasörüne de bak.":
+        "We sent a confirmation link to this address. Open your Gmail, click the link in the mail from DISO, then "
+        "come back here and press “I confirmed”. If it did not come, look in the spam folder too.",
+    "✔ Doğruladım": "✔ I confirmed", "Tekrar gönder": "Send again", "📬 Gmail'i aç": "📬 Open Gmail",
+    "Bağlantıyı yeniden gönderdik. Gmail'ine bak.": "We sent the link again. Look in your Gmail.",
+    "☁ Hesabındaki veriler": "☁ The data in your account",
+    "Verileri bu bilgisayara aktar": "Bring the data to this computer",
+    "Bu bilgisayardakileri hesaba yükle (hesaptakiler değişir)":
+        "Send this computer's data to the account (the account's is replaced)",
+    "Aktarınca buradaki eski dosyalar yedek olarak saklanır ve DISO yeniden açılır. Şarkılar açılıştan sonra MP3 "
+    "olarak inmeye başlar; listede yerlerini alırlar.":
+        "When the data comes, the old files here are kept as a copy and DISO restarts. The songs start downloading "
+        "as MP3 after the start and take their places in the lists.",
+    "Devam": "Continue", "🔑 Şifreyi değiştir": "🔑 Change password",
+    "⬇ Listelerdeki bütün şarkılar burada": "⬇ All the lists' songs are here",
+    "İki şifre aynı değil.": "The two passwords are not the same.",
+    "Şimdi değil": "Not now", "Bir daha gösterme": "Don't show again",
+    "👤 Bir DISO hesabı aç": "👤 Create a DISO account",
+    "Ayarların, çalma listelerin, kanalların ve indirme geçmişin her bilgisayarında seninle gelsin. Başka bir "
+    "bilgisayarda giriş yapınca listelerindeki şarkıları da tek tıkla indirirsin.":
+        "Take your settings, playlists, channels and download history to every computer. Sign in on another "
+        "computer and download your lists' songs with one click.",
+    "Listelerdeki bütün şarkılar bu bilgisayarda": "All the lists' songs are on this computer",
     "Ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun: e-postanla giriş yap, "
     "gerisini DISO eşitler.": "Your settings, playlists, channels and history, the same on every computer: sign in "
                               "with your e-mail and DISO syncs the rest.",
@@ -908,6 +951,18 @@ PLAIN = {
 TEMPLATES = [
     # 👤 the DISO account
     ("Hesap sunucusu bir hata verdi ({}).", "The account server answered with an error ({})."),
+    ("Hesabında başka bir bilgisayardan ({}, {}) gelen ayarlar, listeler, kanallar ve indirme geçmişi var.",
+     "Your account holds settings, lists, channels and download history from another computer ({}, {})."),
+    ("Listelerdeki şarkıları da indir ({} şarkı)", "Download the lists' songs too ({} songs)"),
+    ("⬇ Listelerdeki eksik şarkıları indir ({})", "⬇ Download the lists' missing songs ({})"),
+    ("⬇ {} şarkı aranıp indirilecek; indirmelerde görünürler", "⬇ {} songs will be looked up and downloaded; "
+     "they show up in the downloads"),
+    ("Yeni şifre bağlantısı {} adresine gönderildi.", "A link for a new password was sent to {}."),
+    ("E-postanı doğrula: {}", "Confirm your e-mail: {}"),
+    ("⬇ Listelerdeki {} şarkı aranıyor…", "⬇ Looking for the lists' {} songs…"),
+    ("⬇ Listelerdeki {} şarkı indiriliyor ({} tanesi bulunamadı)",
+     "⬇ Downloading the lists' {} songs ({} were not found)"),
+    ("⬇ Listelerdeki {} şarkı indiriliyor", "⬇ Downloading the lists' {} songs"),
     ("{} ile giriş yapıldı", "Signed in as {}"), ("Son eşitleme: {}", "Last synced: {}"),
     ("{} ile giriş yapıldı · son eşitleme {}", "Signed in as {} · last synced {}"),
     ("✔ Eşitlendi: {} dosya hesaba gitti", "✔ Synced: {} files went to the account"),
