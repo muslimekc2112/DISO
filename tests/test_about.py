@@ -35,8 +35,8 @@ def pump(window, condition, timeout=10.0):
 # ------------------------------------------------------------------------------ the one place that names the program
 def test_the_name_and_the_version_are_written_down_once():
     assert (brand.NAME, brand.PUBLISHER, brand.APP_ID) == ("DISO", "ISO", "DISO")
-    assert brand.VERSION == __version__ == "1.3.0" and brand.CHANNEL == __channel__ == ""
-    assert brand.VERSION_LABEL == __version_label__ == "1.3" and brand.EXE_NAME == "DISO.exe"
+    assert brand.VERSION == __version__ == "1.3.1" and brand.CHANNEL == __channel__ == ""
+    assert brand.VERSION_LABEL == __version_label__ == "1.3.1" and brand.EXE_NAME == "DISO.exe"
     assert all(part.isdigit() for part in brand.VERSION.split("."))            # Windows and Chrome want numbers only
 
 
@@ -52,7 +52,7 @@ def test_the_facts_name_everything_that_helps_to_find_a_problem():
     rows = dict(about.facts())
     assert list(rows) == ["Sürüm", "Çalışma şekli", "Kurulum klasörü", "Veri klasörü", "Günlük dosyası", "Windows",
                           "Python", "yt-dlp", "FFmpeg", "Deno"]
-    assert rows["Sürüm"] == "1.3" and rows["Veri klasörü"].endswith("DISO") and rows["Günlük dosyası"].endswith("diso.log")
+    assert rows["Sürüm"] == "1.3.1" and rows["Veri klasörü"].endswith("DISO") and rows["Günlük dosyası"].endswith("diso.log")
     assert all(str(v).strip() for v in rows.values())
 
 
@@ -78,9 +78,9 @@ def test_a_tool_that_will_not_start_does_not_break_the_facts(monkeypatch):
 
 
 def test_the_text_is_ready_to_paste():
-    text = about.as_text([("Sürüm", "1.3"), ("Windows", "Windows 11"), ("Veri klasörü", r"C:\x")])
+    text = about.as_text([("Sürüm", "1.3.1"), ("Windows", "Windows 11"), ("Veri klasörü", r"C:\x")])
     lines = text.splitlines()
-    assert lines[0] == "DISO 1.3" and len(lines) == 4
+    assert lines[0] == "DISO 1.3.1" and len(lines) == 4
     assert lines[1].startswith("Sürüm:") and lines[2].startswith("Windows:") and lines[3].endswith(r"C:\x")
     assert len({l.index(" ", l.index(":") + 1) for l in lines[1:] if ":" in l}) >= 1
 
@@ -111,13 +111,13 @@ def test_the_logo_is_a_fresh_picture_each_time_and_missing_files_are_survived(mo
 # ------------------------------------------------------------------------------ the windows
 @pytest.mark.gui
 def test_the_header_shows_the_name_the_beta_badge_and_the_icon(app):
-    assert app.title() == "DISO" and app.beta_badge.cget("text") == "1.3"
+    assert app.title() == "DISO" and app.beta_badge.cget("text") == "1.3.1"
     assert app._logo is not None
 
 
 @pytest.mark.gui
 def test_clicking_the_badge_opens_the_about_window_once(app, monkeypatch):
-    monkeypatch.setattr(ui.about, "facts", lambda: [("Sürüm", "1.3")])
+    monkeypatch.setattr(ui.about, "facts", lambda: [("Sürüm", "1.3.1")])
     app.deiconify()                                                            # mouse events only reach a window that is shown
     app.update()
     app.beta_badge._label.event_generate("<Button-1>", x=2, y=2)
@@ -132,7 +132,7 @@ def test_clicking_the_badge_opens_the_about_window_once(app, monkeypatch):
 
 @pytest.mark.gui
 def test_the_about_window_fills_in_and_copies_the_details(app):
-    rows = [("Sürüm", "1.3"), ("Windows", "Windows 11"), ("Veri klasörü", r"C:\Veri")]
+    rows = [("Sürüm", "1.3.1"), ("Windows", "Windows 11"), ("Veri klasörü", r"C:\Veri")]
     dialog = ui.AboutDialog(app, provider=lambda: rows)
     dialog.withdraw()
     try:
@@ -140,10 +140,10 @@ def test_the_about_window_fills_in_and_copies_the_details(app):
         assert pump(dialog, lambda: dialog.rows == rows)
         assert str(dialog.copy_btn.cget("state")) == "normal"
         texts = [str(w.cget("text")) for w in dialog.body.winfo_children() if hasattr(w, "cget")]
-        assert {"Sürüm", "1.3", "Windows 11", r"C:\Veri"} <= set(texts)
+        assert {"Sürüm", "1.3.1", "Windows 11", r"C:\Veri"} <= set(texts)
         dialog.copy_details()
         clip = app.clipboard_get()
-        assert clip.startswith("DISO 1.3") and "Windows 11" in clip and r"C:\Veri" in clip
+        assert clip.startswith("DISO 1.3.1") and "Windows 11" in clip and r"C:\Veri" in clip
         assert "panoya kopyalandı" in notice(app)
     finally:
         dialog.destroy()
@@ -158,7 +158,7 @@ def test_the_about_window_survives_a_lookup_that_fails(app):
     dialog.withdraw()
     try:
         assert pump(dialog, lambda: dialog.rows is not None)
-        assert dict(dialog.rows)["Sürüm"] == "1.3" and "Hata" in dict(dialog.rows)
+        assert dict(dialog.rows)["Sürüm"] == "1.3.1" and "Hata" in dict(dialog.rows)
     finally:
         dialog.destroy()
 
@@ -222,7 +222,7 @@ def test_the_settings_window_has_an_about_button_and_the_version(app, monkeypatc
             walk(c)
 
     walk(panel)
-    assert "DISO 1.3" in texts and "ℹ Hakkında" in texts
+    assert "DISO 1.3.1" in texts and "ℹ Hakkında" in texts
     panel.about_button.invoke()
     app.update()
     assert app.about_dialog is not None and app.about_dialog.winfo_exists()
@@ -235,9 +235,9 @@ def test_the_first_start_welcomes_and_remembers(make_app, isolated_home, monkeyp
     from app import config
     monkeypatch.setitem(config.DEFAULTS, "last_version", "")                # the real default: nothing remembered yet
     app = make_app()
-    assert "hoş geldin" in notice(app) and app.cfg.get("last_version") == "1.3"
+    assert "hoş geldin" in notice(app) and app.cfg.get("last_version") == "1.3.1"
     saved = json.load(open(isolated_home / "AppData" / "Local" / "DISO" / "settings.json", encoding="utf-8"))
-    assert saved["last_version"] == "1.3"
+    assert saved["last_version"] == "1.3.1"
 
 
 @pytest.mark.gui
@@ -253,7 +253,7 @@ def test_a_newer_version_is_announced_once_and_remembered(make_app, isolated_hom
     d.mkdir(parents=True)
     (d / "settings.json").write_text(json.dumps({"last_version": "0.9.0 beta"}), encoding="utf-8")
     app = make_app()
-    assert "1.3 sürümüne güncellendi" in notice(app) and app.cfg.get("last_version") == "1.3"
+    assert "1.3.1 sürümüne güncellendi" in notice(app) and app.cfg.get("last_version") == "1.3.1"
     close_app(app)
     assert "güncellendi" not in notice(make_app())
 

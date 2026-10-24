@@ -2,6 +2,10 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 1.3.1
+- **Düzeltildi:** görselleştiricinin tam ekranı, ekran ölçeklemesi %100'den büyükken ekranın yalnız bir kısmını kaplıyordu; artık bütün monitörü kaplar ve çıkınca pencere eski boyutuna döner.
+- **Düzeltildi:** Ayarlar açılırken yarım saniye titriyordu; artık tüm bölümleri hazır olunca tek seferde yumuşakça belirir.
+
 ## 1.3
 - **↑ / ↓ ile ses:** müzik çalarda ↑ sesi açar, ↓ kısar (5'er); basılı tutunca önce yavaş, sonra gittikçe hızlı.
 - **← / → yalnızca sarar:** iki kez basınca sonraki / önceki şarkıya geçme kaldırıldı; her basış 5 saniye, basılı tutunca sarmaya devam eder.

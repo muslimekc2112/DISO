@@ -2,6 +2,10 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 1.3.1
+- **Fixed:** with display scaling above 100% the visualizer's full screen covered only part of the screen; it now covers the whole monitor and the window comes back to its size afterwards.
+- **Fixed:** the settings flickered for half a second while opening; they now fade in at once, whole.
+
 ## 1.3
 - **↑ / ↓ for the volume:** in the music player ↑ turns it up and ↓ down (by 5); held down it goes slowly at first, then faster and faster.
 - **← / → only go back / forward:** pressing twice no longer jumps to the next / previous song; every press is 5 seconds, held down it keeps going.
