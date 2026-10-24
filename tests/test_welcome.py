@@ -76,6 +76,12 @@ def test_the_new_cards_of_1_2_open_their_features(app, monkeypatch):
     monkeypatch.setattr(app, "open_extension_guide", lambda: opened.append("guide"))
     app.try_feature("extension")
     assert opened == ["guide"]
+    assert "account" in actions
+    monkeypatch.setattr(app, "open_account", lambda: opened.append("account"))
+    app.try_feature("account")
+    assert opened == ["guide", "account"]
+    opened.clear()
+    opened.append("guide")
     assert app._ensure_music()
     monkeypatch.setattr(app.music, "_open_speed_menu", lambda: opened.append("speed"))
     monkeypatch.setattr(app.music.order_menu, "_open_dropdown_menu", lambda: opened.append("order"))

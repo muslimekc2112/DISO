@@ -176,7 +176,8 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarı müzik
 - **İndirme:** aynı anda kaç indirme (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, **Dene** düğmesiyle), zamanlayıcı ve **tüm indirmeler bitince** ne yapılacağı (DISO'yu kapat / uyut / bilgisayarı kapat).
 - **Sistem:** kapatınca arka planda çalış (sistem tepsisi), Windows ile başlat, bildirimler, günlük dosyası.
 - **Görünüm:** tema (koyu / açık / sistem) ve stil: **Yeni**, **Klasik** ya da **🕹 Nostalji** (menü çubuğu, büyük resimli araç çubuğu, solda kategoriler ve tablo; 2000'lerin indirme yöneticileri gibi, açık ya da koyu gri). Değişiklikten sonra DISO aynı yerde yeniden açılır.
-- **💾 Yedek ve yardım:** ayarları, çalma listelerini, indirme listesini ve geçmişi tek bir `.disoyedek` dosyasına yedekle, başka bir bilgisayarda geri yükle; **📊 İndirme geçmişi**; **⌨ Klavye kısayolları** (her yerde **F1**); sağlık kontrolü ve sorun bildirme.
+- **👤 Hesap:** bir DISO hesabına giriş yap (isteğe bağlı); ayarlar, çalma listeleri, kanallar ve geçmiş bilgisayarların arasında eşitlensin.
+- **💾 Yedek ve yardım:** ayarları, çalma listelerini, indirme listesini, geçmişi ve kanalları tek bir `.disoyedek` dosyasına yedekle, başka bir bilgisayarda geri yükle; **📊 İndirme geçmişi**; **⌨ Klavye kısayolları** (her yerde **F1**); sağlık kontrolü ve sorun bildirme.
 - **ℹ Hakkında** (ya da başlıktaki sürüm rozetine tıkla): sürüm, DISO'nun ve verilerinin nerede olduğu. **📋 Detayları kopyala** DISO, Windows, yt-dlp, FFmpeg ve Deno sürümlerini panoya alır.
 
 Seçtiğin her şey hatırlanır.
@@ -185,13 +186,11 @@ Seçtiğin her şey hatırlanır.
 DISO, kurulumu ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta Windows Türkçe ise DISO Türkçe, değilse İngilizce başlar. İstediğin zaman sol üstteki **TR | EN** ile ya da Ayarlar → **Dil** ile değiştir (DISO yeniden açılır). Kurulum ve kaldırma pencerelerinde de **Türkçe | English** seçici var; tarayıcı eklentisi tarayıcının dilini kullanır.
 
 ## 🆕 Yenilikler
-En yeni sürüm her zaman [sürümler sayfasında](https://github.com/muslimekc2112/DISO/releases/latest); bütün değişiklikler [`CHANGELOG.tr.md`](CHANGELOG.tr.md) dosyasında. 1.3 serisinin öne çıkanları:
-- **〰 Dalga ilerleme çubuğu**, **⏭ şarkılar arasında boşluksuz geçiş** ve **😴 yavaşça kısılan uyku zamanlayıcısı**.
-- Tarayıcı eklentisinde **📺 dizi modu**; başka adların arkasına gizlenmiş akışlar da bulunuyor.
-- **🎨 Müziğin rengi** çaların bloğunda şarkının her anını izliyor.
-- **✨ Yumuşak geçişler** ve **⚡ daha hızlı** açılış: Ayarlar 723 ms yerine ~140 ms'de açılıyor.
-- Ses için **↑ / ↓**, 5 saniye geri / ileri için **← / →**.
-- **1.3.1:** ekran ölçeklemesi %100'den büyükken görselleştiricinin tam ekranı bütün monitörü kaplıyor, Ayarlar titremeden açılıyor.
+En yeni sürüm her zaman [sürümler sayfasında](https://github.com/muslimekc2112/DISO/releases/latest); bütün değişiklikler [`CHANGELOG.tr.md`](CHANGELOG.tr.md) dosyasında. 1.4'ün öne çıkanları:
+- **👤 DISO hesabı** (Ayarlar → Hesap, isteğe bağlı): e-posta ve şifreyle giriş yap; ayarların, çalma listelerin, takip ettiğin kanallar ve indirme geçmişin her bilgisayarda aynı kalsın. Bir bilgisayara özel ayarlar (klasörler, USB, bağlantı noktası, Windows'la başlatma), şarkılar ve videolar taşınmaz.
+- **💾 Yedek** artık takip edilen kanalları da içeriyor.
+
+Ondan önce 1.3 serisinde: **〰 dalga ilerleme çubuğu**, **⏭ şarkılar arasında boşluksuz geçiş**, **😴 yavaşça kısılan uyku zamanlayıcısı**, eklentide **📺 dizi modu**, **🎨 müziğin rengi**, **✨ yumuşak geçişler** ve **⚡ daha hızlı** açılış.
 
 ## 🛠 Sorun giderme ve sorular
 - **Windows "bilinmeyen yayıncı" diyor.** Paket dijital olarak imzalı değil. **Daha fazla bilgi → Yine de çalıştır**'a bas.

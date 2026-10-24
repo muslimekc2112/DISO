@@ -9,6 +9,8 @@ from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
 # (icon, title, text, what "Dene" opens — see App.try_feature)
 WHATS_NEW = [
+    ("👤", "DISO hesabı", "Ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun: "
+     "e-postanla giriş yap, gerisini DISO eşitler.", "account"),
     ("〰", "Dalga çubuğu", "İlerleme çubuğu şarkının ses dalgası oldu: tıkla, oraya atla. Şarkılar arasında boşluk da "
      "kalmadı.", "visualizer_bar"),
     ("📺", "Dizi modu", "Dizi sayfasındaki bölümleri eklenti bulur, sırayla açıp videolarını yakalar ve dizinin "

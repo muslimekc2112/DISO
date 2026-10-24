@@ -47,6 +47,9 @@ PLAIN = {
         "Sign out of the account?\n\nThe settings and lists on this computer stay as they are; they are just "
         "not synced any more.",
     "Önce e-posta adresini yaz.": "Type your e-mail address first.",
+    "Ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun: e-postanla giriş yap, "
+    "gerisini DISO eşitler.": "Your settings, playlists, channels and history, the same on every computer: sign in "
+                              "with your e-mail and DISO syncs the rest.",
     "Giriş yap: ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun":
         "Sign in: your settings, playlists, channels and history, the same on every computer",
     "👤 Hesap oturumunun süresi doldu: Ayarlar → Hesap'tan yeniden giriş yap":

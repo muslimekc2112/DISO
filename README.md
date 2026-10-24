@@ -176,7 +176,8 @@ For **Chrome, Edge, Brave, Opera, Vivaldi** and Firefox, like IDM's.
 - **Downloads:** how many at the same time (1–8), a total **speed limit**, automatic retries, a **proxy** (http / socks5, with a **Test** button), the scheduler, and what to do **when all downloads finish** (close DISO / sleep / shut down the PC).
 - **System:** keep running when closed (system tray), start with Windows, notifications, the log file.
 - **Look:** theme (dark / light / system) and style: **New**, **Classic** or **🕹 Nostalgia** (a menu bar, a toolbar of big pictures, categories on the left and a table, like the download managers of the 2000s, in light or dark grey). DISO opens again at the same place after a change.
-- **💾 Backup and help:** back up settings, playlists, the download list and history in one `.disoyedek` file and restore it on another PC; **📊 Download history**; **⌨ Keyboard shortcuts** (**F1** everywhere); the health check and problem reports.
+- **👤 Account:** sign in to a DISO account (optional) and the settings, playlists, channels and history are synced between your computers.
+- **💾 Backup and help:** back up settings, playlists, the download list, history and channels in one `.disoyedek` file and restore it on another PC; **📊 Download history**; **⌨ Keyboard shortcuts** (**F1** everywhere); the health check and problem reports.
 - **ℹ About** (or click the version badge in the title): the version and where DISO and its data are. **📋 Copy details** copies the versions of DISO, Windows, yt-dlp, FFmpeg and Deno.
 
 Everything you choose is remembered.
@@ -185,13 +186,11 @@ Everything you choose is remembered.
 DISO, its setup and its browser extension speak **English and Turkish**. On the first start DISO is in Turkish if Windows is, and in English otherwise. Switch at any time with **TR | EN** at the top left, or Settings → **Language** (DISO restarts). The setup and uninstall windows have a **Türkçe | English** switch too; the browser extension follows the browser's language.
 
 ## 🆕 What's new
-The newest version is always on the [releases page](https://github.com/muslimekc2112/DISO/releases/latest); every change is in [`CHANGELOG.md`](CHANGELOG.md). The highlights of the 1.3 line:
-- **〰 Wave progress bar**, **⏭ no gap between songs** and a **😴 sleep timer that fades out**.
-- **📺 Series mode** in the browser extension, and streams hidden behind other names are found too.
-- **🎨 The colour of the music** follows every moment of the song in the player's block.
-- **✨ Soft transitions** and a **⚡ faster** start: the settings open in ~140 ms instead of 723.
-- **↑ / ↓** for the volume, **← / →** for going 5 seconds back / forward.
-- **1.3.1:** the visualizer's full screen covers the whole monitor with display scaling above 100%, and the settings open without flickering.
+The newest version is always on the [releases page](https://github.com/muslimekc2112/DISO/releases/latest); every change is in [`CHANGELOG.md`](CHANGELOG.md). The highlights of 1.4:
+- **👤 DISO account** (Settings → Account, optional): sign in with an e-mail and a password, and your settings, playlists, followed channels and download history stay the same on every computer. Settings of one computer (folders, USB, port, starting with Windows), songs and videos do not travel.
+- **💾 Backups** now include the followed channels too.
+
+Before that, in the 1.3 line: a **〰 wave progress bar**, **⏭ no gap between songs**, a **😴 sleep timer that fades out**, **📺 series mode** in the browser extension, **🎨 the colour of the music**, **✨ soft transitions** and a **⚡ faster** start.
 
 ## 🛠 Troubleshooting and questions
 - **Windows says "unknown publisher".** The package is not digitally signed. Press **More info → Run anyway**.

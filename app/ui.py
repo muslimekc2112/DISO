@@ -2369,6 +2369,8 @@ class App(NostalgiaWindow, ctk.CTk):
             return self.add_torrent_files()
         if action == "extras":
             return self._open_settings("Ekstralar")
+        if action == "account":
+            return self.open_account()
         return None
 
     def _open_settings(self, tab=None):
