@@ -17,7 +17,7 @@ import customtkinter as ctk
 
 from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import associations, backup, channels, classic_ui, explain, extras, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
+from . import account, associations, backup, channels, classic_ui, explain, extras, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
 from .speed_graph import Sampler, SpeedGraph
@@ -55,6 +55,8 @@ LANGUAGE_SHORT = {"TR": "Türkçe", "EN": "English"}          # the switch at th
 LANGUAGE_NAMES = {name: short for short, name in LANGUAGE_SHORT.items()}
 EXTENSION_OFFER_DELAY = 4000            # ms after the start: "add DISO to your browser?" (once the window is settled)
 MUSIC_PREPARE_AFTER = 3500     # ms after the start: the music window is made in the background (⚡)
+ACCOUNT_FIRST_SYNC = 60_000    # ms after the start: the first time what changed here goes to the account (👤)
+ACCOUNT_CLOSE_WAIT = 8         # s: the longest a closing waits for the account to take what changed
 EXTENSION_LATER = 3 * 24 * 3600         # s: "remind me later" asks again after three days
 BAD = "#b23b3b"
 BAD_HOVER = "#8f2e2e"
@@ -506,7 +508,7 @@ class SettingsPanel(ctk.CTkToplevel):
         # ⚡ the groups are made one after another: the window is there at once (with the first one) and
         # stays responsive; asking for a control of a group not made yet makes the rest at once (__getattr__)
         self._pending = [self._part_download, self._part_notifications, self._part_scheduler, self._part_system,
-                         self._part_backup, self._part_extras, self._part_finished]
+                         self._part_account, self._part_backup, self._part_extras, self._part_finished]
         self._build_job = None
         self._pending.pop(0)()
         self._build_job = self.after(0, self._build_next)
@@ -713,6 +715,12 @@ class SettingsPanel(ctk.CTkToplevel):
                                                command=lambda v: app.apply_setting("language", v))
         self.language_menu.set(cfg.get("language"))
         self._add(card, "Dil", "Arayüzün dili (değişince DISO yeniden açılır)", self.language_menu)
+
+    def _part_account(self):
+        # ---- 👤 the DISO account
+        card = self._card("Hesap")
+        self.account_button = ctk.CTkButton(card, text="👤 Hesap", width=150, command=self.app.open_account)
+        _, self.account_hint = self._add(card, "DISO hesabı", self.app.account_text(), self.account_button)
 
     def _part_backup(self):
         # ---- backup, history, help
@@ -1428,6 +1436,7 @@ class App(NostalgiaWindow, ctk.CTk):
         self.history = history.History()         # every finished download, also after it leaves the list
         self.phone_link = None                   # 📱 the little web page the phone sends links to
         self.phone_window = None
+        self.account_window = None               # 👤 the DISO account
         if links:                                # 🧲 started with a .torrent / magnet: link
             self.after(800, lambda: self.add_urls(list(links)))
         self.after(2000, self._associate)
@@ -1467,6 +1476,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self.after(EXTENSION_OFFER_DELAY, self._maybe_offer_extension)
         if not os.environ.get("PYTEST_CURRENT_TEST"):
             self.after(MUSIC_PREPARE_AFTER, self._prepare_music)       # ⚡ the first switch to the player is instant
+            self.after(ACCOUNT_FIRST_SYNC, self._account_tick)         # 👤 what changed here goes to the account
         if self.cfg.get("tray_on_close") or minimized:
             self._ensure_tray()
         if minimized:
@@ -1832,6 +1842,77 @@ class App(NostalgiaWindow, ctk.CTk):
                 self.notice(f"Telefon bağlantısını açamadım: {e}", 10)
                 return None
         return self._single("phone_window", lambda: PhoneWindow(self, self.phone_link))
+
+    # ------------------------------------------------------------------ 👤 the DISO account
+    def open_account(self):
+        from .account_ui import AccountWindow
+        return self._single("account_window", lambda: AccountWindow(self))
+
+    def account_text(self) -> str:
+        if not account.signed_in():
+            return "Giriş yap: ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun"
+        last = account.last_sync()
+        if not last:
+            return f"{account.email()} ile giriş yapıldı"
+        return f"{account.email()} ile giriş yapıldı · son eşitleme {time.strftime('%d.%m %H:%M', time.localtime(last))}"
+
+    def account_changed(self):
+        """Signed in / out or synced: the line in the settings says so."""
+        panel = self.settings_panel
+        hint = panel.__dict__.get("account_hint") if panel is not None else None   # (not built yet: nothing to do)
+        try:
+            if hint is not None and hint.winfo_exists():
+                hint.configure(text=self.account_text())
+        except TclError:
+            pass
+
+    def save_for_account(self):
+        """What lives in memory goes to its file first: the account gets the newest."""
+        if self.playlist_store is not None:
+            self.playlist_store.save()
+
+    def restart_for_account(self):
+        self._remember_view()
+        self.restart_requested = True
+        self._on_close()
+
+    def _account_tick(self):
+        """Every few minutes: what changed here goes up (on its own thread; the internet may be slow)."""
+        if self._closing:
+            return
+        self.after(account.SYNC_EVERY, self._account_tick)
+        if not account.signed_in():
+            return
+        self.save_for_account()
+
+        def job():
+            try:
+                account.sync("up")
+            except account.AccountError as e:
+                log.info("account sync: %s", e)
+                if e.code in account.SESSION_GONE:
+                    self._ui_calls.put(lambda: (self.account_changed(), self.notice(
+                        "👤 Hesap oturumunun süresi doldu: Ayarlar → Hesap'tan yeniden giriş yap", 12)))
+            except Exception:  # noqa: BLE001 - never more than a line in the log
+                log.exception("account sync failed")
+            else:
+                self._ui_calls.put(self.account_changed)
+        threading.Thread(target=job, daemon=True, name="account-sync").start()
+
+    def _account_close(self):
+        """Closing: what changed here goes up; the window is already gone, a few seconds at most."""
+        if not account.signed_in() or os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        self.save_for_account()
+
+        def job():
+            try:
+                account.sync("up", timeout=account.CLOSE_TIMEOUT)
+            except Exception as e:  # noqa: BLE001 - it goes up at the next sync instead
+                log.info("account sync at close: %s", e)
+        t = threading.Thread(target=job, daemon=True, name="account-close")
+        t.start()
+        t.join(ACCOUNT_CLOSE_WAIT)
 
     def _from_phone(self, urls, kind):
         added = self.add_urls(urls, None if kind == "auto" else kind)
@@ -3443,6 +3524,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self.after(100, lambda: self._finish_close(deadline))
             return
         self.manager.save()
+        self._account_close()
         if self.tray is not None:
             self.tray.stop()
         if self.bridge is not None:

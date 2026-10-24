@@ -2,6 +2,10 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 1.4
+- **👤 DISO hesabı:** Ayarlar → Hesap'tan e-posta ve şifreyle hesap açılır ya da giriş yapılır (isteğe bağlı). Ayarların, çalma listelerin, takip ettiğin kanallar ve indirme geçmişin her bilgisayarda aynı kalır. DISO açılırken başka bilgisayarda değişenler gelir; kapanırken ve 10 dakikada bir buradakiler hesaba gider. Bu bilgisayara özel ayarlar (klasörler, USB, bağlantı noktası, Windows'la başlatma) taşınmaz, şarkılar ve videolar da taşınmaz. İki bilgisayarda aynı dosya değiştiyse hesaptaki kazanır, buradaki `.before-sync` olarak saklanır. İlk girişte iki tarafta da farklı veri varsa hangisinin kalacağı sorulur. "Şifremi unuttum" e-postayla yeni şifre bağlantısı gönderir.
+- **💾 Yedek** artık takip edilen kanalları da içerir.
+
 ## 1.3.1
 - **Düzeltildi:** görselleştiricinin tam ekranı, ekran ölçeklemesi %100'den büyükken ekranın yalnız bir kısmını kaplıyordu; artık bütün monitörü kaplar ve çıkınca pencere eski boyutuna döner.
 - **Düzeltildi:** Ayarlar açılırken yarım saniye titriyordu; artık tüm bölümleri hazır olunca tek seferde yumuşakça belirir.

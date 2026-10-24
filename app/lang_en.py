@@ -11,6 +11,46 @@ PLAIN = {
     "yok (lazım olunca kendim indiririm)": "none (I'll download it when needed)",
     "yok (YouTube'un bazı biçimleri eksik gelebilir)": "none (some YouTube formats may be missing)",
     "sürüm okunamadı": "version unreadable", "Kurulu uygulama": "Installed app", "Kaynak koddan": "From source code",
+    # ---- 👤 the DISO account
+    "Bu e-postayla zaten bir hesap var. “Giriş yap”ı dene.": "There already is an account with this e-mail. Try “Sign in”.",
+    "E-posta ya da şifre yanlış.": "Wrong e-mail or password.",
+    "Bu bir e-posta adresine benzemiyor.": "That does not look like an e-mail address.",
+    "Şifreyi yazmadın.": "You did not type the password.",
+    "Şifre en az 6 karakter olmalı.": "The password must be at least 6 characters.",
+    "Çok fazla deneme oldu. Biraz bekleyip tekrar dene.": "Too many tries. Wait a little and try again.",
+    "Bu hesap kapatılmış.": "This account has been disabled.",
+    "Hesap sunucusu bu işleme izin vermedi.": "The account server did not allow this.",
+    "Oturumun süresi doldu. Hesabına yeniden giriş yap.": "Your session has expired. Sign in to your account again.",
+    "İnternete ulaşamadım. Bağlantını kontrol edip tekrar dene.":
+        "I could not reach the internet. Check your connection and try again.",
+    "Hesaba giriş yapılmamış.": "Not signed in to an account.",
+    "DISO • Hesap": "DISO • Account", "👤 DISO hesabı": "👤 DISO account", "DISO hesabı": "DISO account",
+    "Hesap": "Account", "👤 Hesap": "👤 Account", "E-posta": "E-mail", "Şifre": "Password",
+    "Giriş yap": "Sign in", "Hesap aç": "Create account", "Şifremi unuttum": "Forgot my password",
+    "Henüz eşitlenmedi": "Not synced yet", "🔄 Şimdi eşitle": "🔄 Sync now", "Bekle…": "Wait…",
+    "Ayarların, çalma listelerin, takip ettiğin kanallar ve indirme geçmişin her bilgisayarında aynı olsun. "
+    "Şarkılar ve videolar taşınmaz, yalnız DISO'nun kendi küçük dosyaları.":
+        "Your settings, playlists, followed channels and download history, the same on every computer. "
+        "Songs and videos do not travel, only DISO's own small files.",
+    "DISO açılırken başka bilgisayarda değişenler gelir; kapanırken ve 10 dakikada bir buradakiler hesaba gider. "
+    "Bu bilgisayara özel ayarlar (klasörler, USB, bağlantı noktası, Windows'la başlatma) taşınmaz.":
+        "When DISO opens, what changed on another computer comes in; when it closes and every 10 minutes, what "
+        "changed here goes to the account. Settings of this computer (folders, USB, port, starting with Windows) "
+        "do not travel.",
+    "Beklenmedik bir hata oldu. Ayrıntısı günlükte.": "Something unexpected happened. The details are in the log.",
+    "Hesaptaki veriler alındı. Uygulanmaları için DISO yeniden açılmalı.\n\nŞimdi yeniden açılsın mı?":
+        "The account's data has come in. DISO must restart to use it.\n\nRestart now?",
+    "Tamam, hesaptaki veriler DISO'yu bir dahaki açışında gelecek":
+        "OK, the account's data comes in the next time DISO opens",
+    "✔ Eşitlendi: her şey zaten aynı": "✔ Synced: everything was already the same",
+    "Hesaptan çıkılsın mı?\n\nBu bilgisayardaki ayarların ve listelerin olduğu gibi kalır, yalnız artık eşitlenmez.":
+        "Sign out of the account?\n\nThe settings and lists on this computer stay as they are; they are just "
+        "not synced any more.",
+    "Önce e-posta adresini yaz.": "Type your e-mail address first.",
+    "Giriş yap: ayarların, çalma listelerin, kanalların ve geçmişin her bilgisayarında aynı olsun":
+        "Sign in: your settings, playlists, channels and history, the same on every computer",
+    "👤 Hesap oturumunun süresi doldu: Ayarlar → Hesap'tan yeniden giriş yap":
+        "👤 The account session has expired: sign in again in Settings → Account",
     # ---- backup
     "Yedeklenecek bir şey yok: DISO'da henüz ayar ya da liste kaydedilmemiş.":
         "Nothing to back up: DISO has no saved settings or lists yet.",
@@ -863,6 +903,19 @@ PLAIN = {
 }
 
 TEMPLATES = [
+    # 👤 the DISO account
+    ("Hesap sunucusu bir hata verdi ({}).", "The account server answered with an error ({})."),
+    ("{} ile giriş yapıldı", "Signed in as {}"), ("Son eşitleme: {}", "Last synced: {}"),
+    ("{} ile giriş yapıldı · son eşitleme {}", "Signed in as {} · last synced {}"),
+    ("✔ Eşitlendi: {} dosya hesaba gitti", "✔ Synced: {} files went to the account"),
+    ("Şifre yenileme bağlantısı {} adresine gönderildi. E-postanı kontrol et (gereksiz klasörüne de bak).",
+     "A link for a new password was sent to {}. Check your e-mail (the spam folder too)."),
+    ("Bu hesapta başka bir bilgisayardan ({}, {}) gelen veriler var ve buradakilerden farklı.\n\nHesaptakileri bu "
+     "bilgisayara alayım mı?\n\nEvet: hesaptaki ayarlar, listeler, kanallar ve geçmiş buraya gelir (buradakiler "
+     "yedek olarak saklanır, DISO yeniden açılır).\nHayır: bu bilgisayardakiler hesaba yüklenir.",
+     "This account holds data from another computer ({}, {}) that differs from the data here.\n\nShall I bring "
+     "the account's data to this computer?\n\nYes: the account's settings, lists, channels and history come here "
+     "(the ones here are kept as a copy, DISO restarts).\nNo: the data on this computer goes to the account."),
     ("Yedekte tanımadığım bir dosya var: {}", "The backup holds a file I don't know: {}"),
     ("{} indirme", "{} downloads"), ("{} bu hafta", "{} this week"), ("en hızlısı: {}", "fastest: {}"),
     ("En büyük: {} ({})", "Largest: {} ({})"),

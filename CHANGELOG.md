@@ -2,6 +2,10 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 1.4
+- **👤 DISO account:** make an account or sign in with an e-mail and a password in Settings → Account (optional). Your settings, playlists, followed channels and download history stay the same on every computer. When DISO opens, what changed on another computer comes in; when it closes and every 10 minutes, what changed here goes to the account. Settings of this computer (folders, USB, port, starting with Windows) do not travel, and neither do songs and videos. When the same file changed on two computers, the account's wins and the local one is kept as `.before-sync`. At the first sign-in, if both sides hold different data, DISO asks which to keep. "Forgot my password" mails a link for a new one.
+- **💾 Backups** now include the followed channels too.
+
 ## 1.3.1
 - **Fixed:** with display scaling above 100% the visualizer's full screen covered only part of the screen; it now covers the whole monitor and the window comes back to its size afterwards.
 - **Fixed:** the settings flickered for half a second while opening; they now fade in at once, whole.

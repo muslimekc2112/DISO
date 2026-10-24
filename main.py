@@ -50,6 +50,8 @@ def main(argv) -> int:
         bridge.show_existing(Config().get("bridge_port"))
         return 0
 
+    _account_start()                      # 👤 what changed in the account elsewhere comes in, before anything reads
+
     import customtkinter as ctk
     from app.ui import App
 
@@ -66,6 +68,19 @@ def main(argv) -> int:
     if app.restart_requested:
         restart.relaunch([a for a in argv if a != "--minimized"])
     return 0
+
+
+def _account_start():
+    """Signed in to a DISO account: what another computer changed comes in now (a few seconds at most;
+    without the internet DISO opens with what it has)."""
+    from app import account
+    from app.logs import log
+    if not account.signed_in():
+        return
+    try:
+        account.sync("start", timeout=account.START_TIMEOUT)
+    except Exception:  # noqa: BLE001 - the account must never keep DISO from opening
+        log.exception("account sync at start failed")
 
 
 def _register_host(native_host):

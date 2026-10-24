@@ -155,7 +155,7 @@ def test_the_settings_open_at_once_and_fill_in_after(app):
     app._open_settings()
     panel = app.settings_panel
     run_for(app, 0.6)                                               # left alone: they come one by one
-    assert not panel.__dict__.get("_pending") and len(panel._cards) == 7
+    assert not panel.__dict__.get("_pending") and len(panel._cards) == 8
     with pytest.raises(AttributeError):
         panel._no_such_thing                                         # noqa: B018
     panel.show_tab("Bitince")
@@ -199,8 +199,8 @@ def test_the_settings_stay_unseen_until_every_group_is_there_then_fade_in_once(a
             break
         time.sleep(0.005)
     took = time.perf_counter() - t0
-    assert seen[-1] == (1.0, 7) and took < 1.5
-    assert all(groups == 7 for alpha, groups in seen if alpha > 0)    # never seen half made
+    assert seen[-1] == (1.0, 8) and took < 1.5
+    assert all(groups == 8 for alpha, groups in seen if alpha > 0)    # never seen half made
     rising = [a for a, _ in seen if 0 < a < 1]
     assert len(rising) >= 3 and rising == sorted(rising)               # one smooth fade
     panel.destroy()

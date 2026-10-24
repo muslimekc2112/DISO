@@ -14,7 +14,7 @@ from .utils import app_data_dir
 
 EXTENSION = ".disoyedek"
 META = "diso-yedek.json"
-FILES = ("settings.json", "playlists.json", "downloads.json", "history.json")
+FILES = ("settings.json", "playlists.json", "downloads.json", "history.json", "channels.json")
 PENDING = "restore-pending"
 
 
