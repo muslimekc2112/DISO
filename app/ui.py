@@ -34,8 +34,8 @@ from .models import (ACTIVE_STATES, CANCELLED, DONE, DOWNLOADING, ERROR, PAUSED,
                      QUEUED, RESOLVING, SUBTITLE_CHOICES, WAITING, Settings)
 from .segmented_downloader import LIMITER, check_connection, set_proxy
 from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon  # noqa: F401 - fit_geometry is also used by the tests
-from .ui_common import (cross_fade, fade_in, fade_out_and, guard_color_emoji, install_bring_forward, install_smooth_scrolling,
-                        install_soft_windows, install_wrap_to_fit, no_window_animation)
+from .ui_common import (animations_on, cross_fade, fade_in, fade_out_and, guard_color_emoji, install_bring_forward,
+                        install_smooth_scrolling, install_soft_windows, install_wrap_to_fit, no_window_animation)
 
 guard_color_emoji()                 # Linux with an old libXft: before the first window
 install_smooth_scrolling()
@@ -459,6 +459,12 @@ class SettingsPanel(ctk.CTkToplevel):
         super().__init__(app)
         set_window_icon(self)
         self.app = app
+        self._shown_softly = True                      # ✨ unseen while its groups are made, then it fades in once
+        if animations_on():
+            try:
+                self.attributes("-alpha", 0.0)
+            except TclError:
+                pass
         self.title("Ayarlar")
         w, h = fit_geometry(self, 620, 720)
         self.minsize(min(560, w), min(420, h))
@@ -503,7 +509,7 @@ class SettingsPanel(ctk.CTkToplevel):
                          self._part_backup, self._part_extras, self._part_finished]
         self._build_job = None
         self._pending.pop(0)()
-        self._build_job = self.after(1, self._build_next)
+        self._build_job = self.after(0, self._build_next)
         self.after(500, self._sync)
 
     def _build_next(self):
@@ -517,7 +523,9 @@ class SettingsPanel(ctk.CTkToplevel):
             pending.clear()
             return
         if pending:
-            self._build_job = self.after(1, self._build_next)
+            self._build_job = self.after(0, self._build_next)
+        else:
+            self._show_built()
 
     def build_rest(self):
         """Make the groups that are not made yet, now."""
@@ -530,6 +538,18 @@ class SettingsPanel(ctk.CTkToplevel):
             self._build_job = None
         while pending:
             pending.pop(0)()
+        self._show_built()
+
+    def _show_built(self):
+        """Every group is there: laid out unseen, then the window fades in whole (no group popping in)."""
+        if self.__dict__.get("_built_shown") or not animations_on():
+            return
+        self._built_shown = True
+        try:
+            self.update_idletasks()
+        except TclError:
+            return
+        fade_in(self)
 
     def __getattr__(self, name):
         if not name.startswith("_") and self.__dict__.get("_pending"):

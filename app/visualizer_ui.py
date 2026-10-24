@@ -13,7 +13,7 @@ import customtkinter as ctk
 
 from . import ambient, lyrics, tooltip, visualizer
 from .player import artist_and_title
-from .ui_common import fit_geometry, set_if_changed, set_window_icon
+from .ui_common import fill_monitor, fit_geometry, set_if_changed, set_window_icon
 
 STYLES = ["Çubuklar", "Dalga", "Halka"]
 AUTO = "🎨 Kapaktan"                 # the palette made from the playing song's cover
@@ -313,6 +313,11 @@ class VisualizerWindow(ctk.CTkToplevel):
 
     def toggle_full(self):
         self.full = not self.full
+        if self.full:
+            try:
+                self._windowed = (self.state(), self.geometry())        # (to come back to exactly this)
+            except tk.TclError:
+                self._windowed = None
         try:
             self.attributes("-fullscreen", self.full)
         except tk.TclError:
@@ -320,9 +325,21 @@ class VisualizerWindow(ctk.CTkToplevel):
         if self.full:
             self.bar.grid_remove()
             self.controls.grid_remove()
+            self.update_idletasks()
+            fill_monitor(self)                                  # the whole monitor, not Tk's scaled idea of it
+            self.after(80, lambda: self.full and fill_monitor(self))
         else:
             self.bar.grid()
             self.controls.grid()
+            before = getattr(self, "_windowed", None)
+            if before:
+                try:
+                    if before[0] == "zoomed":
+                        self.state("zoomed")
+                    else:
+                        self.geometry(before[1])
+                except tk.TclError:
+                    pass
 
     # ------------------------------------------------------------------ the pictures made in advance
     def _size(self):

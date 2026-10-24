@@ -471,6 +471,33 @@ def _whole(win):
         pass
 
 
+def fill_monitor(win) -> bool:
+    """Make a full-screen window cover its whole monitor. Tk knows the screen only in scaled units (a 1920×1080
+    screen at 125 % is 1536×864 to it), so its "-fullscreen" alone covered just the top-left part of it."""
+    import sys
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT),
+                        ("dwFlags", wintypes.DWORD)]
+        hwnd = int(win.wm_frame(), 16)
+        monitor = ctypes.windll.user32.MonitorFromWindow(wintypes.HWND(hwnd), 2)     # MONITOR_DEFAULTTONEAREST
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        if not ctypes.windll.user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+            return False
+        r = info.rcMonitor
+        # HWND_TOP, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE
+        return bool(ctypes.windll.user32.SetWindowPos(wintypes.HWND(hwnd), 0, r.left, r.top, r.right - r.left,
+                                                      r.bottom - r.top, 0x0004 | 0x0020 | 0x0010))
+    except Exception:  # noqa: BLE001 - Tk's own full screen stays
+        return False
+
+
 def no_window_animation(win):
     """Windows' open / close animation off for this window: switching between the download and the music
     window then shows the other one at once, not a shrinking and a growing window for a moment."""

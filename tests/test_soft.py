@@ -181,3 +181,27 @@ def test_a_busy_user_is_not_interrupted(app, monkeypatch):
     monkeypatch.setattr(app, "after", lambda ms, fn=None, *a: later.append(ms))
     app._prepare_music()
     assert app.music is None and later == [2000]
+
+
+def test_the_settings_stay_unseen_until_every_group_is_there_then_fade_in_once(app, animate):
+    ui_common.install_soft_windows()
+    app.deiconify()
+    app.update()
+    t0 = time.perf_counter()
+    app._open_settings()
+    panel = app.settings_panel
+    seen = []                                                          # (alpha, groups made) as it opens
+    end = time.perf_counter() + 1.5
+    while time.perf_counter() < end:
+        app.update()
+        seen.append((round(float(panel.attributes("-alpha")), 2), len(panel._cards)))
+        if seen[-1][0] == 1.0:
+            break
+        time.sleep(0.005)
+    took = time.perf_counter() - t0
+    assert seen[-1] == (1.0, 7) and took < 1.5
+    assert all(groups == 7 for alpha, groups in seen if alpha > 0)    # never seen half made
+    rising = [a for a, _ in seen if 0 < a < 1]
+    assert len(rising) >= 3 and rising == sorted(rising)               # one smooth fade
+    panel.destroy()
+    app.withdraw()
