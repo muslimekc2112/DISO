@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# PyInstaller (build.bat)
+build/
+dist/
+*.spec
+
+# FFmpeg binaries (~200 MB): the app downloads them itself, or you put your own here
+ffmpeg/*.exe
+ffmpeg/*.dll
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db

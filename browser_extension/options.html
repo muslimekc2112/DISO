@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title data-i18n="optionsTitle">DISO — Ayarlar</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#fff; --fg:#1d1f23; --muted:#6b7280; --card:#f1f3f6; --accent:#2f7de1; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#25272b; --fg:#eceff4; --muted:#9aa3b2; --card:#2f3238; } }
+    body { margin:0; padding:28px; background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif; max-width:560px; }
+    h1 { font-size:20px; margin:0 0 18px; }
+    .card { background:var(--card); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+    label { display:block; font-weight:600; margin-bottom:4px; }
+    small { display:block; color:var(--muted); margin-top:4px; }
+    input[type=number], input[type=text], textarea, select { width:100%; box-sizing:border-box; padding:7px; border-radius:6px; border:1px solid #8884; background:var(--bg); color:var(--fg); font:inherit; }
+    button { padding:8px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; margin-right:8px; }
+    #msg { margin-top:10px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>⚡ <span data-i18n="optionsTitle">DISO — Ayarlar</span></h1>
+  <div class="card">
+    <label for="lang" data-i18n="language">Dil</label>
+    <select id="lang"><option value="app" data-i18n="languageApp">DISO ile aynı</option><option value="tr">Türkçe</option><option value="en">English</option></select>
+    <small data-i18n="languageHint">Eklentinin dili. "DISO ile aynı": uygulamada hangi dil seçiliyse.</small>
+  </div>
+  <div class="card">
+    <label for="port" data-i18n="port">Bağlantı noktası</label>
+    <input id="port" type="number" min="1024" max="65535">
+    <small data-i18n="portHint">Uygulamadaki Ayarlar → "Eklenti bağlantı noktası" ile aynı olmalı.</small>
+  </div>
+  <div class="card">
+    <label><input id="launchApp" type="checkbox"> <span data-i18n="launchOption">DISO kapalıysa aç</span></label>
+    <small data-i18n="launchHint">Bir şey indirmek istediğinde DISO kapalıysa eklenti onu kendisi açar.</small>
+  </div>
+  <div class="card">
+    <label><input id="sniff" type="checkbox"> <span data-i18n="sniffOption">Sayfalarda oynayan videoları bul</span></label>
+    <small data-i18n="sniffHint">Sayfada oynayan video ve sesleri bulur.</small>
+  </div>
+  <div class="card">
+    <label><input id="torrents" type="checkbox"> <span data-i18n="torrentsOption">Torrentleri her zaman DISO ile indir</span></label>
+    <small data-i18n="torrentsHint">Magnet linkine tıklayınca ya da bir .torrent dosyası inerken DISO devralır; "Tarayıcı indirmelerini yakala" kapalı olsa bile.</small>
+  </div>
+  <div class="card">
+    <label><input id="intercept" type="checkbox"> <span data-i18n="redirect">Tarayıcı indirmelerini DISO'ya yönlendir</span></label>
+    <small data-i18n="redirectHint">DISO kapalıysa ve açılamıyorsa indirme tarayıcıda normal şekilde devam eder.</small>
+    <label for="minSizeMB" style="margin-top:12px" data-i18n="minSize">En az boyut (MB)</label>
+    <input id="minSizeMB" type="number" min="0">
+    <small data-i18n="minSizeHint">Bu boyuttan büyük indirmeler yakalanır. 0: yalnızca aşağıdaki dosya türleri.</small>
+    <label for="extensions" style="margin-top:12px" data-i18n="types">Her zaman yakalanacak dosya türleri</label>
+    <textarea id="extensions" rows="3"></textarea>
+  </div>
+  <div class="card">
+    <label><input id="badge" type="checkbox"> <span data-i18n="badge">Gönderince araç çubuğu simgesinde ✓ göster</span></label>
+  </div>
+  <button id="save" data-i18n="save">Kaydet</button><button id="test" data-i18n="test">Bağlantıyı dene</button>
+  <div id="msg"></div>
+  <script src="lib.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

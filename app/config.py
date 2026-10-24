@@ -1,0 +1,130 @@
+"""
+User settings, saved in %LOCALAPPDATA%\\DISO/settings.json so they survive a restart.
+
+Two kinds live here: what the option bar of the main window shows (folder, quality,
+connections ...) and the global switches of the settings window (parallel downloads,
+speed limit, notifications ...).
+"""
+import os
+import threading
+
+from . import safefile
+from .utils import app_data_dir
+
+# value shown in the speed-limit menu -> KB/s (0 = no limit)
+SPEED_LIMITS = {
+    "Sınırsız": 0,
+    "128 KB/s": 128,
+    "256 KB/s": 256,
+    "512 KB/s": 512,
+    "1 MB/s": 1024,
+    "2 MB/s": 2048,
+    "5 MB/s": 5120,
+    "10 MB/s": 10240,
+    "25 MB/s": 25600,
+}
+AFTER_ALL = {  # menu text -> action. Not saved: it applies once, to the current session only.
+    "Hiçbir şey yapma": "none",
+    "Uygulamayı kapat": "close",
+    "Bilgisayarı uyut": "sleep",
+    "Bilgisayarı kapat": "shutdown",
+}
+THEMES = {"Koyu": "dark", "Açık": "light", "Sistem": "system"}
+AUTO_RETRY = {"Kapalı": 0, "1 kez": 1, "3 kez": 3, "5 kez": 5, "10 kez": 10}
+SORTS = ["Yeni üstte", "Eski üstte", "Ad (A→Z)", "Boyut (büyük üstte)", "Duruma göre"]
+FILTERS = ["Hepsi", "Aktif", "Sırada", "Duraklatılmış", "Tamamlanan", "Hatalı"]
+MAX_PARALLEL_CHOICES = [str(n) for n in range(1, 9)]
+
+DEFAULTS = {
+    # main window option bar
+    "folder": "",
+    "kind": "Otomatik (dosya / video)",
+    "quality": "En iyi",
+    "bitrate": "320",
+    "connections": "16",
+    "cookies": "Yok",
+    "playlist": False,
+    "clip_watch": False,
+    "clip_ask": True,
+    "torrent_ask": True,          # 🧲 a torrent with several files: ask which ones to download             # a link copied while the clipboard is watched: ask (MP4 / MP3 / download) first
+    "subs": "Yok",
+    "cover": True,
+    "sort_folders": False,
+    # settings window
+    "max_parallel": 3,
+    "speed_limit": "Sınırsız",
+    "notify_sound": True,
+    "notify_toast": True,
+    "block_duplicates": True,
+    "auto_retry": 3,
+    "proxy": "",
+    "playlist_ask": True,
+    "auto_music": True,
+    "schedule_on": False,
+    "schedule_start": "02:00",
+    "schedule_stop": "07:00",
+    "watch_folder": "",                 # 📂 .torrent / link files put here are downloaded ("" = off)
+    "usb_copy": "Kapalı",               # 🔌 copy finished downloads onto a USB stick (ui.USB_CHOICES)
+    "defender_scan": True,              # 🛡 scan every finished download with Windows Defender
+    "associate": True,                  # 🧲 .torrent files and magnet: links open in DISO
+    "tray_on_close": False,
+    "start_with_windows": False,
+    "bridge_on": True,
+    "bridge_port": 17653,
+    "theme": "Koyu",
+    "look": "Yeni",
+    "language": "Türkçe",                # the interface language (app/i18n.py)
+    "last_version": "",                 # the version that last ran: a new one is announced once
+    "update_announced": "",             # the newest DISO on GitHub that was already told about (once per version)
+    "extension_seen": False,            # the browser extension has talked to DISO (so it is in a browser)
+    "extension_ask": True,              # offer to add the browser extension (until it is added, or "don't ask again")
+    "extension_ask_after": 0,           # "remind me later": not before this time (seconds since 1970)
+    # list
+    "sort": "Yeni üstte",
+    "filter": "Hepsi",
+    "category": "all",                  # "Nostalji": the category chosen on the left (app/classic_ui.py)
+    "restart_view": {},                 # the windows before "restart now"; put back at the next start
+}
+
+
+class Config:
+    def __init__(self, path=None):
+        self.path = path or os.path.join(app_data_dir(), "settings.json")
+        self.data = dict(DEFAULTS)
+        self.saved = set()                  # the keys that came from the file (not defaults)
+        self._lock = threading.Lock()
+        self._load()
+
+    def _load(self):
+        try:
+            saved = safefile.read_json(self.path)                 # a broken file comes back from its copy
+        except Exception:
+            return
+        if not isinstance(saved, dict):
+            return
+        for key, default in DEFAULTS.items():
+            if key in saved and isinstance(saved[key], type(default)):
+                self.data[key] = saved[key]
+                self.saved.add(key)
+
+    def sanitize(self, choices: dict):
+        """Drop saved values that are not in the menus any more (e.g. renamed options)."""
+        for key, allowed in choices.items():
+            if self.data.get(key) not in allowed:
+                self.data[key] = DEFAULTS[key]
+
+    def get(self, key):
+        return self.data.get(key, DEFAULTS.get(key))
+
+    def set(self, key, value):
+        with self._lock:
+            if self.data.get(key) == value:
+                return
+            self.data[key] = value
+            self._write()
+
+    def _write(self):
+        try:
+            safefile.write_json(self.path, self.data, indent=2)
+        except OSError:
+            pass

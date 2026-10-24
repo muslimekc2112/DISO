@@ -1,0 +1,600 @@
+"""The windows of Setup and Uninstall, driven the way a person would (a hidden window, test places)."""
+import os
+import time
+
+import pytest
+from setup_support import Closer, make_payload
+
+from app import look
+from hizli_setup import core, ui, winapi
+
+pytestmark = [pytest.mark.gui, pytest.mark.skipif(not winapi.WINDOWS, reason="Windows only")]
+
+
+@pytest.fixture
+def env(tmp_path):
+    e = core.test_env(str(tmp_path / "dunya"))
+    yield e
+    core.delete_key_tree(e, e.reg_prefix.rstrip("\\"))
+
+
+@pytest.fixture
+def package(tmp_path):
+    return make_payload(tmp_path / "paket")
+
+
+@pytest.fixture
+def windows():
+    """Makes windows hidden and destroys them at the end; also keeps the look of the other tests."""
+    made = []
+    look.apply("Yeni")
+
+    def make(cls, *a, **k):
+        try:
+            w = cls(*a, **k)
+        except Exception as e:  # noqa: BLE001 - no display
+            pytest.skip(f"no display: {e}")
+        w.withdraw()
+        made.append(w)
+        return w
+
+    yield make
+    for w in made:
+        try:
+            w.destroy()
+        except Exception:  # noqa: BLE001
+            pass
+    import gc
+    gc.collect()
+    gc.enable()
+    look.apply("Klasik")
+
+
+def pump(window, condition, timeout=20.0):
+    end = time.time() + timeout
+    while time.time() < end:
+        window.update()
+        if condition():
+            return True
+        time.sleep(0.02)
+    return condition()
+
+
+def texts(window):
+    """Every piece of text on the window (labels, buttons, switches)."""
+    out = []
+
+    def walk(w):
+        for child in w.winfo_children():
+            try:
+                t = child.cget("text")
+                if t:
+                    out.append(str(t))
+            except Exception:  # noqa: BLE001
+                pass
+            walk(child)
+
+    walk(window)
+    return out
+
+
+def has_text(window, fragment):
+    return any(fragment in t for t in texts(window))
+
+
+def button(window, caption):
+    def walk(w):
+        for child in w.winfo_children():
+            try:
+                if child.cget("text") == caption and hasattr(child, "invoke"):
+                    return child
+            except Exception:  # noqa: BLE001
+                pass
+            found = walk(child)
+            if found:
+                return found
+        return None
+
+    return walk(window.buttons) or walk(window.body)
+
+
+# ------------------------------------------------------------------------------ Setup
+def test_the_first_page_offers_the_usual_folder_and_the_choices(windows, package, env):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    assert w.dir_var.get() == os.path.dirname(os.path.dirname(env.default_install_dir))     # ISO\DISO is not shown
+    assert w.target_dir() == env.default_install_dir
+    assert has_text(w, "Seçtiğin yerde ISO\\DISO klasörüne kurulur: " + env.default_install_dir)
+    assert w.desktop_var.get() and w.menu_var.get() and w.launch_var.get() and not w.autostart_var.get()
+    assert has_text(w, "kurulacak") and has_text(w, "Python ya da başka bir şey kurmana gerek yok")
+    assert has_text(w, "herkes için kurulur") and button(w, "Kur") and button(w, "İptal")
+
+
+def test_pressing_install_installs_and_shows_the_result(windows, package, env, tmp_path):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=lambda exe: pytest.fail("not asked"))
+    target = tmp_path / "Benim Klasörüm"
+    w.dir_var.set(str(target))
+    w.launch_var.set(False)
+    w.start_install()
+    assert has_text(w, "Kuruluyor")
+    assert pump(w, lambda: w.result is not None or w.exit_code == 2)
+    assert w.exit_code == 0 and w.result.install_dir == str(target / "ISO" / "DISO")
+    assert (target / "ISO" / "DISO" / "DISO.exe").is_file() and os.path.isfile(os.path.join(env.start_menu_dir, core.SHORTCUT_NAME))
+    assert pump(w, lambda: has_text(w, "Kurulum bitti, hazırız")) and button(w, "Bitir")
+    assert core.find_existing(env) == (str(target / "ISO" / "DISO"), "1.2.0")
+
+
+def test_the_switches_decide_what_is_made(windows, package, env, tmp_path):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    w.dir_var.set(str(tmp_path / "s"))
+    w.desktop_var.set(False)
+    w.menu_var.set(False)
+    w.autostart_var.set(True)
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    assert not os.path.exists(os.path.join(env.desktop_dir, core.SHORTCUT_NAME)) and not os.path.exists(env.start_menu_dir)
+    assert core._read_value(env, env.run_key, "DISO")
+
+
+def test_finishing_starts_the_program_only_when_asked(windows, package, env, tmp_path):
+    started = []
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=started.append)
+    w.dir_var.set(str(tmp_path / "a"))
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    w.finish()
+    assert started == [str(tmp_path / "a" / "ISO" / "DISO" / "DISO.exe")]
+    other = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=started.append)
+    other.dir_var.set(str(tmp_path / "b"))
+    other.launch_var.set(False)
+    other.start_install()
+    assert pump(other, lambda: other.result is not None)
+    other.finish()
+    assert started == [str(tmp_path / "a" / "ISO" / "DISO" / "DISO.exe")]
+
+
+def test_a_bad_folder_is_explained_and_nothing_starts(windows, package, env):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    for bad in ("", "göreli\\yol", "C:\\a\\b?"):
+        w.dir_var.set(bad)
+        w.start_install()
+        assert w.error.cget("text") and w.result is None and not hasattr(w, "bar")
+    assert core.find_existing(env) == (None, None)
+
+
+def test_a_failure_is_shown_with_a_way_back(windows, package, env, tmp_path):
+    (package / "deno.exe").write_bytes(b"broken")
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    w.dir_var.set(str(tmp_path / "f"))
+    w.start_install()
+    assert pump(w, lambda: w.exit_code == 2)
+    assert pump(w, lambda: has_text(w, "Kurulumu yapamadım")) and has_text(w, "bozulmuş")
+    assert has_text(w, "hiçbir değişiklik bırakmadım") and not (tmp_path / "f").exists()
+    button(w, "Tekrar dene").invoke()
+    assert button(w, "Kur") and w.exit_code == 1
+
+
+def test_an_unexpected_error_is_shown_not_swallowed(windows, package, env, tmp_path, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("tuhaf bir şey")
+
+    monkeypatch.setattr(core, "install", boom)
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    w.dir_var.set(str(tmp_path / "u"))
+    w.start_install()
+    assert pump(w, lambda: w.exit_code == 2)
+    assert pump(w, lambda: has_text(w, "Hoppala, beklenmedik") and has_text(w, "tuhaf bir şey"))
+
+
+def test_a_broken_package_is_reported_on_the_first_page(windows, tmp_path, env):
+    w = windows(ui.SetupWindow, str(tmp_path / "yok"), env, closer=Closer())
+    assert has_text(w, "Kurulum paketi okunamadı") and button(w, "Kapat") and not button(w, "Kur")
+
+
+def test_an_installed_copy_is_offered_an_update_in_its_own_folder(windows, tmp_path, env):
+    old = make_payload(tmp_path / "v1", version="1.0.0", seed=b"1")
+    core.install(old, core.Options(install_dir=str(tmp_path / "Kurulu Yer")), env, closer=Closer())
+    new = make_payload(tmp_path / "v2", version="2.0.0", seed=b"2")
+    w = windows(ui.SetupWindow, str(new), env, closer=Closer())
+    assert w.dir_var.get() == str(tmp_path / "Kurulu Yer") and w.target_dir() == str(tmp_path / "Kurulu Yer")
+    assert has_text(w, "DISO zaten burada kurulu, buraya güncellenir")
+    assert has_text(w, "1.0.0 bu bilgisayarda kurulu") and has_text(w, "2.0.0 sürümüne güncelleyeceğim")
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    assert core.find_existing(env) == (str(tmp_path / "Kurulu Yer"), "2.0.0")
+
+
+def test_any_folder_can_be_picked_and_iso_diso_is_added_behind_it(windows, package, env, tmp_path):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    for picked, target in ((tmp_path / "Oyunlar", tmp_path / "Oyunlar" / "ISO" / "DISO"),
+                           (tmp_path / "Yer" / "ISO", tmp_path / "Yer" / "ISO" / "DISO"),           # not twice
+                           (tmp_path / "Yer" / "iso" / "diso", tmp_path / "Yer" / "iso" / "diso")):
+        w.dir_var.set(str(picked))
+        assert w.target_dir() == str(target)
+        assert has_text(w, "Seçtiğin yerde ISO\\DISO klasörüne kurulur: " + str(target))
+    w.dir_var.set("C:\\")
+    assert w.target_dir() == "C:\\ISO\\DISO"                     # a drive itself is fine: DISO gets its own folder
+    (tmp_path / "Dolu").mkdir()
+    (tmp_path / "Dolu" / "benim.txt").write_text("x")
+    w.dir_var.set(str(tmp_path / "Dolu"))
+    w.launch_var.set(False)
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    assert w.result.install_dir == str(tmp_path / "Dolu" / "ISO" / "DISO")
+    assert sorted(os.listdir(tmp_path / "Dolu")) == ["ISO", "benim.txt"]
+
+
+def test_an_install_in_iso_diso_is_shown_by_its_place_and_updated_there(windows, tmp_path, env):
+    place = tmp_path / "Programlar"
+    old = make_payload(tmp_path / "v1", version="1.0.0", seed=b"1")
+    core.install(old, core.Options(install_dir=str(place / "ISO" / "DISO")), env, closer=Closer())
+    new = make_payload(tmp_path / "v2", version="2.0.0", seed=b"2")
+    w = windows(ui.SetupWindow, str(new), env, closer=Closer())
+    assert w.dir_var.get() == str(place) and w.target_dir() == str(place / "ISO" / "DISO")
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    assert core.find_existing(env) == (str(place / "ISO" / "DISO"), "2.0.0")
+
+
+def test_cancelling_leaves_everything_alone(windows, package, env):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    button(w, "İptal").invoke()
+    assert w.exit_code == 1 and not os.path.exists(env.default_install_dir)
+    with pytest.raises(Exception):
+        w.winfo_exists() and w.update() or (_ for _ in ()).throw(Exception("gone"))
+
+
+def test_the_window_cannot_be_closed_while_it_installs(windows, package, env, tmp_path, monkeypatch):
+    asked = []
+    monkeypatch.setattr(ui.messagebox, "showinfo", lambda *a, **k: asked.append(a))
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    w.dir_var.set(str(tmp_path / "k"))
+    w.start_install()
+    w._on_x()                                                        # the X button, mid-install
+    assert asked and w.winfo_exists()
+    assert pump(w, lambda: w.result is not None)
+
+
+def test_closing_the_window_after_a_good_install_is_not_a_cancel(windows, package, env, tmp_path):
+    started = []
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=started.append)
+    w.dir_var.set(str(tmp_path / "x"))
+    w.start_install()
+    assert pump(w, lambda: w.result is not None)
+    w._on_x()
+    assert w.exit_code == 0 and started == []                        # success stays success; nothing was launched
+
+
+def test_closing_the_window_after_a_failure_keeps_the_failure(windows, package, env, tmp_path):
+    (package / "deno.exe").write_bytes(b"broken")
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    w.dir_var.set(str(tmp_path / "y"))
+    w.start_install()
+    assert pump(w, lambda: w.exit_code == 2)
+    w._on_x()
+    assert w.exit_code == 2
+
+
+def test_browsing_fills_the_folder_field(windows, package, env, monkeypatch, tmp_path):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    monkeypatch.setattr(ui.filedialog, "askdirectory", lambda **k: str(tmp_path / "seçilen" / "klasör"))
+    w.browse()
+    assert w.dir_var.get() == os.path.normpath(str(tmp_path / "seçilen" / "klasör"))
+    monkeypatch.setattr(ui.filedialog, "askdirectory", lambda **k: "")
+    w.browse()
+    assert w.dir_var.get() == os.path.normpath(str(tmp_path / "seçilen" / "klasör"))      # cancelled: unchanged
+
+
+def test_the_progress_bar_follows_the_install(windows, package, env, tmp_path):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer())
+    w.dir_var.set(str(tmp_path / "p"))
+    seen = []
+    real = core.install
+
+    def watching(payload, options, env_, progress=None, closer=None):
+        def spy(f, t):
+            seen.append((f, t))
+            progress(f, t)
+        return real(payload, options, env_, progress=spy, closer=closer)
+
+    core.install = watching
+    try:
+        w.start_install()
+        assert pump(w, lambda: w.result is not None)
+    finally:
+        core.install = real
+    assert seen[0][0] == 0.0 and seen[-1][0] == 1.0 and len({t for _, t in seen}) >= 5
+
+
+# ------------------------------------------------------------------------------ Uninstall
+@pytest.fixture
+def installed(package, env, tmp_path):
+    target = tmp_path / "Kurulu"
+    core.install(package, core.Options(install_dir=str(target)), env, closer=Closer())
+    return target
+
+
+def test_the_uninstaller_asks_first_and_offers_to_keep_the_data(windows, installed, env):
+    w = windows(ui.UninstallWindow, str(installed), env, closer=Closer())
+    assert has_text(w, "kaldırılsın mı") and has_text(w, str(installed)) and not w.data_var.get()
+    assert has_text(w, "çalma listelerimi de sil") and button(w, "Kaldır") and button(w, "Vazgeç")
+
+
+def test_removing_removes_and_reports(windows, installed, env):
+    w = windows(ui.UninstallWindow, str(installed), env, closer=Closer())
+    os.makedirs(env.user_data_dir)
+    open(os.path.join(env.user_data_dir, "playlists.json"), "w").write("{}")
+    w.start()
+    assert has_text(w, "Kaldırılıyor")
+    assert pump(w, lambda: w.result is not None)
+    assert w.exit_code == 0 and not installed.exists() and core.find_existing(env) == (None, None)
+    assert os.path.isfile(os.path.join(env.user_data_dir, "playlists.json"))
+    assert pump(w, lambda: has_text(w, "Kaldırıldı")) and button(w, "Bitir")
+
+
+def test_removing_with_the_data_switch_removes_the_data_too(windows, installed, env):
+    w = windows(ui.UninstallWindow, str(installed), env, closer=Closer())
+    os.makedirs(env.user_data_dir)
+    open(os.path.join(env.user_data_dir, "playlists.json"), "w").write("{}")
+    w.data_var.set(True)
+    w.start()
+    assert pump(w, lambda: w.result is not None)
+    assert not os.path.exists(env.user_data_dir)
+
+
+def test_the_switch_can_be_preset_from_the_command_line(windows, installed, env):
+    assert windows(ui.UninstallWindow, str(installed), env, closer=Closer(), remove_data=True).data_var.get()
+
+
+def test_files_that_stay_until_the_next_restart_are_listed(windows, installed, env, monkeypatch):
+    monkeypatch.setattr(core.winapi, "delete_on_reboot", lambda p: True)
+    w = windows(ui.UninstallWindow, str(installed), env, closer=Closer())
+    exe = str(installed / "DISO.exe")
+    held = open(exe, "rb")
+    try:
+        real_remove = core._remove_file
+        core._remove_file = lambda path, retries=6, wait=0.4, sleep=time.sleep: real_remove(path, retries=1, wait=0)
+        w.start()
+        assert pump(w, lambda: w.result is not None)
+    finally:
+        core._remove_file = real_remove
+        held.close()
+    assert w.result.leftovers == [exe]
+    assert pump(w, lambda: has_text(w, "yeniden başlayınca silinecek") and has_text(w, "DISO.exe"))
+
+
+def test_giving_up_in_the_uninstaller_changes_nothing(windows, installed, env):
+    w = windows(ui.UninstallWindow, str(installed), env, closer=Closer())
+    button(w, "Vazgeç").invoke()
+    assert w.exit_code == 1 and (installed / "DISO.exe").is_file() and core.find_existing(env)[0] == str(installed)
+
+
+def test_a_failing_removal_is_shown(windows, installed, env, monkeypatch):
+    def boom(*a, **k):
+        raise core.SetupError("Bir dosya silinemedi")
+
+    monkeypatch.setattr(core, "uninstall", boom)
+    w = windows(ui.UninstallWindow, str(installed), env, closer=Closer())
+    w.start()
+    assert pump(w, lambda: w.exit_code == 2)
+    assert pump(w, lambda: has_text(w, "Kaldırmayı tamamlayamadım") and has_text(w, "Bir dosya silinemedi"))
+
+
+# ------------------------------------------------------------------------------ the browser extension
+def test_setup_asks_which_browsers_get_the_extension_and_then_guides_the_user(windows, package, env, tmp_path, monkeypatch):
+    started = []
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=lambda exe: None,
+                browsers={"chrome": r"C:\c\chrome.exe", "brave": r"C:\b\brave.exe"},
+                start=lambda exe, args: started.append((exe, args)))
+    assert has_text(w, "Hangi tarayıcılara eklensin?") and has_text(w, "Google Chrome") and has_text(w, "Brave")
+    w.browser_vars["brave"].set(False)                              # the user wants it in Chrome only
+    ext = tmp_path / "ext"
+    ext.mkdir()
+    monkeypatch.setattr(ui.SetupWindow, "extension_dir", lambda self: str(ext))
+    w.launch_var.set(False)
+    w.start_install()
+    assert pump(w, lambda: w.result is not None or w.exit_code == 2)
+    assert w.exit_code == 0 and w.guide is not None and w.guide.winfo_exists()
+    w.guide.withdraw()
+    assert list(w.guide.buttons) == ["chrome"] and button(w, "🧩 Eklentiyi ekle")
+    w.guide.buttons["chrome"].invoke()
+    assert started[0] == (r"C:\c\chrome.exe", ["chrome://extensions/"]) and started[1] == ("explorer.exe", [str(ext)])
+
+
+def test_without_a_browser_or_a_choice_there_is_no_guide(windows, package, env):
+    w = windows(ui.SetupWindow, str(package), env, closer=Closer(), on_launch=lambda exe: None, browsers={})
+    assert not has_text(w, "Hangi tarayıcılara eklensin?")
+    w.launch_var.set(False)
+    w.start_install()
+    assert pump(w, lambda: w.result is not None or w.exit_code == 2)
+    assert w.exit_code == 0 and w.guide is None and not button(w, "🧩 Eklentiyi ekle")
+
+
+def test_from_an_administrator_the_browser_is_started_through_a_shortcut(tmp_path):
+    calls = []
+    assert winapi.start_as_user(r"C:\c\chrome.exe", ["chrome://extensions/"], admin=True,
+                                popen=lambda cmd, **kw: calls.append(cmd), temp_dir=str(tmp_path))
+    link = calls[0][1]
+    assert calls[0][0] == "explorer.exe" and link.endswith(".lnk")
+    info = winapi.read_shortcut(link)
+    assert info["target"].lower() == r"c:\c\chrome.exe" and "chrome://extensions/" in info.get("arguments", "")
+    calls.clear()
+    assert winapi.start_as_user("x.exe", ["a b"], admin=False, popen=lambda cmd, **kw: calls.append(cmd))
+    assert calls == [["x.exe", "a b"]]
+
+ENGLISH = r'''
+import json, os, sys, time
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+os.environ["HIZLI_SETUP_TEST_ROOT"] = WORLD
+from setup_support import Closer, make_payload
+from pathlib import Path
+from app import look
+from hizli_setup import cli, core, ui
+env = core.test_env(WORLD)
+os.makedirs(env.user_data_dir, exist_ok=True)
+json.dump({"language": "English"}, open(os.path.join(env.user_data_dir, "settings.json"), "w"))
+cli.use_language(env)
+look.apply("Yeni")
+out = {}
+def texts(w):
+    found = []
+    def walk(x):
+        for c in x.winfo_children():
+            try:
+                t = c.cget("text")
+                if t: found.append(str(t))
+            except Exception:
+                pass
+            walk(c)
+    walk(w)
+    return found
+w = ui.SetupWindow(str(make_payload(Path(WORLD) / "paket")), env, closer=Closer(), on_launch=lambda exe: None)
+w.withdraw(); w.update()
+out["title"] = w.title(); out["options"] = texts(w)
+w.dir_var.set(os.path.join(WORLD, "Prog")); w.launch_var.set(False); w.start_install()
+end = time.time() + 30
+while w.result is None and w.exit_code != 2 and time.time() < end:
+    w.update(); time.sleep(0.02)
+out["done"] = texts(w); out["links"] = sorted(os.listdir(env.start_menu_dir))
+w.destroy()
+json.dump(out, open(sys.argv[1], "w", encoding="utf-8"), ensure_ascii=False)
+'''
+
+
+def test_the_installer_speaks_english_when_diso_does(tmp_path):
+    """A process of its own: the English layer changes the widget classes for the whole process."""
+    import json
+    import subprocess
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    world = str(tmp_path / "dunya")
+    script = tmp_path / "en_setup.py"
+    script.write_text(ENGLISH.replace("ROOT", repr(root)).replace("WORLD", repr(world)), encoding="utf-8")
+    out = tmp_path / "out.json"
+    done = subprocess.run([sys.executable, str(script), str(out)], capture_output=True, text=True, timeout=120)
+    try:
+        assert done.returncode == 0, done.stderr[-3000:]
+        data = json.load(open(out, encoding="utf-8"))
+        assert data["title"] == "DISO Setup"
+        assert any("will be installed on this PC" in t for t in data["options"]) and "Install" in data["options"]
+        assert any("Setup finished" in t for t in data["done"]) and "Uninstall DISO.lnk" in data["links"]
+        turkish = [t for t in data["options"] + data["done"] if any(c in t for c in "çğıöşüÇĞİÖŞÜ") and world not in t]
+        assert turkish == []
+    finally:
+        env = core.test_env(world)
+        core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
+
+
+@pytest.mark.parametrize("which", ["setup", "uninstall"])
+def test_both_windows_fit_on_a_small_screen(windows, package, env, installed, which):
+    # one window per test: customtkinter ties its pictures to the first window of the process, and a real run has one
+    for w in ([windows(ui.SetupWindow, str(package), env, closer=Closer())] if which == "setup"
+              else [windows(ui.UninstallWindow, str(installed), env, closer=Closer())]):
+        w.update_idletasks()
+        size = w.geometry().split("+")[0]                           # "640x660"
+        scale = float(w._get_window_scaling())                       # customtkinter sizes windows in scaled pixels
+        width, height = (int(int(n) * scale) for n in size.split("x"))
+        assert w.winfo_reqheight() <= height and w.winfo_reqwidth() <= width     # nothing is cut off
+        assert height <= w.winfo_screenheight()
+
+
+SWITCH = r'''
+import json, os, sys, time
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+os.environ["HIZLI_SETUP_TEST_ROOT"] = WORLD
+from setup_support import Closer, make_payload
+from pathlib import Path
+from app import i18n, look
+from hizli_setup import cli, core, ui
+env = core.test_env(WORLD)
+os.makedirs(env.user_data_dir, exist_ok=True)
+json.dump({"theme": "Koyu"}, open(os.path.join(env.user_data_dir, "settings.json"), "w"))   # a setting of DISO's own
+cli.use_language(env)                                       # a test root: Turkish
+look.apply("Yeni")
+out = {}
+def texts(w):
+    found = []
+    def walk(x):
+        for c in x.winfo_children():
+            try:
+                t = c.cget("text")
+                if t: found.append(str(t))
+            except Exception:
+                pass
+            walk(c)
+    walk(w)
+    return found
+def pump(w, cond, timeout=30):
+    end = time.time() + timeout
+    while not cond() and time.time() < end:
+        w.update(); time.sleep(0.02)
+w = ui.SetupWindow(str(make_payload(Path(WORLD) / "paket")), env, closer=Closer(), on_launch=lambda exe: None)
+w.withdraw(); w.update()
+out["tr"] = texts(w); out["tr_title"] = w.title()
+w.dir_var.set(os.path.join(WORLD, "Prog")); w.launch_var.set(False)
+w.language_switch._command("English"); w.update()        # a click on the switch
+out["en"] = texts(w); out["en_title"] = w.title(); out["kept_dir"] = w.dir_var.get(); out["kept_launch"] = w.launch_var.get()
+w.start_install()
+out["locked"] = w.language_switch.cget("state")
+w._on_language("Türkçe")                                    # too late: nothing changes while it installs
+out["still"] = i18n.current
+pump(w, lambda: w.result is not None or w.exit_code == 2)
+out["done"] = texts(w); out["links"] = sorted(os.listdir(env.start_menu_dir))
+out["settings"] = json.load(open(os.path.join(env.user_data_dir, "settings.json"), encoding="utf-8"))
+w.destroy()
+u = ui.UninstallWindow(os.path.join(WORLD, "Prog"), env, closer=Closer())
+u.withdraw(); u.update()
+out["u_en"] = texts(u)
+u.language_switch._command("Turkish"); u.update()        # shown in English, read back
+out["u_tr"] = texts(u); out["u_title"] = u.title(); out["u_data_switch"] = u.data_var.get()
+u.destroy()
+json.dump(out, open(sys.argv[1], "w", encoding="utf-8"), ensure_ascii=False)
+'''
+
+
+def test_the_language_can_be_chosen_in_setup_and_uninstall_and_diso_follows_it(tmp_path):
+    import json
+    import subprocess
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    world = str(tmp_path / "dunya")
+    script = tmp_path / "switch.py"
+    script.write_text(SWITCH.replace("ROOT", repr(root)).replace("WORLD", repr(world)), encoding="utf-8")
+    out = tmp_path / "out.json"
+    done = subprocess.run([sys.executable, str(script), str(out)], capture_output=True, text=True, timeout=180)
+    try:
+        assert done.returncode == 0, done.stderr[-3000:]
+        d = json.load(open(out, encoding="utf-8"))
+        assert d["tr_title"] == "DISO Kurulumu" and "Kur" in d["tr"] and "Türkçe" in d["tr"]
+        assert d["en_title"] == "DISO Setup" and "Install" in d["en"] and "Kur" not in d["en"]
+        assert any("will be installed on this PC" in t for t in d["en"])
+        assert d["kept_dir"].endswith("Prog") and d["kept_launch"] is False          # the choices stay
+        assert d["locked"] == "disabled" and d["still"] == "en"
+        assert any("Setup finished" in t for t in d["done"]) and "Uninstall DISO.lnk" in d["links"]
+        assert d["settings"] == {"theme": "Koyu", "language": "English"}            # DISO opens in English
+        assert any("Remove DISO from this PC?" in t for t in d["u_en"])
+        assert any("kaldırılsın mı" in t for t in d["u_tr"]) and "Kaldır" in d["u_tr"] and "Vazgeç" in d["u_tr"]
+        assert any("çalma listelerimi de sil" in t for t in d["u_tr"]) and d["u_title"] == "DISO - Kaldır"
+    finally:
+        env = core.test_env(world)
+        core.delete_key_tree(env, env.reg_prefix.rstrip("\\"))
+
+
+def test_setup_writes_only_the_language_into_disos_settings(tmp_path):
+    env = core.test_env(str(tmp_path / "w"))
+    path = os.path.join(env.user_data_dir, "settings.json")
+    assert core.save_language(env, "English") and json_of(path) == {"language": "English"}     # no file yet
+    with open(path, "w", encoding="utf-8") as f:
+        f.write('{"language": "English", "folder": "D:/İndir"}')
+    assert core.save_language(env, "Türkçe") and json_of(path) == {"language": "Türkçe", "folder": "D:/İndir"}
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("{bozuk")
+    assert not core.save_language(env, "English") and open(path, encoding="utf-8").read() == "{bozuk"
+    assert not core.save_language(env, "Klingon")
+
+
+def json_of(path):
+    import json
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
