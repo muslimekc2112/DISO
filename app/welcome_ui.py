@@ -9,17 +9,14 @@ from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
 # (icon, title, text, what "Dene" opens — see App.try_feature)
 WHATS_NEW = [
-    ("🎨", "Standart görünüm", "Modern renkler, düğmelerde renkli resimler. Ayarlar → Görünüm'de kendi vurgu rengini "
-     "seç: pembe, mavi, yeşil, turuncu, mor ya da kırmızı.", "look"),
-    ("👤", "DISO hesabı", "Ad, kullanıcı adı ve Gmail ile hesap aç; adın sağ üstte yazar. Ayarların, listelerin ve "
-     "geçmişin her bilgisayarında aynı; yeni bir bilgisayarda listelerin şarkıları tek tıkla iner.", "account"),
-    ("💻", "Bağlı bilgisayarlar", "Hesabına giriş yapmış bilgisayarları gör, istediğinden çıkış yaptır.", "devices"),
-    ("🔗", "Listeyi arkadaşına gönder", "Bir kod ya da link: arkadaşın açınca liste onda da oluşur, şarkılar MP3 "
-     "olarak iner.", "share"),
-    ("🎤", "Karaoke", "Şarkıcının sesi kısılır, sözler ekranda şarkıyla akar. Kulaklıkla en iyisi.", "karaoke"),
-    ("👋", "Yeni turlar", "İndirme penceresini ve müzik çaları adım adım anlatır; bazı adımları kendin denersin.",
-     "tour"),
-    ("⚡", "Hızlı Ayarlar", "Ayarlar anında açılıyor, kenarından genişletirken kasmıyor.", "settings"),
+    ("👥", "Arkadaşlar", "Kullanıcı adıyla arkadaş ekle; e-postan hiç görünmez. Kimin çevrimiçi olduğunu, şu an ne "
+     "dinlediğini gör.", "friends"),
+    ("💬", "Mesajlaşma", "Arkadaşlarınla DISO içinden yazış; yeni mesaj bildirim olarak gelir.", "friends"),
+    ("🎵", "Arkadaşa şarkı öner", "Şarkıya sağ tık → “Arkadaşa öner”. Arkadaşın tek tıkla indirir, beğenip "
+     "beğenmediğini sana söyler.", "share_song"),
+    ("👍", "Beğen / beğenme", "Çalan şarkıyı beğen ya da beğenme; beğendiklerin “❤ Beğendiklerim” listesinde "
+     "toplanır, arkadaşların da görür.", "like"),
+    ("🗑", "Hesabı sil", "İstersen hesabını ve hesapta tutulan her şeyi kalıcı olarak silebilirsin.", "account"),
 ]
 
 # (icon, title, text, the attribute of the widget to outline or None). The download window's tour comes at the

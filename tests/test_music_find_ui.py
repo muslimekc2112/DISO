@@ -421,11 +421,12 @@ def test_the_right_click_menu_offers_play_folder_copy_and_remove(music_app, song
     music.tree.selection_set(("0", "2"))
     items = music.track_menu_items()
     labels = [e[0] for e in items if e]
-    assert labels == ["▶ Çal", "⏭ Sıradaki olarak çal", "➕ Sıraya ekle", "📂 Klasörde göster", "📻 Bu şarkıdan radyo",
+    assert labels == ["▶ Çal", "⏭ Sıradaki olarak çal", "👍 Beğen", "👎 Beğenme", "👥 Arkadaşa öner", "➕ Sıraya ekle",
+                      "📂 Klasörde göster", "📻 Bu şarkıdan radyo",
                       "🎤 Şarkı sözlerini internette bul", "✎ Sözleri elle yaz / düzenle",
                       "🏷 Bilgileri düzenle (ad, sanatçı, kapak)…", "🖼 Kapağı internetten bul",
                       "✏ Dosya adlarını düzenle…", "➕ Başka listeye ekle", "✖ Listeden çıkar", "🗑 Dosyayı sil"]
-    sub = dict(items[10][1])
+    sub = dict(next(e[1] for e in items if e and e[0] == "➕ Başka listeye ekle"))
     assert list(sub) == ["Spor", "＋ Yeni liste…"]
     sub["Spor"]()
     assert [t["title"] for t in music.store.tracks("Spor")] == ["Sabah", "Aksam"]
@@ -447,7 +448,7 @@ def test_the_right_click_menu_really_opens(music_app, songs, monkeypatch):
         pytest.skip("the table is not drawn")
     event = type("E", (), {"x": bbox[0] + 5, "y": bbox[1] + 5, "x_root": 0, "y_root": 0})()
     music._track_menu(event)
-    assert popped == [13] and music._selected() == [1]               # 14 entries (one a line), row 1 selected
+    assert popped == [16] and music._selected() == [1]               # 17 entries (one a line), row 1 selected
     music.withdraw()
 
 

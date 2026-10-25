@@ -2,6 +2,16 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 1.6
+- **👥 Friends:** "👥 Friends" in the account window. Send a friend request by user name; the other side accepts or declines. Everyone sees only the user name and the name, never the e-mail. Whether a friend is online and the song they listen to now show in the list.
+- **💬 Messages:** chat with your friends inside DISO.
+- **👍 / 👎 Like, dislike:** under the player and on a song's right-click menu. Liked songs gather in a new smart list, "❤ Liked songs"; your friends see "X liked this song".
+- **🎵 Recommend to a friend:** right-click a song or "👥 Recommend" on the player. Your friend gets "X recommends you this song", downloads it with one click and answers with 👍 / 👎.
+- **🔔 Notifications:** requests, messages, recommendations and likes come as Windows notifications; the account button at the top right shows how many are unread. A list of notifications in the friends window.
+- **🔒 Privacy:** "Friends see what I listen to" and "Tell my friends what I like" can be switched off.
+- **🗑 Delete account:** the password is asked again; everything kept in the account (synced data, user name, shared lists, friendships) is deleted and your friends are told. The files on this computer stay.
+- **Fixed:** play counts did not follow their songs to another computer.
+
 ## 1.5
 - **🎨 A new look: Standard (Recommended).** DISO opens with it the first time. The modern colours and round shapes of "Yeni" together with the colourful, glossy pictures of "Nostalji": colourful pictures instead of the flat emoji on the buttons (clipboard, file, magnet, phone, settings, equalizer, account…). The buttons are calm, the main "⬇ Download" one in the accent colour. The other looks are still in Settings → Look style; existing users keep their choice.
 - **👋 New tours:** a 13-step tour of the download window at the first start, a 12-step tour of the music player the first time it opens; never both at once. The tour window sits right next to the part it talks about and outlines it. Open them again in Settings → Backup and help → "Show the tour again", or from the music player's ⚙ menu.

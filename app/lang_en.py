@@ -13,6 +13,19 @@ PLAIN = {
     "sürüm okunamadı": "version unreadable", "Kurulu uygulama": "Installed app", "Kaynak koddan": "From source code",
     # ---- 👋 the tours, 🎨 the Standart look
     "Vurgu rengi": "Accent colour",
+    "Arkadaşlar": "Friends", "Mesajlaşma": "Messages", "Arkadaşa şarkı öner": "Recommend a song to a friend",
+    "Beğen / beğenme": "Like / dislike", "Hesabı sil": "Delete account",
+    "Kullanıcı adıyla arkadaş ekle; e-postan hiç görünmez. Kimin çevrimiçi olduğunu, şu an ne dinlediğini gör.":
+        "Add friends by user name; your e-mail is never shown. See who is online and what they listen to now.",
+    "Arkadaşlarınla DISO içinden yazış; yeni mesaj bildirim olarak gelir.":
+        "Chat with your friends inside DISO; a new message comes as a notification.",
+    "Şarkıya sağ tık → “Arkadaşa öner”. Arkadaşın tek tıkla indirir, beğenip beğenmediğini sana söyler.":
+        "Right-click a song → “Recommend to a friend”. Your friend downloads it with one click and tells you if "
+        "they liked it.",
+    "Çalan şarkıyı beğen ya da beğenme; beğendiklerin “❤ Beğendiklerim” listesinde toplanır, arkadaşların da görür.":
+        "Like or dislike the playing song; liked songs gather in “❤ Liked songs”, and your friends see it too.",
+    "İstersen hesabını ve hesapta tutulan her şeyi kalıcı olarak silebilirsin.":
+        "If you want, delete your account and everything kept in it for good.",
     "Standart görünüm": "Standard look",
     "Modern renkler, düğmelerde renkli resimler. Ayarlar → Görünüm'de kendi vurgu rengini seç: pembe, mavi, yeşil, "
     "turuncu, mor ya da kırmızı.": "Modern colours, colourful pictures on the buttons. Pick your own accent colour "
@@ -199,6 +212,93 @@ PLAIN = {
         "🎤 Karaoke on: the singer's voice is down, the lyrics are on screen (best with headphones or two speakers). Turn it off in ⚙ → Karaoke",
     '🎤 Karaoke kapandı':
         '🎤 Karaoke off',
+    # ---- 👥 friends
+    'Şifre yanlış.':
+        'Wrong password.',
+    '👥 Arkadaşlar':
+        '👥 Friends',
+    '🗑 Hesabı sil':
+        '🗑 Delete account',
+    'Onaylamak için şifreni yaz':
+        'Type your password to confirm',
+    'Hesabımı kalıcı olarak sil':
+        'Delete my account for good',
+    'Şifreni yaz.':
+        'Type your password.',
+    'Hesabın silindi. Bu bilgisayardaki her şey yerinde duruyor.':
+        'Your account was deleted. Everything on this computer is still where it was.',
+    'Hesabın ve hesapta tutulan her şey kalıcı olarak silinir: eşitlenen ayarlar ve listeler, kullanıcı adın, paylaştığın listeler, arkadaşlıkların ve mesajların. Arkadaşlarına hesabını sildiğin bildirilir. Bu bilgisayardaki şarkıların, listelerin ve ayarların olduğu gibi kalır. Bu geri alınamaz.':
+        'Your account and everything kept in it are deleted for good: the synced settings and lists, your user name, the lists you shared, your friendships and messages. Your friends are told you deleted it. The songs, lists and settings on this computer stay as they are. This cannot be undone.',
+    '‹ Vazgeç':
+        '‹ Cancel',
+    '👍 Beğen':
+        '👍 Like',
+    '👎 Beğenme':
+        '👎 Dislike',
+    '✓ 👍 Beğen':
+        '✓ 👍 Like',
+    '✓ 👎 Beğenme':
+        '✓ 👎 Dislike',
+    '👥 Arkadaşa öner':
+        '👥 Recommend to a friend',
+    'Beğendim':
+        'I like it',
+    'Beğenmedim':
+        "I don't like it",
+    '👥 Öner':
+        '👥 Recommend',
+    'Çalan şarkıyı bir arkadaşına öner':
+        'Recommend the playing song to a friend',
+    '❤ Beğendiklerim':
+        '❤ Liked songs',
+    'Önce bir şarkı çal':
+        'Play a song first',
+    'Kendine istek gönderemezsin 🙂':
+        'You cannot send yourself a request 🙂',
+    'Zaten arkadaşsınız.':
+        'You are friends already.',
+    'Henüz arkadaşın yok. Yukarıya bir kullanıcı adı yaz.':
+        'No friends yet. Type a user name above.',
+    'Gönderdiğin istekler':
+        'Requests you sent',
+    'Arkadaşlıktan çıkar':
+        'Unfriend',
+    '💬 Mesaj yaz':
+        '💬 Message',
+    'Gönder':
+        'Send',
+    'Bir arkadaş seç (ya da önce birini ekle)':
+        'Choose a friend (or add one first)',
+    'Henüz bildirim yok. Arkadaşların şarkı önerince, beğenince burada görünür.':
+        'No notifications yet. When your friends recommend or like songs, it shows here.',
+    'DISO • Arkadaşlar':
+        'DISO • Friends',
+    '➕ İstek':
+        '➕ Request',
+    'Dinlediğimi arkadaşlarım görsün':
+        'Friends see what I listen to',
+    'Beğendiklerimi arkadaşlarıma bildir':
+        'Tell my friends what I like',
+    'Mesaj yaz…':
+        'Write a message…',
+    '💬 Mesajlar':
+        '💬 Messages',
+    '🔔 Bildirimler':
+        '🔔 Notifications',
+    '⬇ İndir':
+        '⬇ Download',
+    'Sen':
+        'You',
+    '👥 Arkadaşlar için önce DISO hesabına giriş yap':
+        '👥 Sign in to your DISO account first to see your friends',
+    '👤 Önce DISO hesabına giriş yap':
+        '👤 Sign in to your DISO account first',
+    '➕ Arkadaş ekle…':
+        '➕ Add a friend…',
+    '👥 Arkadaşlar…':
+        '👥 Friends…',
+    'Bu şarkının linkini bulamadım, öneremedim':
+        "I could not find this song's link, so I could not recommend it",
     # ---- 👤 the DISO account
     "Bu e-postayla zaten bir hesap var. “Giriş yap”ı dene.": "There already is an account with this e-mail. Try “Sign in”.",
     "E-posta ya da şifre yanlış.": "Wrong e-mail or password.",
@@ -1157,6 +1257,62 @@ TEMPLATES = [
      '📥 “{}”: downloading {} songs'),
     ('💻 {}  (bu bilgisayar)',
      '💻 {}  (this computer)'),
+    ('“{}” adında bir kullanıcı yok.',
+     'There is no user called “{}”.'),
+    ('{} ile artık arkadaşsınız 🎉',
+     'You and {} are friends now 🎉'),
+    ('{} sana arkadaşlık isteği gönderdi',
+     '{} sent you a friend request'),
+    ('{} arkadaşlık isteğini kabul etti 🎉',
+     '{} accepted your friend request 🎉'),
+    ('🎵 {} sana bir şarkı öneriyor: {}',
+     '🎵 {} recommends you a song: {}'),
+    ('👍 {} bu şarkıyı beğendi: {}',
+     '👍 {} liked this song: {}'),
+    ('👎 {} bu şarkıyı beğenmedi: {}',
+     '👎 {} did not like this song: {}'),
+    ('👍 {} önerdiğin şarkıyı beğendi: {}',
+     '👍 {} liked the song you recommended: {}'),
+    ('👎 {} önerdiğin şarkıyı beğenmedi: {}',
+     '👎 {} did not like the song you recommended: {}'),
+    ('{} DISO hesabını sildi',
+     '{} deleted their DISO account'),
+    ('💬 {}: {}',
+     '💬 {}: {}'),
+    ('Arkadaşların ({})',
+     'Your friends ({})'),
+    ('Gelen istekler ({})',
+     'Requests ({})'),
+    ('✔ @{} kullanıcısına istek gönderildi',
+     '✔ Request sent to @{}'),
+    ('{} arkadaşlıktan çıkarılsın mı?',
+     'Unfriend {}?'),
+    ('💬 Gönderilemedi: {}',
+     '💬 Not sent: {}'),
+    ('⬇ İndiriliyor: {}',
+     '⬇ Downloading: {}'),
+    ('Sen: @{}',
+     'You: @{}'),
+    ('👍 Beğendin: {}',
+     '👍 You liked: {}'),
+    ('👎 Beğenmedin: {}',
+     '👎 You disliked: {}'),
+    ('Puan kaldırıldı: {}',
+     'Rating taken back: {}'),
+    ('👥 {} kişisine önerildi: {}',
+     '👥 Recommended to {}: {}'),
+    ('👥 {} kişisine {} şarkı önerildi',
+     '👥 Recommended to {}: {} songs'),
+    ('Öneremedim: {}',
+     'Could not recommend it: {}'),
+    ('{} yeni bildirim: {}',
+     '{} new notifications: {}'),
+    ('@{}\nSon görülme: {}',
+     '@{}\nLast seen: {}'),
+    ('@{}\n🎵 {}',
+     '@{}\n🎵 {}'),
+    ('{}  ·  {}\n{}\n\n',
+     '{}  ·  {}\n{}\n\n'),
     # 👤 the DISO account
     ("Hesap sunucusu bir hata verdi ({}).", "The account server answered with an error ({})."),
     ("Hesabında başka bir bilgisayardan ({}, {}) gelen ayarlar, listeler, kanallar ve indirme geçmişi var.",

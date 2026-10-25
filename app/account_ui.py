@@ -12,7 +12,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from . import account, look, sharing
+from . import account, look, sharing, social
 from .logs import log
 from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
@@ -32,7 +32,9 @@ def when(seconds) -> str:
 def button_text() -> str:
     if account.signed_in():
         name = account.display_name()
-        return "👤 " + (name if len(name) <= NAME_LIMIT else name[:NAME_LIMIT - 1] + "…")
+        name = name if len(name) <= NAME_LIMIT else name[:NAME_LIMIT - 1] + "…"
+        new = social.unread_count()                           # 🔔 what friends sent, not looked at yet
+        return "👤 " + name + (f"  🔔 {new}" if new else "")
     return "👤 Doğrula" if account.waiting() else "👤 Giriş yap"
 
 
@@ -123,7 +125,7 @@ class AccountWindow(ctk.CTkToplevel):
         page = page or self.default_page()
         if page in ("signin", "signup") and (account.signed_in() or account.waiting()):
             page = self.default_page()
-        if page in ("account", "first", "devices") and not account.signed_in():
+        if page in ("account", "first", "devices", "delete") and not account.signed_in():
             page = self.default_page()
         if page == "verify" and not account.waiting():
             page = self.default_page()
@@ -306,13 +308,49 @@ class AccountWindow(ctk.CTkToplevel):
         self.songs_btn.grid(row=6, column=0, pady=3)
         if not away:
             self.songs_btn.configure(state="disabled")
+        self.friends_btn = self._primary(box, "👥 Arkadaşlar", self.app.open_friends, width=260)
+        self.friends_btn.grid(row=7, column=0, pady=3)
         self.devices_btn = self._plain(box, "💻 Bağlı bilgisayarlar", self.show_devices, width=260)
-        self.devices_btn.grid(row=7, column=0, pady=3)
+        self.devices_btn.grid(row=8, column=0, pady=3)
         self.password_btn = self._plain(box, "🔑 Şifreyi değiştir", self.change_password, width=260)
-        self.password_btn.grid(row=8, column=0, pady=3)
+        self.password_btn.grid(row=9, column=0, pady=3)
         self.sign_out_btn = self._plain(box, "Çıkış yap", self.sign_out, width=260)
-        self.sign_out_btn.grid(row=9, column=0, pady=3)
-        self._status(box, 10)
+        self.sign_out_btn.grid(row=10, column=0, pady=3)
+        self.delete_btn = ctk.CTkButton(box, text="🗑 Hesabı sil", width=260, fg_color="transparent", hover=False,
+                                        text_color=ERROR_COLOR, command=lambda: self.show("delete"))
+        self.delete_btn.grid(row=11, column=0, pady=(6, 0))
+        self._status(box, 12)
+
+    def _page_delete(self, box):
+        """🗑 The account goes for good: what goes is said, the password is asked again."""
+        self._title(box, "🗑 Hesabı sil")
+        self._hint(box, "Hesabın ve hesapta tutulan her şey kalıcı olarak silinir: eşitlenen ayarlar ve listeler, "
+                        "kullanıcı adın, paylaştığın listeler, arkadaşlıkların ve mesajların. Arkadaşlarına "
+                        "hesabını sildiğin bildirilir. Bu bilgisayardaki şarkıların, listelerin ve ayarların "
+                        "olduğu gibi kalır. Bu geri alınamaz.", 1)
+        self.delete_password = self._field(box, "Onaylamak için şifreni yaz", 2, show="•")
+        self.delete_password.bind("<Return>", lambda e: self.delete_account())
+        self.confirm_delete_btn = ctk.CTkButton(box, text="Hesabımı kalıcı olarak sil", width=240,
+                                                fg_color=("#c0392b", "#a93226"), hover_color=("#a93226", "#922b21"),
+                                                text_color="white", command=self.delete_account)
+        self.confirm_delete_btn.grid(row=4, column=0, pady=(6, 0))
+        self.buttons.append(self.confirm_delete_btn)
+        self.back_btn = self._plain(box, "‹ Vazgeç", lambda: self.show("account"), width=140)
+        self.back_btn.grid(row=5, column=0, pady=(10, 0))
+        self._status(box, 6)
+        self._focus(self.delete_password)
+
+    def delete_account(self):
+        password = self.delete_password.get()
+        if not password:
+            self._say("Şifreni yaz.", ERROR_COLOR)
+            return
+
+        def gone(_):
+            self.app.account_changed()
+            self.show("signin")
+            self._say("Hesabın silindi. Bu bilgisayardaki her şey yerinde duruyor.", OK_COLOR)
+        self._run(lambda: account.delete_account(password), gone)
 
     def _page_devices(self, box):
         """💻 The computers signed in to the account; any other one can be signed out from here."""

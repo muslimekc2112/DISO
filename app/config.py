@@ -81,7 +81,9 @@ DEFAULTS = {
     "extension_ask": True,              # offer to add the browser extension (until it is added, or "don't ask again")
     "extension_ask_after": 0,
     "music_tour_done": False,           # 🎵 the music player's tour was seen (it comes the first time it opens)
-    "account_ask": True,                # 👤 "make a DISO account?" at every start (until "don't show again")           # "remind me later": not before this time (seconds since 1970)
+    "account_ask": True,
+    "share_listening": True,            # 👥 friends see the song that plays now
+    "share_likes": True,                # 👥 friends hear of the songs liked / disliked                # 👤 "make a DISO account?" at every start (until "don't show again")           # "remind me later": not before this time (seconds since 1970)
     # list
     "sort": "Yeni üstte",
     "filter": "Hepsi",

@@ -31,7 +31,8 @@ STATE_DEFAULTS = {"last": "", "volume": 80, "shuffle": False, "repeat": "Kapalı
 FADE_CHOICES = (0, 3, 6, 10)
 # ✨ smart lists: made from every other list, filled by themselves (they cannot be changed by hand)
 SMART_MOST, SMART_NEW, SMART_NEVER = "⭐ En çok dinlenenler", "🆕 Son eklenenler", "💤 Hiç dinlenmeyenler"
-SMART = (SMART_MOST, SMART_NEW, SMART_NEVER)
+SMART_LIKED = "❤ Beğendiklerim"
+SMART = (SMART_LIKED, SMART_MOST, SMART_NEW, SMART_NEVER)
 SMART_SIZE = 50                 # songs in "most played" and "recently added"
 PLAYED_AFTER_MS = 30000         # a song counts as listened to after this much (a short one: after half of it)
 MAX_SEARCHES = 15
@@ -73,11 +74,13 @@ def _clean_stats(data) -> dict:
         entry = {}
         if isinstance(s.get("plays"), int) and not isinstance(s["plays"], bool) and s["plays"] > 0:
             entry["plays"] = s["plays"]
+        if s.get("rating") in (1, -1) and not isinstance(s["rating"], bool):      # 👍 / 👎
+            entry["rating"] = s["rating"]
         for name in ("last", "first"):
             if isinstance(s.get(name), (int, float)) and not isinstance(s[name], bool):
                 entry[name] = float(s[name])
         if entry:
-            out[key] = entry
+            out[file_key(key) if os.path.isabs(key) else key] = entry          # (the same file, however written)
     return out
 
 
@@ -547,6 +550,25 @@ class PlaylistStore:
         del self.log[:-MAX_LOG]
         self.save()
 
+    def rating(self, path) -> int:
+        """👍 1, 👎 -1, 0: not rated."""
+        return self.stats.get(file_key(path), {}).get("rating", 0)
+
+    def rate(self, path, value) -> int:
+        """Like (1) / dislike (-1) a song; the same again takes it back (0). Returns the new rating."""
+        key = file_key(path)
+        s = self.stats.setdefault(key, {})
+        new = 0 if s.get("rating") == value else value
+        if new:
+            s["rating"] = new
+        else:
+            s.pop("rating", None)
+            if not s:
+                self.stats.pop(key, None)
+        self.refresh_smart(only=SMART_LIKED)
+        self.save()
+        return new
+
     def _track_by_key(self, key):
         for tracks in self.lists.values():
             for t in tracks:
@@ -631,6 +653,7 @@ class PlaylistStore:
                                key=lambda k: (-stat(k, "plays"), -stat(k, "last")))[:SMART_SIZE],
             SMART_NEW: newest[:SMART_SIZE],
             SMART_NEVER: [k for k in newest if not stat(k, "plays")],
+            SMART_LIKED: [k for k in newest if stat(k, "rating") > 0],
         }
         old = {name: self.lists.pop(name) for name in SMART if name in self.lists}
         for name in SMART:

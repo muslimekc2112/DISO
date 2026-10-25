@@ -17,7 +17,7 @@ import customtkinter as ctk
 
 from . import __version__, about, app_update, brand, notify, schedule, startup, tray, updater
 from . import bridge as bridge_module
-from . import account, associations, backup, channels, classic_ui, explain, extras, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile
+from . import account, associations, backup, channels, classic_ui, explain, extras, extension_setup, health, history, i18n, look, lyrics, music_search, playable, player, playlists, repair, safefile, social
 from .channels_ui import ChannelsWindow
 from .classic_ui import NostalgiaWindow
 from .speed_graph import Sampler, SpeedGraph
@@ -68,6 +68,7 @@ SETTINGS_NOT_SHOWN = frozenset({"folder", "kind", "quality", "bitrate", "connect
                                 "cover", "sort_folders", "sort", "filter", "category", "clip_watch", "last_version",
                                 "update_announced", "extension_seen", "extension_ask_after", "restart_view",
                                 "music_tour_done"})
+SOCIAL_FIRST_LOOK = 5000      # ms after the start: the first look at what friends sent
 MUSIC_TOUR_DELAY = 900        # ms after the music player first shows: its tour (once it has settled)
 ACCOUNT_SONGS_DELAY = 5000     # ms after the start: the lists' songs that came with the account are downloaded
 EXTENSION_LATER = 3 * 24 * 3600         # s: "remind me later" asks again after three days
@@ -1492,6 +1493,9 @@ class App(NostalgiaWindow, ctk.CTk):
         self.account_window = None               # 👤 the DISO account
         self.account_offer = None
         self.share_window = None                 # 🔗 a playlist being sent
+        self.friends_window = None               # 👥 friends, messages, notifications
+        self._social_busy = False
+        self._now_told = None                    # the song the friends were last told is playing
         self.open_shared_window = None           # 📥 a friend's playlist being opened
         self.account_buttons = []                # the account at the top right (refreshed by account_changed)
         if links:                                # 🧲 started with a .torrent / magnet: link
@@ -1541,6 +1545,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self.after(MUSIC_PREPARE_AFTER, self._prepare_music)       # ⚡ the first switch to the player is instant
             self.after(ACCOUNT_FIRST_SYNC, self._account_tick)         # 👤 what changed here goes to the account
             self.after(SETTINGS_PREPARE_AFTER, self._prepare_settings)  # ⚡ the settings open at once
+            self.after(SOCIAL_FIRST_LOOK, self._social_tick)           # 👥 what friends sent
             self.cfg.watchers.append(lambda key: self._ui_calls.put(lambda: self._setting_changed(key)))
         if self.cfg.get("tray_on_close") or minimized:
             self._ensure_tray()
@@ -2074,6 +2079,121 @@ class App(NostalgiaWindow, ctk.CTk):
             self.music.show_list(name)
             self.music.note(f"📥 “{name}”: {added} şarkı indiriliyor", 10)
         return added, name
+
+    # ---- 👥 friends: requests, messages, songs recommended and liked (app/social.py)
+    def open_friends(self):
+        if not account.signed_in():
+            self.notice("👥 Arkadaşlar için önce DISO hesabına giriş yap", 8)
+            return self.open_account("signin")
+        from .social_ui import FriendsWindow
+        return self._single("friends_window", lambda: FriendsWindow(self))
+
+    def social_changed(self, refresh_window=True):
+        """Something came (or was read): the number on the account button, and the friends window."""
+        self.account_changed()
+        win = self.friends_window
+        try:
+            if refresh_window and win is not None and win.winfo_exists():
+                win.came_in()
+        except TclError:
+            pass
+
+    def _social_tick(self):
+        """Every POLL_EVERY: what friends sent comes in (on its own thread: the internet may be slow)."""
+        if self._closing:
+            return
+        self.after(social.POLL_EVERY, self._social_tick)
+        if self._social_busy or not account.signed_in():
+            return
+        self._social_busy = True
+
+        def job():
+            fresh = []
+            try:
+                fresh = social.poll()
+            except Exception as e:  # noqa: BLE001 - asked again at the next tick
+                log.info("friends: %s", e)
+            finally:
+                self._social_busy = False
+            if fresh:
+                self._ui_calls.put(lambda: self._social_came(fresh))
+        threading.Thread(target=job, daemon=True, name="friends-poll").start()
+
+    def _social_came(self, fresh):
+        self.social_changed()
+        for item in fresh[:2]:
+            self.notice(item["text"], 8)
+        try:
+            in_front = self.focus_displayof() is not None
+        except (TclError, KeyError):
+            in_front = False
+        if self.cfg.get("notify_toast") and not in_front:          # (in front: the notice is enough)
+            text = fresh[0]["text"] if len(fresh) == 1 else f"{len(fresh)} yeni bildirim: {fresh[0]['text']}"
+            notify.toast("DISO 👥", text)
+
+    def recommend_items(self, tracks):
+        """The 👥 submenu for these songs: each friend, or how to get there."""
+        if not account.signed_in():
+            return [("👤 Önce DISO hesabına giriş yap", lambda: self.open_account("signin"))]
+        friends = social.friends()
+        if not friends:
+            return [("➕ Arkadaş ekle…", self.open_friends)]
+        items = [(f.get("name") or f.get("username") or "?", lambda uid=uid: self.recommend_song(tracks, uid))
+                 for uid, f in sorted(friends.items(), key=lambda i: i[1].get("name", ""))]
+        return items + [None, ("👥 Arkadaşlar…", self.open_friends)]
+
+    def recommend_song(self, tracks, uid):
+        """🎵 Send these songs to a friend (their links found first: the friend downloads them from there)."""
+        name = (social.friends().get(uid) or {}).get("name", "")
+
+        def job():
+            try:
+                songs = self.song_links(tracks)
+                for song in songs:
+                    social.recommend(uid, song)
+                if not songs:
+                    text = "Bu şarkının linkini bulamadım, öneremedim"
+                elif len(songs) == 1:
+                    text = f"👥 {name} kişisine önerildi: {social.song_name(songs[0])}"
+                else:
+                    text = f"👥 {name} kişisine {len(songs)} şarkı önerildi"
+            except Exception as e:  # noqa: BLE001
+                text = f"Öneremedim: {e}"
+            self._ui_calls.put(lambda: self.notice(text, 8))
+        threading.Thread(target=job, daemon=True, name="recommend").start()
+
+    def tell_rating(self, track, value):
+        """👍 / 👎: the friends hear of it (when the setting lets them)."""
+        if not (account.signed_in() and self.cfg.get("share_likes") and social.friends()):
+            return
+
+        def job():
+            try:
+                songs = self.song_links([track])
+                if songs:
+                    social.tell_like(songs[0], value)
+            except Exception as e:  # noqa: BLE001
+                log.info("like not told: %s", e)
+        threading.Thread(target=job, daemon=True, name="tell-like").start()
+
+    def music_now_playing(self, track):
+        """🎵 What plays now shows on the friends' lists (when the setting lets it); nothing: it goes."""
+        if not account.signed_in() or os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        text = ""
+        if track is not None and self.cfg.get("share_listening"):
+            artist, title = player.artist_and_title(track)
+            text = social.song_name({"title": title, "artist": artist})
+        if text == self._now_told:
+            return
+        self._now_told = text
+
+        def job():
+            try:
+                social.publish_me(now_playing=text)
+            except Exception as e:  # noqa: BLE001
+                log.info("now playing not told: %s", e)
+        threading.Thread(target=job, daemon=True, name="now-playing").start()
 
     def account_changed(self):
         """Signed in / out or synced: the button at the top right and the line in the settings say so."""
@@ -2635,6 +2755,12 @@ class App(NostalgiaWindow, ctk.CTk):
             return self.open_account()
         if action == "devices":
             return self.open_account("devices")
+        if action == "friends":
+            return self.open_friends()
+        if action in ("share_song", "like"):                # 🎵 / 👍 on the music player
+            if self.mode != MODE_MUSIC:
+                self._switch_mode(MODE_MUSIC)
+            return self.music
         if action == "look":
             return self._open_settings("Sistem")
         if action == "settings":

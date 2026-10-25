@@ -48,7 +48,7 @@ SYNC_EVERY = 10 * 60 * 1000    # ms: what changed here goes up this often while 
 MAX_BYTES = 900_000            # a Firestore document holds 1 MiB at most
 MIN_PASSWORD = 6
 USERNAME = re.compile(r"^[a-z0-9._]{3,20}$")
-FILES = ("settings.json", "playlists.json", "channels.json", "history.json")
+FILES = ("settings.json", "playlists.json", "channels.json", "history.json", "social.json")
 MUSIC_DIR_NAME = "Müzik"       # (music_search.MUSIC_DIR_NAME: not imported, it pulls in the whole downloader)
 MUSIC_MARK = "%DISO_MUSIC%"
 REDOWNLOAD_MARK = "account-redownload"     # a file in the data folder: download the "away" songs at the next start
@@ -417,6 +417,31 @@ def sign_in(address, password) -> dict:
     return session
 
 
+def delete_account(password):
+    """🗑 The account goes for good: the password is asked again (Firebase wants a fresh sign-in for this), friends
+    are told, everything it kept (files, lists, shared lists, user name, devices) is deleted, then the account."""
+    session = load()
+    if session is None:
+        raise AccountError("Hesaba giriş yapılmamış.")
+    try:
+        fresh = sign_in(session.get("email", ""), password)
+    except AccountError as e:
+        if e.code in ("INVALID_LOGIN_CREDENTIALS", "INVALID_PASSWORD", "MISSING_PASSWORD"):
+            raise AccountError("Şifre yanlış.", e.code) from e
+        raise
+    fresh["profile"] = fresh.get("profile") or session.get("profile")
+    from . import social
+    if fresh.get("verified"):
+        social.forget_everything(fresh)
+    elif fresh.get("profile", {}).get("username"):
+        try:                                       # (not confirmed yet: only its user name was kept)
+            _call("DELETE", f"{STORE_URL}/usernames/{fresh['profile']['username']}", headers=_headers(fresh))
+        except AccountError:
+            pass
+    _auth("delete", {"idToken": token(fresh)})
+    sign_out()
+
+
 def reset_password(address):
     """Firebase mails a link for a new password."""
     address = _check(address)
@@ -489,8 +514,8 @@ def _hash(text) -> str:
 
 def _paths(data, change):
     """Every text inside data, through change()."""
-    if isinstance(data, dict):
-        return {k: _paths(v, change) for k, v in data.items()}
+    if isinstance(data, dict):              # (keys too: the play counts are kept by the song's path)
+        return {(change(k) if isinstance(k, str) else k): _paths(v, change) for k, v in data.items()}
     if isinstance(data, list):
         return [_paths(v, change) for v in data]
     return change(data) if isinstance(data, str) else data

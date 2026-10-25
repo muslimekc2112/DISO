@@ -815,6 +815,16 @@ class MusicWindow(ctk.CTkToplevel):
         self.sleep_menu = ctk.CTkOptionMenu(more, values=SLEEP_CHOICES, width=128, command=self._set_sleep)
         self.sleep_menu.set(SLEEP_OFF)
         self.sleep_menu.grid(row=0, column=2, padx=(6, 6))
+        # 👍 / 👎 the song that plays (the "❤ Beğendiklerim" list; friends hear of it) and 👥 send it to a friend
+        self.like_btn = ctk.CTkButton(more, text="👍", width=40, command=lambda: self.rate_current(1))
+        self.like_btn.grid(row=0, column=3, padx=(6, 2))
+        tooltip.set(self.like_btn, "Beğendim")
+        self.dislike_btn = ctk.CTkButton(more, text="👎", width=40, command=lambda: self.rate_current(-1))
+        self.dislike_btn.grid(row=0, column=4, padx=2)
+        tooltip.set(self.dislike_btn, "Beğenmedim")
+        self.recommend_btn = ctk.CTkButton(more, text="👥 Öner", width=80, command=self._recommend_current)
+        self.recommend_btn.grid(row=0, column=5, padx=(2, 6))
+        tooltip.set(self.recommend_btn, "Çalan şarkıyı bir arkadaşına öner")
         self.player_box = box
         self._update_repeat_text()
         self._update_speed_text()
@@ -1525,6 +1535,59 @@ class MusicWindow(ctk.CTkToplevel):
         finally:
             menu.grab_release()
 
+    # ------------------------------------------------------------------ 👍 / 👎 and 👥 friends
+    def rate_current(self, value):
+        track = self.controller.current_track() if self.controller.state != "stopped" else None
+        if track is None:
+            self.note("Önce bir şarkı çal")
+            return
+        self.rate(track, value)
+
+    def rate(self, track, value):
+        new = self.store.rate(track["path"], value)
+        self._show_rating(self.controller.current_track() if self.controller.state != "stopped" else None)
+        if self.viewed == playlists.SMART_LIKED:
+            self.reload()
+        self.note({1: f"👍 Beğendin: {track_label(track)}", -1: f"👎 Beğenmedin: {track_label(track)}"}.get(
+            new, f"Puan kaldırıldı: {track_label(track)}"))
+        tell = getattr(self.app, "tell_rating", None)
+        if new and tell:
+            tell(track, new)
+
+    def _show_rating(self, track):
+        """👍 / 👎 lit in the accent colour when the playing song has that rating."""
+        value = self.store.rating(track["path"]) if track else 0
+        lit_colour = look.ACCENT if look.is_new() else ("#1F6AA5", "#144870")
+        plain = ctk.ThemeManager.theme["CTkButton"]["fg_color"]
+        for b, v in ((self.like_btn, 1), (self.dislike_btn, -1)):
+            lit = value == v
+            if getattr(b, "_lit", None) != lit:
+                b._lit = lit
+                b.configure(fg_color=lit_colour if lit else plain)
+        state = "normal" if track else "disabled"
+        for b in (self.like_btn, self.dislike_btn, self.recommend_btn):
+            if b.cget("state") != state:
+                b.configure(state=state)
+
+    def _tell_now_playing(self, track):
+        tell = getattr(self.app, "music_now_playing", None)
+        if tell:
+            tell(track)
+
+    def friend_items(self, tracks):
+        """The 👥 submenu: each friend (sends them these songs), or how to get friends."""
+        items = getattr(self.app, "recommend_items", None)
+        return items(tracks) if items else []
+
+    def _recommend_current(self):
+        track = self.controller.current_track() if self.controller.state != "stopped" else None
+        if track is None:
+            return
+        menu = tk.Menu(self, tearoff=0)
+        self._fill_menu(menu, self.friend_items([track]))
+        b = self.recommend_btn
+        self._popup(menu, type("E", (), {"x_root": b.winfo_rootx(), "y_root": b.winfo_rooty() - 10})())
+
     def track_menu_items(self):
         """[(label, command or [(label, command), ...]), ...] for the selected tracks (None = a line)."""
         picked = self._selected()
@@ -1536,8 +1599,13 @@ class MusicWindow(ctk.CTkToplevel):
         has = bool(first) and lyrics.has_lyrics(first["path"])
         words = "🎤 Şarkı sözlerini göster" if has else "🎤 Şarkı sözlerini internette bul"
         again = [("🔄 Sözler yanlış, yeniden bul", lambda: self.find_lyrics(first))] if has else []
+        rating = self.store.rating(first["path"]) if first else 0
         return [("▶ Çal", self._play_selected),
                 ("⏭ Sıradaki olarak çal", self._play_next_selected),
+                (("✓ " if rating > 0 else "") + "👍 Beğen", lambda: [self.rate(t, 1) for t in self._picked_tracks()]),
+                (("✓ " if rating < 0 else "") + "👎 Beğenme",
+                 lambda: [self.rate(t, -1) for t in self._picked_tracks()]),
+                ("👥 Arkadaşa öner", self.friend_items(self._picked_tracks())),
                 ("➕ Sıraya ekle", self._queue_selected),
                 ("📂 Klasörde göster", self._reveal_selected),
                 ("📻 Bu şarkıdan radyo", lambda: self.start_radio(first)),
@@ -2061,15 +2129,19 @@ class MusicWindow(ctk.CTkToplevel):
             if self._cover_path is not None:
                 self._cover_path = None
                 self._set_cover(None)
+                self._tell_now_playing(None)
+            self._show_rating(None)
             return
         mark = {"playing": "", "preparing": "⏳  "}.get(c.state, "⏸  ")
         set_if_changed(self.now_label, text=mark + track_label(track))
+        self._show_rating(track)
         sub = " • ".join(x for x in (artist_and_title(track)[0], track.get("album")) if x)
         if c.state == "preparing":
             sub = "Çalmaya hazırlanıyor… (bu dosyayı ilk kez açıyorum, birkaç saniye sürer)"
         set_if_changed(self.sub_label, text=sub or " ")
         if self._cover_path != track["path"]:
             self._cover_path = track["path"]
+            self._tell_now_playing(track)
             self._set_cover(None, final=False)                     # not the previous track's picture
             if track["path"] in self._covers:
                 self._set_cover(self._covers[track["path"]])

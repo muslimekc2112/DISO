@@ -24,7 +24,7 @@ def store(tmp_path):
 
 
 def test_the_smart_lists_are_always_there_and_last(store):
-    assert store.names()[-3:] == list(SMART) and store.user_names() == ["Çalma listem"]
+    assert store.names()[-len(SMART):] == list(SMART) and store.user_names() == ["Çalma listem"]
     store.create("Spor")
     assert store.names() == ["Çalma listem", "Spor", *SMART]
 

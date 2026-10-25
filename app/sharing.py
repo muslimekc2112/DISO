@@ -67,6 +67,11 @@ def share(name, songs, tries=4) -> str:
         try:
             account._call("POST", _url(), params={"documentId": code}, headers=account._headers(session),
                           json={"fields": fields})
+            try:                                     # (kept with the account: deleting it deletes these too)
+                account._call("PATCH", f"{account.STORE_URL}/users/{session['uid']}/shares/{code}",
+                              headers=account._headers(session), json={"fields": {"name": {"stringValue": name}}})
+            except account.AccountError as e:
+                account.log.info("shared list not noted: %s", e)
             return code
         except account.AccountError as e:
             if e.code != "ALREADY_EXISTS" or attempt == tries - 1:     # (a code taken already: another one)

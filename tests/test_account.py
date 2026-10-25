@@ -20,6 +20,8 @@ class FakeFirebase:
         self.usernames = {}      # name -> uid
         self.devices = {}        # uid -> {device id: fields}
         self.shared = {}         # code -> fields
+        self.store = {}          # path -> fields (public cards, friends, requests, inboxes)
+        self.sent = []           # (to, kind) of every inbox item
         self.mails = []          # (kind, e-mail)
         self.refused_refresh = None
         self.offline = False
@@ -90,6 +92,8 @@ class FakeFirebase:
         path = url[len(account.STORE_URL):].strip("/").split("/")
         uid, verified = self.tokens.get((headers or {}).get("Authorization", "")[len("Bearer "):], (None, False))
         if path[0] == "shared":                                    # 🔗 shared lists: anyone reads, the owner makes
+            if method == "DELETE":
+                return self._social(method, path, uid, verified, json, params)
             if method == "GET":
                 if path[1] not in self.shared:
                     self._refuse("NOT_FOUND", 404, sentence=True)
@@ -107,6 +111,9 @@ class FakeFirebase:
                 self._refuse("ALREADY_EXISTS", 409, sentence=True)
             self.usernames[params["documentId"]] = uid
             return {}
+        social = self._social(method, path, uid, verified, json, params)
+        if social is not None:
+            return social
         if path[1] != uid or not verified:                         # the rules
             self._refuse("PERMISSION_DENIED", 403, sentence=True)
         if path[2] == "devices":
@@ -127,6 +134,9 @@ class FakeFirebase:
             devices[path[3]] = doc
             return {}
         if path[2] == "info":
+            if method == "DELETE":
+                self.profiles.pop(uid, None)
+                return {}
             if method == "GET":
                 if uid not in self.profiles:
                     self._refuse("NOT_FOUND", 404, sentence=True)
@@ -137,9 +147,72 @@ class FakeFirebase:
         if method == "GET":
             return {"documents": [{"name": f"projects/p/databases/(default)/documents/users/{uid}/files/{d}",
                                    "fields": f} for d, f in files.items()]} if files else {}
+        if method == "DELETE":
+            files.pop(path[3], None)
+            return {}
         assert method == "PATCH"
         files[path[3]] = json["fields"]
         return {}
+
+    # ---- 👥 public cards, user names, friends, requests, the inbox (with the rules of the real database)
+    def _doc(self, path, method, json, params, auto=False):
+        key = "/".join(path)
+        if method == "GET":
+            if key in self.store:
+                return {"fields": self.store[key]}
+            children = {k: v for k, v in self.store.items() if k.startswith(key + "/") and k.count("/") == key.count("/") + 1}
+            if len(path) % 2 == 1:                                 # a collection
+                return {"documents": [{"name": k, "fields": v} for k, v in children.items()]} if children else {}
+            self._refuse("NOT_FOUND", 404, sentence=True)
+        if method == "DELETE":
+            self.store.pop(key, None)
+            return {}
+        if method == "POST":
+            doc_id = (dict(params or {}).get("documentId") if isinstance(params, (dict, list)) else None) or                 f"auto{len(self.store)}"
+            self.store[f"{key}/{doc_id}"] = json["fields"]
+            return {}
+        mask = [v for k, v in (params or []) if k == "updateMask.fieldPaths"] if isinstance(params, list) else []
+        doc = dict(self.store.get(key, {})) if mask else {}
+        doc.update({k: v for k, v in json["fields"].items() if not mask or k in mask})
+        self.store[key] = doc
+        return {}
+
+    def _social(self, method, path, uid, verified, json, params):
+        deny = lambda: self._refuse("PERMISSION_DENIED", 403, sentence=True)   # noqa: E731
+        if path[0] == "public":
+            if uid is None or (method != "GET" and path[1] != uid):
+                deny()
+            return self._doc(path, method, json, params)
+        if path[0] == "usernames" and len(path) == 2:
+            if uid is None or (method == "DELETE" and self.usernames.get(path[1]) != uid):
+                deny()
+            if method == "DELETE":
+                self.usernames.pop(path[1], None)
+                return {}
+            if path[1] not in self.usernames:
+                self._refuse("NOT_FOUND", 404, sentence=True)
+            return {"fields": {"uid": {"stringValue": self.usernames[path[1]]}}}
+        if path[0] == "shared" and method == "DELETE":
+            if self.shared.get(path[1], {}).get("owner", {}).get("stringValue") != uid:
+                deny()
+            self.shared.pop(path[1], None)
+            return {}
+        if path[0] == "users" and len(path) >= 3 and path[2] in ("friends", "outgoing", "inbox", "shares"):
+            owner = path[1]
+            if path[2] == "inbox" and method == "POST" and owner != uid:
+                f = json["fields"]
+                kind, sender = f["type"]["stringValue"], f["from"]["stringValue"]
+                ok = verified and sender == uid and (
+                    kind == "request" or f"users/{owner}/friends/{uid}" in self.store
+                    or f"users/{owner}/outgoing/{uid}" in self.store)   # (they asked me: I may answer, then talk)
+                if not ok:
+                    deny()
+                self.sent.append((owner, kind))
+                return self._doc(path, method, json, params)
+            if owner != uid or not verified:
+                deny()
+            return self._doc(path, method, json, params)
+        return None
 
     def text(self, uid, name):
         return self.docs[uid][name[:-len(".json")]]["data"]["stringValue"]
@@ -259,7 +332,8 @@ def test_the_plan_for_each_file():
     cloud = {"settings.json": {"hash": "a", "updated": 1.0}, "playlists.json": {"hash": "b", "updated": 2.0},
              "channels.json": {"hash": "c", "updated": 2.0}, "history.json": {"hash": "c", "updated": 3.0}}
     assert account.plan(local, cloud, seen) == {"settings.json": "up", "playlists.json": "down",
-                                                "channels.json": "conflict", "history.json": "same"}
+                                                "channels.json": "conflict", "history.json": "same",
+                                                "social.json": None}
 
 
 def test_two_computers_share_lists_but_each_keeps_its_own_folders(cloud, tmp_path):
