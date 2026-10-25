@@ -21,7 +21,7 @@ from . import tooltip
 from .logs import log
 from .playlists import FADE_CHOICES
 from .player import AUDIO_EXTENSIONS, REPEAT_MODES, artist_and_title, track_label
-from .ui_common import fit_geometry, logo_image, set_if_changed, set_window_icon
+from .ui_common import fit_geometry, logo_image, retint, set_if_changed, set_window_icon
 from .utils import is_url, open_in_file_manager, sanitize_filename
 
 MODE_DOWNLOAD = "İndirme modu"
@@ -1089,8 +1089,15 @@ class MusicWindow(ctk.CTkToplevel):
             return
         if self._ambient_now is not None and max(ambient.distance(a, b) for a, b in zip(self._ambient_now, target)) < 4:
             return
+        was_plain = self._ambient_now is None
         self._ambient_now = None if target == card else tuple(target)
-        self.player_box.configure(fg_color=target)
+        if was_plain or self._ambient_now is None:
+            self.player_box.configure(fg_color=target)             # (on / off: exact, the way customtkinter does it)
+        else:
+            try:
+                retint(self.player_box, target)                    # (the moves between: only the colours, quick)
+            except (tk.TclError, AttributeError):
+                self.player_box.configure(fg_color=target)
 
     def _hex_pair(self, value):
         """(light, dark) "#rrggbb" of a theme colour (a pair or one colour, a name like "gray14" too)."""

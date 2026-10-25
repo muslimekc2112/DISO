@@ -693,3 +693,32 @@ def set_window_icon(win):
             win._iconbitmap_method_called = True        # customtkinter's mark: "the window has its own icon"
         except Exception:  # noqa: BLE001 - only looks
             pass
+
+
+def retint(frame, colour):
+    """A frame takes a new fill colour (a "#rrggbb" or a (light, dark) pair) without customtkinter's full redraw
+    of everything below it (that is 20+ ms: the colour of a music-following background could not move at more than
+    a few frames a second). Only the colours are set on the canvases; `frame.configure(fg_color=...)` later makes
+    everything exact again."""
+    frame._fg_color = colour
+    shade = frame._apply_appearance_mode
+
+    def paint(canvas, fill):
+        canvas.itemconfig("inner_parts", fill=shade(fill), outline=shade(fill))
+
+    paint(frame._canvas, colour)
+
+    def down(parent):
+        for child in parent.winfo_children():
+            if not hasattr(child, "_bg_color") or not hasattr(child, "_canvas"):
+                continue
+            child._bg_color = colour
+            child._canvas.configure(bg=shade(colour))
+            if child._fg_color == "transparent":
+                paint(child._canvas, colour)
+                label = getattr(child, "_label", None)
+                if label is not None:
+                    label.configure(bg=shade(colour))
+                down(child)
+
+    down(frame)

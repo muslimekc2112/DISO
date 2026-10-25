@@ -3,6 +3,7 @@ import logging
 import logging.handlers
 import faulthandler
 import os
+import sys
 
 from .utils import app_data_dir
 
@@ -39,7 +40,7 @@ def _record_hard_crashes():
     """A crash inside a native library (sound, graphics) leaves no Python error: faulthandler writes where it
     happened to crash.log, so the next look at it says what died."""
     global _crash_file
-    if _crash_file is not None:
+    if _crash_file is not None or "pytest" in sys.modules:     # (a test's private home is deleted afterwards)
         return
     try:
         _crash_file = open(crash_path(), "a", encoding="utf-8")

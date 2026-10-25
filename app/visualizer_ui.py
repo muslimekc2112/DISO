@@ -23,7 +23,7 @@ PEAK_FALL = 0.012           # the falling peak line, per frame
 GLOWS = 3                   # background pictures from calm to bright: the beat picks one
 SWELLS = 7                  # sizes of the cover in the ring, from rest to the loudest beat
 SWELL = 0.12                # ... the biggest is this much larger
-SPIN = 0.0025               # the ring turns slowly (radians per frame)
+SHADES = 32                 # colours between calm and bright (a colour is worked out once, not at every frame)
 HIDE_AFTER = 2500           # ms: in full screen the controls go away when the mouse rests
 SEEK_STEP = 5000
 
@@ -116,7 +116,7 @@ class VisualizerWindow(ctk.CTkToplevel):
         self._cover_palette = None                   # its colours as a palette (AUTO)
         self._pictures = {}                          # what was made for the current size / colours
         self._made_for = None
-        self._spin = 0.0
+        self._shades = {}
         self._hide_job = None
         self._tick = 0
 
@@ -474,16 +474,20 @@ class VisualizerWindow(ctk.CTkToplevel):
         step = w / n
         width = max(2, step * 0.62)
         base = h * 0.74
+        if self.items.get("_width") != width:                       # (the thickness only changes with the window)
+            self.items["_width"] = width
+            for i in range(n):
+                c.itemconfigure(self.items["bars"][i], width=width)
+                c.itemconfigure(self.items["shadows"][i], width=width)
+                c.itemconfigure(self.items["peaks"][i], width=max(2, width * 0.8))
         for i, v in enumerate(self.levels):
             x = step * (i + 0.5)
             top = base - max(v, 0.012) * base * 0.88
             c.coords(self.items["bars"][i], x, top, x, base)
-            c.itemconfigure(self.items["bars"][i], fill=visualizer.blend(p, 0.25 + 0.75 * v), width=width)
+            self._colour(self.items["bars"][i], "fill", p, 0.25 + 0.75 * v)
             c.coords(self.items["shadows"][i], x, base + width, x, base + width + (base - top) * 0.3)
-            c.itemconfigure(self.items["shadows"][i], width=width)
             peak = base - self.peaks[i] * base * 0.88 - width
             c.coords(self.items["peaks"][i], x, peak, x, peak - 1)
-            c.itemconfigure(self.items["peaks"][i], width=max(2, width * 0.8))
 
     def _draw_wave(self):
         c = self.canvas
@@ -506,6 +510,19 @@ class VisualizerWindow(ctk.CTkToplevel):
         c.coords(self.items["inner"], *shape(inner_top))
         c.coords(self.items["line"], 0, mid, w, mid)
 
+    def _colour(self, item, option, palette, share):
+        """Give a canvas item the palette's colour for `share` (0..1), only when it differs from what it has."""
+        key = (tuple(palette), int(share * SHADES))
+        colour = self._shades.get(key)
+        if colour is None:
+            if len(self._shades) > 4000:
+                self._shades.clear()
+            colour = self._shades[key] = visualizer.blend(palette, key[1] / SHADES)
+        shown = self.items.setdefault("_shown", {})
+        if shown.get((item, option)) != colour:
+            shown[(item, option)] = colour
+            self.canvas.itemconfigure(item, **{option: colour})
+
     def _draw_ring(self):
         c, p = self.canvas, self.palette
         w, h = self._size()
@@ -513,16 +530,15 @@ class VisualizerWindow(ctk.CTkToplevel):
         size = min(w, h)
         swell = min(1.0, self.glow)
         core = self._core_radius() * (1 + SWELL * swell)
-        self._spin = (self._spin + SPIN * (1 + 2 * swell)) % (2 * math.pi)
         n = len(self.levels)
         for k in range(n * 2):                              # the right half, then the left mirrored
             i = k if k < n else 2 * n - 1 - k
-            angle = math.pi * k / n - math.pi / 2 + self._spin
+            angle = math.pi * k / n - math.pi / 2
             v = self.levels[i]
             r1, r2 = core + 8, core + 8 + v * size * 0.26
             c.coords(self.items["rays"][k], cx + r1 * math.cos(angle), cy + r1 * math.sin(angle),
                      cx + r2 * math.cos(angle), cy + r2 * math.sin(angle))
-            c.itemconfigure(self.items["rays"][k], fill=visualizer.blend(p, 0.3 + 0.7 * v))
+            self._colour(self.items["rays"][k], "fill", p, 0.3 + 0.7 * v)
         for k, item in enumerate(self.items["halo"]):          # rings that open up with the beat
             r = core + 4 + (k + 1) * size * 0.05 * (0.4 + swell)
             c.coords(item, cx - r, cy - r, cx + r, cy + r)

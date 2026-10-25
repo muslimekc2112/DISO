@@ -80,6 +80,14 @@ def no_deno_download(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def mci_first(monkeypatch):
+    """The music player plays everything with ffmpeg when it can (MCI stutters); the tests start from MCI, as
+    most of them put a fake MCI in its place. A test that wants the real choice sets player.ffmpeg_ready."""
+    from app import player
+    monkeypatch.setattr(player, "ffmpeg_ready", lambda: False)
+
+
+@pytest.fixture(autouse=True)
 def clean_globals():
     """Undo what a test did to process-wide state (speed limit, import hook, modules)."""
     meta_path = list(sys.meta_path)

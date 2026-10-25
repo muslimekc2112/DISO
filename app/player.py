@@ -82,11 +82,19 @@ def new_eq_backend(alias=_ALIAS):
     return SdlBackend(alias)
 
 
+def ffmpeg_ready() -> bool:
+    """Can the ffmpeg player (sdl_player) play here: ffmpeg and ffprobe found, and a sound output?"""
+    from . import sdl_player
+    return bool(sdl_player._tool("ffmpeg") and sdl_player._tool("ffprobe") and sdl_player.SdlBackend.available())
+
+
 def equalizable(alias=_ALIAS):
     """The music player's backend with an equalizer (see SwitchingBackend)."""
     plain = new_backend(alias)
-    if sys.platform.startswith("win"):                  # MCI cannot change the sound: ffmpeg + SDL when needed
-        return SwitchingBackend(plain, lambda: new_eq_backend(alias + "_eq"))
+    if sys.platform.startswith("win"):
+        # MCI (mpegvideo) stutters when the window is busy and cannot change the sound: ffmpeg + SDL plays
+        # everything while ffmpeg and ffprobe are there, MCI is the fallback
+        return SwitchingBackend(plain, lambda: new_eq_backend(alias + "_eq"), prefer_eq=ffmpeg_ready)
     return SwitchingBackend(None, lambda: plain)        # already ffmpeg + SDL
 
 
@@ -97,8 +105,9 @@ class SwitchingBackend:
     Linux) the ffmpeg one always plays. When the ffmpeg one cannot be made (no sound output, no pygame)
     the equalizer cannot be used: set_filter says so and the plain one keeps playing."""
 
-    def __init__(self, plain, make_eq):
+    def __init__(self, plain, make_eq, prefer_eq=None):
         self.plain, self._make_eq = plain, make_eq
+        self._prefer_eq = prefer_eq    # () -> True: the ffmpeg player plays everything (MCI only when it cannot)
         self.eq = None
         self.filter = ""
         self.tempo = (1.0, 0)          # ⏩ (speed, pitch): anything but (1, 0) needs the ffmpeg player
@@ -106,6 +115,8 @@ class SwitchingBackend:
         self._path = None              # what is loaded now (to load it again on the other backend)
         self._resume_plays = False     # switched while paused: "resume" must start the new backend
         self.active = plain if plain is not None else self._eq_backend()
+        if plain is not None and self._eq_first():
+            self.active = self._eq_backend() or plain
         if self.active is None:
             raise OSError("no sound output")
 
@@ -144,11 +155,17 @@ class SwitchingBackend:
             self._switch(target)
         return True
 
+    def _eq_first(self) -> bool:
+        try:
+            return bool(self._prefer_eq and self._prefer_eq())
+        except Exception:  # noqa: BLE001 - then MCI plays, as before
+            return False
+
     def _target(self, text, tempo):
         """The backend that plays with this filter and tempo (None: the ffmpeg one cannot be made)."""
         plain_ok = self.plain is not None and not needs_ffmpeg(self._path)     # a FLAC stays on ffmpeg
         mid_song = bool(self._path) and self.active is self.eq
-        if not text and tempo == (1.0, 0) and plain_ok and not mid_song:
+        if not text and tempo == (1.0, 0) and plain_ok and not mid_song and not self._eq_first():
             return self.plain
         return self._eq_backend()
 
@@ -231,8 +248,11 @@ class SwitchingBackend:
             if needs_ffmpeg(path):
                 self._use(self._eq_backend())
             elif not self.filter and self.tempo == (1.0, 0):
-                self._use(self.plain)
+                self._use(self._eq_backend() if self._eq_first() else self.plain)
         ok = self.active.load(path)
+        if not ok and self.plain is not None and self.active is not self.plain and self._eq_first():
+            self._use(self.plain)                          # (ffmpeg cannot read it: MCI tries)
+            ok = self.active.load(path)
         self._path = path if ok else None
         return ok
 

@@ -180,3 +180,19 @@ def test_a_saved_setting_is_on_from_the_start(app, monkeypatch):
     assert app._ensure_music()
     assert app.music.controller.backend.active.filter == equalizer.ffmpeg_filter(equalizer.PRESETS["Vokal"])
     assert "🎛 Ekolayzır…" in [e[0] for e in app.music.player_menu_items() if e]
+
+
+def test_with_ffmpeg_there_the_ffmpeg_player_plays_everything_and_mci_is_the_fallback(monkeypatch):
+    from app import player
+    mci, made = FakeBackend("mci"), []
+
+    def make_eq():
+        eq = FakeEqBackend("eq")
+        made.append(eq)
+        return eq
+    on = [True]
+    b = player.SwitchingBackend(mci, make_eq, prefer_eq=lambda: on[0])
+    assert b.active is made[0]                          # from the start: not MCI
+    assert b.load("a.mp3") and b.active is made[0] and mci.loaded is None
+    on[0] = False                                       # ffmpeg gone: the next song is on MCI again
+    assert b.load("b.mp3") and b.active is mci
