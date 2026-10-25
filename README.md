@@ -178,8 +178,8 @@ For **Chrome, Edge, Brave, Opera, Vivaldi** and Firefox, like IDM's.
 - **Downloads:** how many at the same time (1–8), a total **speed limit**, automatic retries, a **proxy** (http / socks5, with a **Test** button), the scheduler, and what to do **when all downloads finish** (close DISO / sleep / shut down the PC).
 - **System:** keep running when closed (system tray), start with Windows, notifications, the log file.
 - **Look:** theme (dark / light / system), **accent colour** (pink, blue, green, orange, purple, red) and style: **Standard (Recommended)** (the first look of a new computer: New's colours with Nostalgia's colourful pictures), **New**, **Classic** or **🕹 Nostalgia** (a menu bar, a toolbar of big pictures, categories on the left and a table, like the download managers of the 2000s, in light or dark grey). DISO opens again at the same place after a change.
-- **👤 Account:** create one (name, user name, Gmail confirmed by a link) or sign in, optional; your name is at the top right. The settings, playlists, channels and history are synced between your computers; on a new computer the lists' songs can be downloaded with one click. **💻 Signed-in computers** lists them all and signs any of them out; **🗑 Delete account** removes it for good.
-- **👥 Friends:** add friends by user name (e-mails are never shown), chat with them, recommend songs, see what they like (👍 / 👎) and what they listen to now; everything comes as a notification.
+- **👤 Account:** create one (name, user name, Gmail confirmed by a 6 digit code) or sign in, optional; your name is at the top right. The settings, playlists, channels and history are synced between your computers; on a new computer the lists' songs can be downloaded with one click. **💻 Signed-in computers** lists them all and signs any of them out; **🗑 Delete account** removes it for good.
+- **👥 Friends, chats and groups:** add friends by user name (e-mails are never shown), chat with them and in groups (admins, mentions), recommend songs, send songs, playlists, pictures and files with ➕, reply, react, see what they like (👍 / 👎) and listen to now; everything comes as a notification, within a second.
 - **👋 Tours:** a step-by-step tour of the download window (first start) and of the music player (the first time it opens), some steps tried by hand; open them again in Settings → Backup and help.
 - **💾 Backup and help:** back up settings, playlists, the download list, history and channels in one `.disoyedek` file and restore it on another PC; **📊 Download history**; **⌨ Keyboard shortcuts** (**F1** everywhere); the health check and problem reports.
 - **ℹ About** (or click the version badge in the title): the version and where DISO and its data are. **📋 Copy details** copies the versions of DISO, Windows, yt-dlp, FFmpeg and Deno.
@@ -190,7 +190,11 @@ Everything you choose is remembered.
 DISO, its setup and its browser extension speak **English and Turkish**. On the first start DISO is in Turkish if Windows is, and in English otherwise. Switch at any time with **TR | EN** at the top left, or Settings → **Language** (DISO restarts). The setup and uninstall windows have a **Türkçe | English** switch too; the browser extension follows the browser's language.
 
 ## 🆕 What's new
-The newest version is always on the [releases page](https://github.com/muslimekc2112/DISO/releases/latest); every change is in [`CHANGELOG.md`](CHANGELOG.md). The highlights of 1.6:
+The newest version is always on the [releases page](https://github.com/muslimekc2112/DISO/releases/latest); every change is in [`CHANGELOG.md`](CHANGELOG.md). The highlights of 1.7:
+- **🏗 Supabase** is the new foundation of the account (old Firebase accounts are made again), with **🔐 6 digit codes** instead of links.
+- **👥 Groups** with admins, **➕ attachments** (songs, playlists, pictures, files), replies, reactions, read marks and messages **within a second**.
+
+And of 1.6:
 - **👥 Friends:** add friends by user name, **💬 chat**, **🎵 recommend songs**, **👍 / 👎** and see what friends like and listen to now; **🔔 notifications** for all of it.
 - **🗑 Delete account** for good.
 

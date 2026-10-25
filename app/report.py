@@ -12,7 +12,7 @@ import zipfile
 from urllib.parse import quote
 
 from . import brand
-from .logs import log_path
+from .logs import crash_path, log_path
 from .utils import app_data_dir
 
 _URL = re.compile(r"(https?|magnet|file):(//)?([^/\s?#\"']*)[^\s\"'<>]*", re.I)
@@ -76,10 +76,26 @@ def make(facts_text: str, health_text: str, settings: dict, items, folder=None, 
             except OSError:
                 if n == 0:
                     z.writestr("diso.log", "(günlük dosyası yok)")
+        try:
+            with open(crash_path(), encoding="utf-8", errors="replace") as f:
+                z.writestr("crash.log", hide_links(f.read()))
+        except OSError:
+            pass                                          # (no crash recorded: nothing to add)
         z.writestr("NOT.txt", "Bu dosyada çalma listelerin, geçmişin, çerezlerin ve indirdiğin dosyalar YOK.\n"
                               "Linkler yalnız site adıyla duruyor. Göndermeden önce açıp bakabilirsin.\n"
                               f"Veri klasörü: {app_data_dir()}\n")
     return path
+
+
+def crash_tail(limit=1800) -> str:
+    """The end of crash.log (where the program died last), with the user's folder name left out; "" if none."""
+    try:
+        with open(crash_path(), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return ""
+    home = os.path.expanduser("~")
+    return hide_links(text.replace(home, "~")).strip()[-limit:]
 
 
 def issue_url(facts_text: str, zip_name: str) -> str:
@@ -88,4 +104,7 @@ def issue_url(facts_text: str, zip_name: str) -> str:
     body = ("**Ne oldu?** (adım adım: ne yaptın, ne bekledin, ne oldu)\n\n\n\n"
             f"**Rapor:** masaüstündeki `{zip_name}` dosyasını buraya sürükleyip bırak.\n\n"
             "```\n" + "\n".join(first[:12]) + "\n```\n")
+    crash = crash_tail()
+    if crash:
+        body += "\n**Çökme kaydı** (crash.log'un sonu):\n```\n" + crash + "\n```\n"
     return f"{brand.CONTACT_URL}?title={quote('Sorun: ')}&body={quote(body)}"

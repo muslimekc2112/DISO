@@ -1495,6 +1495,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self.share_window = None                 # 🔗 a playlist being sent
         self.friends_window = None               # 👥 friends, messages, notifications
         self._social_busy = False
+        self._social_job = None
+        self.live = None                         # 🔴 Supabase Realtime: tells when to look
         self._now_told = None                    # the song the friends were last told is playing
         self.open_shared_window = None           # 📥 a friend's playlist being opened
         self.account_buttons = []                # the account at the top right (refreshed by account_changed)
@@ -1546,6 +1548,7 @@ class App(NostalgiaWindow, ctk.CTk):
             self.after(ACCOUNT_FIRST_SYNC, self._account_tick)         # 👤 what changed here goes to the account
             self.after(SETTINGS_PREPARE_AFTER, self._prepare_settings)  # ⚡ the settings open at once
             self.after(SOCIAL_FIRST_LOOK, self._social_tick)           # 👥 what friends sent
+            self.after(SOCIAL_FIRST_LOOK, self._start_live)
             self.cfg.watchers.append(lambda key: self._ui_calls.put(lambda: self._setting_changed(key)))
         if self.cfg.get("tray_on_close") or minimized:
             self._ensure_tray()
@@ -1614,9 +1617,14 @@ class App(NostalgiaWindow, ctk.CTk):
         self.language_switch.set(LANGUAGE_NAMES[self.cfg.get("language")])
         self.language_switch.pack(side="left", padx=(10, 0), pady=(8, 0))
         from .account_ui import AccountButton
-        self.account_btn = AccountButton(head, self)          # 👤 the account, at the top right
-        self.account_btn.grid(row=0, column=2, rowspan=2, sticky="ne")
-        self.account_buttons.append(self.account_btn)
+        from .account_ui import FriendsButton
+        corner = ctk.CTkFrame(head, fg_color="transparent")
+        corner.grid(row=0, column=2, rowspan=2, sticky="ne")
+        self.friends_btn = FriendsButton(corner, self)        # 👥 the friends, next to the account
+        self.friends_btn.pack(side="left", padx=(0, 8))
+        self.account_btn = AccountButton(corner, self)        # 👤 the account, at the top right
+        self.account_btn.pack(side="left")
+        self.account_buttons.extend([self.friends_btn, self.account_btn])
         ctk.CTkLabel(head, text="Linki yapıştır, gerisini bana bırak • Dosya, video, MP3 • YouTube, Instagram, TikTok, X…",
                      text_color="gray").grid(row=1, column=1, sticky="nw")
 
@@ -2099,11 +2107,26 @@ class App(NostalgiaWindow, ctk.CTk):
             pass
 
     def _social_tick(self):
-        """Every POLL_EVERY: what friends sent comes in (on its own thread: the internet may be slow)."""
+        """What friends sent comes in: every POLL_EVERY, every CHAT_POLL_EVERY while a chat is open, and at once
+        when the bell rings (on its own thread: the internet may be slow)."""
+        self._social_job = None
         if self._closing:
             return
-        self.after(social.POLL_EVERY, self._social_tick)
-        if self._social_busy or not account.signed_in():
+        self._social_job = self.after(self._social_delay(), self._social_tick)
+        self.poll_social_now()
+
+    def _social_delay(self):
+        if self.live is not None and self.live.connected:
+            return social.LIVE_POLL_EVERY                 # 🔴 live: it says when to look; looking is a safety net
+        win = self.friends_window
+        try:
+            chatting = bool(win is not None and win.winfo_exists() and win.winfo_viewable() and win.chosen)
+        except TclError:
+            chatting = False
+        return social.CHAT_POLL_EVERY if chatting else social.POLL_EVERY
+
+    def poll_social_now(self):
+        if self._closing or self._social_busy or not account.signed_in():
             return
         self._social_busy = True
 
@@ -2119,8 +2142,37 @@ class App(NostalgiaWindow, ctk.CTk):
                 self._ui_calls.put(lambda: self._social_came(fresh))
         threading.Thread(target=job, daemon=True, name="friends-poll").start()
 
+    def social_sooner(self):
+        """A chat was opened: the next look comes CHAT_POLL_EVERY from now, not at the end of a slow wait."""
+        if self._social_job is not None:
+            try:
+                self.after_cancel(self._social_job)
+            except TclError:
+                pass
+            self._social_job = self.after(self._social_delay(), self._social_tick)
+
+    def _start_live(self):
+        """🔴 Something changed (a message, a request ...): look now (Supabase Realtime tells; polling stays for when
+        it cannot)."""
+        if self._closing or os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        self.live = social.Live(on_change=lambda: self._ui_calls.put(self.poll_social_now),
+                                on_typing=lambda conv, uid: self._ui_calls.put(lambda: self._someone_typing(conv, uid)))
+        self.live.start()
+
+    def _someone_typing(self, conv, uid):
+        win = self.friends_window
+        try:
+            if win is not None and win.winfo_exists():
+                win.typing(conv, uid)
+        except TclError:
+            pass
+
     def _social_came(self, fresh):
         self.social_changed()
+        fresh = [e for e in fresh if e.get("text")]              # ("groups": only the lists change, nothing to say)
+        if not fresh:
+            return
         for item in fresh[:2]:
             self.notice(item["text"], 8)
         try:
@@ -2132,25 +2184,30 @@ class App(NostalgiaWindow, ctk.CTk):
             notify.toast("DISO 👥", text)
 
     def recommend_items(self, tracks):
-        """The 👥 submenu for these songs: each friend, or how to get there."""
+        """The 👥 submenu for these songs: each friend and each group, or how to get there."""
         if not account.signed_in():
             return [("👤 Önce DISO hesabına giriş yap", lambda: self.open_account("signin"))]
-        friends = social.friends()
-        if not friends:
+        friends, groups = social.friends(), social.load()["groups"]
+        if not friends and not groups:
             return [("➕ Arkadaş ekle…", self.open_friends)]
-        items = [(f.get("name") or f.get("username") or "?", lambda uid=uid: self.recommend_song(tracks, uid))
+        items = [(f.get("name") or f.get("username") or "?", lambda uid=uid: self.recommend_song(tracks, uid=uid))
                  for uid, f in sorted(friends.items(), key=lambda i: i[1].get("name", ""))]
+        if groups:
+            items += [None] + [(f"{g.get('emoji', '👥')} {g['name']}", lambda g=g: self.recommend_song(tracks, conv=g))
+                               for g in sorted(groups, key=lambda g: g["name"].lower())
+                               if not g.get("only_admins") or g.get("role") == "admin"]
         return items + [None, ("👥 Arkadaşlar…", self.open_friends)]
 
-    def recommend_song(self, tracks, uid):
-        """🎵 Send these songs to a friend (their links found first: the friend downloads them from there)."""
-        name = (social.friends().get(uid) or {}).get("name", "")
+    def recommend_song(self, tracks, uid=None, conv=None):
+        """🎵 Send these songs to a friend or into a group (their links found first: they download them from there)."""
+        name = (conv or {}).get("name") or (social.friends().get(uid) or {}).get("name", "")
 
         def job():
             try:
                 songs = self.song_links(tracks)
+                chat = conv["id"] if conv else social.direct(uid)
                 for song in songs:
-                    social.recommend(uid, song)
+                    social.recommend_conv(chat, song)
                 if not songs:
                     text = "Bu şarkının linkini bulamadım, öneremedim"
                 elif len(songs) == 1:
@@ -2197,7 +2254,8 @@ class App(NostalgiaWindow, ctk.CTk):
 
     def account_changed(self):
         """Signed in / out or synced: the button at the top right and the line in the settings say so."""
-        for btn in [*self.account_buttons, getattr(self.music, "account_btn", None)]:
+        for btn in [*self.account_buttons, getattr(self.music, "friends_btn", None),
+                    getattr(self.music, "account_btn", None)]:
             try:
                 if btn is not None and btn.winfo_exists():
                     btn.refresh()
@@ -3956,6 +4014,8 @@ class App(NostalgiaWindow, ctk.CTk):
         self._save_folder()
         self.manager.shutdown()  # asks running downloads to pause; returns at once
         self.channel_watcher.stop()
+        if self.live is not None:
+            self.live.stop()
         self.app_update.stop()
         self.watcher.stop()
         if self.phone_link is not None:

@@ -33,8 +33,7 @@ def button_text() -> str:
     if account.signed_in():
         name = account.display_name()
         name = name if len(name) <= NAME_LIMIT else name[:NAME_LIMIT - 1] + "…"
-        new = social.unread_count()                           # 🔔 what friends sent, not looked at yet
-        return "👤 " + name + (f"  🔔 {new}" if new else "")
+        return "👤 " + name
     return "👤 Doğrula" if account.waiting() else "👤 Giriş yap"
 
 
@@ -55,6 +54,24 @@ class AccountButton(ctk.CTkButton):
 
     def refresh(self):
         set_if_changed(self, text=button_text())
+
+
+def friends_text() -> str:
+    new = social.unread_count() if account.signed_in() else 0     # 🔔 what friends sent, not looked at yet
+    return "👥 Arkadaşlar" + (f"  🔔 {new}" if new else "")
+
+
+class FriendsButton(ctk.CTkButton):
+    """Next to the account at the top right: opens the friends window (the number: what is not read yet)."""
+
+    def __init__(self, parent, app, **kw):
+        super().__init__(parent, text=friends_text(), command=app.open_friends, height=kw.pop("height", 32),
+                         fg_color=look.ACCENT_SOFT if look.is_new() else ("gray78", "gray28"),
+                         text_color=look.ACCENT if look.is_new() else ("gray15", "gray90"),
+                         hover_color=("gray70", "gray35"), **kw)
+
+    def refresh(self):
+        set_if_changed(self, text=friends_text())
 
 
 class AccountOffer(ctk.CTkToplevel):
@@ -126,6 +143,8 @@ class AccountWindow(ctk.CTkToplevel):
         if page in ("signin", "signup") and (account.signed_in() or account.waiting()):
             page = self.default_page()
         if page in ("account", "first", "devices", "delete") and not account.signed_in():
+            page = self.default_page()
+        if page == "reset" and account.waiting():
             page = self.default_page()
         if page == "verify" and not account.waiting():
             page = self.default_page()
@@ -241,19 +260,40 @@ class AccountWindow(ctk.CTkToplevel):
     def _page_verify(self, box):
         self._title(box, "📧 E-postanı doğrula")
         ctk.CTkLabel(box, text=account.email(), font=ctk.CTkFont(weight="bold")).grid(row=1, column=0, pady=(0, 6))
-        self._hint(box, "Bu adrese bir doğrulama bağlantısı gönderdik. Gmail'ini aç, DISO'dan gelen e-postadaki "
-                        "bağlantıya tıkla, sonra buraya dönüp “Doğruladım” de. Gelmediyse gereksiz (spam) "
-                        "klasörüne de bak.", 2)
-        self.verified_btn = self._primary(box, "✔ Doğruladım", self.verified, width=200)
-        self.verified_btn.grid(row=3, column=0, pady=(4, 0))
+        self._hint(box, "Bu adrese 6 haneli bir doğrulama kodu gönderdik. Gmail'ini aç, DISO'dan gelen e-postadaki "
+                        "kodu aşağıya yaz. Gelmediyse gereksiz (spam) klasörüne de bak.", 2)
+        self.code_entry = ctk.CTkEntry(box, width=220, justify="center", font=ctk.CTkFont(size=24, weight="bold"),
+                                       placeholder_text="000000")
+        self.code_entry.grid(row=3, column=0, pady=(2, 8))
+        self.code_entry.bind("<Return>", lambda e: self.verified())
+        self.verified_btn = self._primary(box, "✔ Doğrula", self.verified, width=200)
+        self.verified_btn.grid(row=4, column=0, pady=(4, 0))
         row = ctk.CTkFrame(box, fg_color="transparent")
-        row.grid(row=4, column=0, pady=(10, 0))
+        row.grid(row=5, column=0, pady=(10, 0))
         self._plain(row, "📬 Gmail'i aç", lambda: webbrowser.open(GMAIL_URL), width=120).pack(side="left", padx=4)
-        self.resend_btn = self._plain(row, "Tekrar gönder", self.resend, width=120)
+        self.resend_btn = self._plain(row, "Yeni kod gönder", self.resend, width=130)
         self.resend_btn.pack(side="left", padx=4)
         self.cancel_btn = self._plain(row, "Vazgeç", self.cancel, width=90)
         self.cancel_btn.pack(side="left", padx=4)
-        self._status(box, 5)
+        self._status(box, 6)
+        self._focus(self.code_entry)
+
+    def _page_reset(self, box):
+        """🔑 A new password: the code is mailed, then typed here with the new password."""
+        self._title(box, "🔑 Şifreni yenile")
+        self._hint(box, "E-posta adresine 6 haneli bir kod gönderelim; kodu ve yeni şifreni aşağıya yaz.", 1)
+        self.email_entry = self._field(box, "E-posta", 2)
+        if account.email():
+            self.email_entry.insert(0, account.email())
+        self.send_code_btn = self._plain(box, "📧 Kod gönder", self.send_reset_code, width=200)
+        self.send_code_btn.grid(row=4, column=0, pady=(0, 10))
+        self.code_entry = self._field(box, "Kod", 5)
+        self.password_entry = self._field(box, "Yeni şifre (en az 6 karakter)", 7, show="•")
+        self.reset_btn = self._primary(box, "Şifreyi değiştir", self.finish_reset, width=200)
+        self.reset_btn.grid(row=9, column=0, pady=(6, 0))
+        self._link(box, "‹ Geri", "account" if account.signed_in() else "signin", 10)
+        self._status(box, 11)
+        self.password_entry.bind("<Return>", lambda e: self.finish_reset())
 
     def _page_first(self, box):
         """The first sign-in of this computer: what happens with the data and the songs."""
@@ -430,14 +470,30 @@ class AccountWindow(ctk.CTkToplevel):
         self._run(lambda: account.sign_up(*values, password), lambda _: self.show("verify"))
 
     def verified(self):
+        code = self.code_entry.get()
+
         def work():
-            return account.peek() if account.check_verified() else False
-        self._run(work, lambda look_: self._signed_in(look_) if look_ is not False else self._say(
-            account.MESSAGES["NOT_VERIFIED"], ERROR_COLOR))
+            account.verify_code(code)
+            return account.peek()
+        self._run(work, self._signed_in)
 
     def resend(self):
         self._run(account.send_verification,
-                  lambda _: self._say("Bağlantıyı yeniden gönderdik. Gmail'ine bak.", OK_COLOR))
+                  lambda _: self._say("Yeni kodu gönderdik. Gmail'ine bak.", OK_COLOR))
+
+    def send_reset_code(self):
+        address = self.email_entry.get().strip()
+        self._run(lambda: account.reset_password(address),
+                  lambda _: self._say(f"Kod {address} adresine gönderildi. Gmail'ine bak (gereksiz klasörüne de).",
+                                      OK_COLOR))
+
+    def finish_reset(self):
+        address, code, password = self.email_entry.get().strip(), self.code_entry.get(), self.password_entry.get()
+
+        def done(_):
+            self.show("account" if account.signed_in() else "signin")
+            self._say("✔ Şifren değişti. Yeni şifrenle giriş yapabilirsin.", OK_COLOR)
+        self._run(lambda: account.finish_reset(address, code, password), done)
 
     def cancel(self):
         account.sign_out()
@@ -530,9 +586,7 @@ class AccountWindow(ctk.CTkToplevel):
             self._say(f"⬇ {n} şarkı aranıp indirilecek; indirmelerde görünürler", OK_COLOR)
 
     def change_password(self):
-        address = account.email()
-        self._run(lambda: account.reset_password(address),
-                  lambda _: self._say(f"Yeni şifre bağlantısı {address} adresine gönderildi.", OK_COLOR))
+        self.show("reset")
 
     def sign_out(self):
         if not messagebox.askyesno("DISO", "Hesaptan çıkılsın mı?\n\nBu bilgisayardaki ayarların ve listelerin "
@@ -541,13 +595,7 @@ class AccountWindow(ctk.CTkToplevel):
         self._run(account.leave, lambda _: self.show("signin"))
 
     def reset(self):
-        address = self.email_entry.get().strip()
-        if not address:
-            self._say("Önce e-posta adresini yaz.", ERROR_COLOR)
-            return
-        self._run(lambda: account.reset_password(address),
-                  lambda _: self._say(f"Şifre yenileme bağlantısı {address} adresine gönderildi. E-postanı kontrol "
-                                      "et (gereksiz klasörüne de bak).", OK_COLOR))
+        self.show("reset")
 
 
 class _Small(ctk.CTkToplevel):

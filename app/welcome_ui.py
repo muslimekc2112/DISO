@@ -9,14 +9,16 @@ from .ui_common import fit_geometry, set_if_changed, set_window_icon
 
 # (icon, title, text, what "Dene" opens — see App.try_feature)
 WHATS_NEW = [
-    ("👥", "Arkadaşlar", "Kullanıcı adıyla arkadaş ekle; e-postan hiç görünmez. Kimin çevrimiçi olduğunu, şu an ne "
-     "dinlediğini gör.", "friends"),
-    ("💬", "Mesajlaşma", "Arkadaşlarınla DISO içinden yazış; yeni mesaj bildirim olarak gelir.", "friends"),
-    ("🎵", "Arkadaşa şarkı öner", "Şarkıya sağ tık → “Arkadaşa öner”. Arkadaşın tek tıkla indirir, beğenip "
-     "beğenmediğini sana söyler.", "share_song"),
-    ("👍", "Beğen / beğenme", "Çalan şarkıyı beğen ya da beğenme; beğendiklerin “❤ Beğendiklerim” listesinde "
-     "toplanır, arkadaşların da görür.", "like"),
-    ("🗑", "Hesabı sil", "İstersen hesabını ve hesapta tutulan her şeyi kalıcı olarak silebilirsin.", "account"),
+    ("👥", "Gruplar", "Arkadaşlarınla grup kur: yöneticiler üye ekler, çıkarır, “yalnız yöneticiler yazsın” der. "
+     "@kullanıcıadı ile birini anabilirsin.", "friends"),
+    ("➕", "Mesaja ekle", "Müzik listenden şarkı, son dinlenenler, son indirilenler, bütün bir çalma listesi, resim "
+     "ya da bilgisayarından dosya gönder.", "friends"),
+    ("💬", "Daha iyi sohbet", "Yanıtla, emoji ile tepki ver, herkesten sil, sohbette ara; ✓✓ ile okundu mu gör.",
+     "friends"),
+    ("⚡", "Mesajlar anında", "Mesajlar ve bildirimler bir saniye içinde gelir; karşı taraf yazarken “yazıyor…” "
+     "görürsün.", "friends"),
+    ("🔐", "Kodla doğrulama", "Hesap açarken ve şifre yenilerken e-postana 6 haneli bir kod gelir; bağlantıya "
+     "tıklamak yok.", "account"),
 ]
 
 # (icon, title, text, the attribute of the widget to outline or None). The download window's tour comes at the

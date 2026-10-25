@@ -2,6 +2,16 @@
 
 **[English](CHANGELOG.md) | Türkçe**
 
+## 1.7
+- **🏗 Yeni altyapı: Supabase.** Hesap, eşitleme ve arkadaşlar artık Supabase'de. Eski (Firebase) hesaplar taşınmaz: hesabı yeniden açman gerekir; bilgisayarındaki listeler ve ayarlar yerinde kalır, giriş yapınca yeni hesaba yüklenir.
+- **🔐 Kodla doğrulama:** hesap açarken ve şifre yenilerken e-postana 6 haneli bir kod gelir (bağlantıya tıklamak yok); kodu DISO'ya yazarsın. Kullanıcı adı alınmışsa e-posta gönderilmeden söylenir.
+- **⚡ Mesajlar anında:** canlı bağlantı sayesinde mesajlar, istekler ve bildirimler bir saniye içinde gelir; "… yazıyor" göstergesi de var.
+- **👥 Gruplar:** arkadaşlarınla grup kur (ad, açıklama, emoji). Kuran yönetici olur; yöneticiler üye ekler / çıkarır, başkasını yönetici yapar, grubun adını değiştirir, "yalnız yöneticiler yazsın" der, grubu siler. Çıkan son yönetici grubu en eski üyeye bırakır. Grupta @kullanıcıadı ile birini anabilirsin, grup sohbetinde şarkı önerebilirsin.
+- **➕ Mesaja ekler:** 🎵 müzik listenden şarkı, 🕘 son dinlenenler, ⬇ son indirilenler, 📋 bütün bir çalma listesi, 🖼 resim, 📁 bilgisayardan dosya (50 MB'a kadar).
+- **💬 Daha iyi sohbet:** yanıtla, emoji tepkisi, herkesten sil, sohbette ara, ✓✓ okundu bilgisi, sessize al, engelle, durum (çevrimiçi / rahatsız etme / görünmez).
+- **⋮ Sohbet menüsü ve 👥 Arkadaşlar düğmesi:** sohbetin sağ üstünde ⋮ menüsü (bilgi ve üyeler, ara, sessize al, yenile, ayrıl); ana pencerede ve müzik çalarda hesap düğmesinin yanında okunmamış sayısını gösteren "👥 Arkadaşlar" düğmesi.
+- **🐞 Çökme kaydı:** DISO bir kütüphanenin içinde kapanırsa nerede kapandığı crash.log'a yazılır; "Sorun bildir" bunu zip'e ve yeni sorun sayfasına koyar.
+
 ## 1.6
 - **👥 Arkadaşlar:** hesap penceresinde "👥 Arkadaşlar". Kullanıcı adıyla arkadaşlık isteği gönder; karşı taraf kabul ya da reddeder. Herkes yalnız kullanıcı adını ve adını görür, e-posta hiçbir zaman görünmez. Arkadaşının çevrimiçi olup olmadığı ve şu an dinlediği şarkı listede yazar.
 - **💬 Mesajlaşma:** arkadaşlarınla DISO içinden yazış.

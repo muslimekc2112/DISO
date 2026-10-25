@@ -21,7 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def _find_setup():
     """The newest dist/DISO-Setup-<version>.exe (the file name carries the version)."""
     found = sorted(glob.glob(os.path.join(ROOT, "dist", "DISO-Setup-*.exe")), key=os.path.getmtime)
-    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Setup-1.6.exe")
+    return found[-1] if found else os.path.join(ROOT, "dist", "DISO-Setup-1.7.exe")
 
 
 SETUP = _find_setup()
@@ -124,6 +124,7 @@ def test_the_installed_program_runs_on_a_computer_with_nothing_on_it(world, tmp_
     assert info["media_panel"] is True and info["extras"] is True                    # winrt and the new parts are inside
     assert info["ytmusic"] is True                                                  # lyrics from YouTube Music
     assert info["visualizer"] is True and info["phone_qr"] is True                  # numpy, segno, websockets inside
+    assert info["friends"] is True                                                  # the account and friends modules
 
 
 def test_the_shortcuts_made_by_the_real_setup_point_at_the_installed_program(world, tmp_path):

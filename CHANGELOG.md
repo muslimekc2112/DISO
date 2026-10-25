@@ -2,6 +2,16 @@
 
 **English | [Türkçe](CHANGELOG.tr.md)**
 
+## 1.7
+- **🏗 A new foundation: Supabase.** The account, the sync and the friends now live on Supabase. Old (Firebase) accounts do not move: make the account again; the lists and settings on your computer stay and are loaded into the new account when you sign in.
+- **🔐 Confirm with a code:** making an account and renewing a password send a 6 digit code to your e-mail (no link to click); you type it into DISO. A taken user name is said before any e-mail is sent.
+- **⚡ Messages at once:** a live connection brings messages, requests and notifications within a second; there is an "is typing…" line too.
+- **👥 Groups:** make a group with your friends (name, description, emoji). Whoever makes it is its admin; admins add and remove members, make others admins, rename the group, make it "only admins write" and delete it. The last admin who leaves hands the group to the oldest member. Mention someone with @username in a group, and recommend songs in a group chat.
+- **➕ Attachments:** 🎵 a song from your music list, 🕘 last played, ⬇ last downloaded, 📋 a whole playlist, 🖼 a picture, 📁 a file from the computer (up to 50 MB).
+- **💬 A better chat:** reply, emoji reactions, delete for everyone, search in a chat, ✓✓ read marks, mute, block, status (online / do not disturb / invisible).
+- **⋮ Chat menu and 👥 Friends button:** the chat's top right has a ⋮ menu (info and members, search, mute, refresh, leave); the main window and the music player have a "👥 Friends" button next to the account, with the number of unread messages.
+- **🐞 Crash record:** if DISO dies inside a library, where it died is written to crash.log; "Report a problem" puts it in the zip and in the new issue page.
+
 ## 1.6
 - **👥 Friends:** "👥 Friends" in the account window. Send a friend request by user name; the other side accepts or declines. Everyone sees only the user name and the name, never the e-mail. Whether a friend is online and the song they listen to now show in the list.
 - **💬 Messages:** chat with your friends inside DISO.

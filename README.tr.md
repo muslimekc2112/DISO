@@ -178,8 +178,8 @@ Pencerenin en altındaki **İndirme modu | Müzik çalar modu** anahtarı müzik
 - **İndirme:** aynı anda kaç indirme (1–8), toplam **hız sınırı**, otomatik deneme sayısı, **proxy** (http / socks5, **Dene** düğmesiyle), zamanlayıcı ve **tüm indirmeler bitince** ne yapılacağı (DISO'yu kapat / uyut / bilgisayarı kapat).
 - **Sistem:** kapatınca arka planda çalış (sistem tepsisi), Windows ile başlat, bildirimler, günlük dosyası.
 - **Görünüm:** tema (koyu / açık / sistem), **vurgu rengi** (pembe, mavi, yeşil, turuncu, mor, kırmızı) ve stil: **Standart (Önerilen)** (yeni bir bilgisayarın ilk görünümü: Yeni'nin renkleri, Nostalji'nin renkli resimleri), **Yeni**, **Klasik** ya da **🕹 Nostalji** (menü çubuğu, büyük resimli araç çubuğu, solda kategoriler ve tablo; 2000'lerin indirme yöneticileri gibi, açık ya da koyu gri). Değişiklikten sonra DISO aynı yerde yeniden açılır.
-- **👤 Hesap:** hesap aç (ad, kullanıcı adı, bağlantıyla doğrulanan Gmail) ya da giriş yap, isteğe bağlı; adın sağ üstte yazar. Ayarlar, çalma listeleri, kanallar ve geçmiş bilgisayarların arasında eşitlenir; yeni bir bilgisayarda listelerin şarkıları tek tıkla iner. **💻 Bağlı bilgisayarlar** hepsini gösterir, istediğinden çıkış yaptırır; **🗑 Hesabı sil** hesabı kalıcı olarak siler.
-- **👥 Arkadaşlar:** kullanıcı adıyla arkadaş ekle (e-postalar hiç görünmez), yazış, şarkı öner, beğendiklerini (👍 / 👎) ve şu an dinlediklerini gör; hepsi bildirim olarak gelir.
+- **👤 Hesap:** hesap aç (ad, kullanıcı adı, 6 haneli kodla doğrulanan Gmail) ya da giriş yap, isteğe bağlı; adın sağ üstte yazar. Ayarlar, çalma listeleri, kanallar ve geçmiş bilgisayarların arasında eşitlenir; yeni bir bilgisayarda listelerin şarkıları tek tıkla iner. **💻 Bağlı bilgisayarlar** hepsini gösterir, istediğinden çıkış yaptırır; **🗑 Hesabı sil** hesabı kalıcı olarak siler.
+- **👥 Arkadaşlar, sohbet ve gruplar:** kullanıcı adıyla arkadaş ekle (e-postalar hiç görünmez), onlarla ve gruplarda (yönetici, anma) yazış, şarkı öner, ➕ ile şarkı, çalma listesi, resim ve dosya gönder, yanıtla, tepki ver, beğendiklerini (👍 / 👎) ve şu an dinlediklerini gör; hepsi bir saniye içinde bildirim olarak gelir.
 - **👋 Turlar:** indirme penceresi (ilk açılış) ve müzik çalar (ilk açıldığında) için adım adım tur, bazı adımları kendin denersin; Ayarlar → Yedek ve yardım'dan yeniden açılır.
 - **💾 Yedek ve yardım:** ayarları, çalma listelerini, indirme listesini, geçmişi ve kanalları tek bir `.disoyedek` dosyasına yedekle, başka bir bilgisayarda geri yükle; **📊 İndirme geçmişi**; **⌨ Klavye kısayolları** (her yerde **F1**); sağlık kontrolü ve sorun bildirme.
 - **ℹ Hakkında** (ya da başlıktaki sürüm rozetine tıkla): sürüm, DISO'nun ve verilerinin nerede olduğu. **📋 Detayları kopyala** DISO, Windows, yt-dlp, FFmpeg ve Deno sürümlerini panoya alır.
@@ -190,7 +190,11 @@ Seçtiğin her şey hatırlanır.
 DISO, kurulumu ve tarayıcı eklentisi **Türkçe ve İngilizce** konuşur. İlk açılışta Windows Türkçe ise DISO Türkçe, değilse İngilizce başlar. İstediğin zaman sol üstteki **TR | EN** ile ya da Ayarlar → **Dil** ile değiştir (DISO yeniden açılır). Kurulum ve kaldırma pencerelerinde de **Türkçe | English** seçici var; tarayıcı eklentisi tarayıcının dilini kullanır.
 
 ## 🆕 Yenilikler
-En yeni sürüm her zaman [sürümler sayfasında](https://github.com/muslimekc2112/DISO/releases/latest); bütün değişiklikler [`CHANGELOG.tr.md`](CHANGELOG.tr.md) dosyasında. 1.6'nın öne çıkanları:
+En yeni sürüm her zaman [sürümler sayfasında](https://github.com/muslimekc2112/DISO/releases/latest); bütün değişiklikler [`CHANGELOG.tr.md`](CHANGELOG.tr.md) dosyasında. 1.7'nin öne çıkanları:
+- Hesabın yeni altyapısı **🏗 Supabase** (eski Firebase hesapları yeniden açılır), bağlantı yerine **🔐 6 haneli kodlar**.
+- Yöneticili **👥 gruplar**, **➕ ekler** (şarkı, çalma listesi, resim, dosya), yanıtlama, tepkiler, okundu bilgisi ve **bir saniye içinde** gelen mesajlar.
+
+Ve 1.6'nın:
 - **👥 Arkadaşlar:** kullanıcı adıyla arkadaş ekle, **💬 yazış**, **🎵 şarkı öner**, **👍 / 👎** ve arkadaşlarının beğendiğini, şu an dinlediğini gör; hepsi **🔔 bildirim** olarak gelir.
 - **🗑 Hesabı sil** (kalıcı olarak).
 

@@ -212,6 +212,213 @@ PLAIN = {
         "🎤 Karaoke on: the singer's voice is down, the lyrics are on screen (best with headphones or two speakers). Turn it off in ⚙ → Karaoke",
     '🎤 Karaoke kapandı':
         '🎤 Karaoke off',
+    # ---- 💬 chats, groups, the code instead of the link
+    '👥 Grup bilgisi ve üyeler':
+        '👥 Group info and members',
+    '👤 Kişi bilgisi':
+        '👤 Contact info',
+    '🔍 Sohbette ara':
+        '🔍 Search in chat',
+    '🔔 Sesi aç':
+        '🔔 Unmute',
+    '🔄 Sohbeti yenile':
+        '🔄 Refresh chat',
+    '➕ Gruba kişi ekle':
+        '➕ Add someone to the group',
+    '🚪 Gruptan çık':
+        '🚪 Leave the group',
+    '🚫 Engelle / arkadaşlıktan çıkar':
+        '🚫 Block / remove friend',
+    'Gruplar':
+        'Groups',
+    'Mesaja ekle':
+        'Add to a message',
+    'Daha iyi sohbet':
+        'A better chat',
+    'Mesajlar anında':
+        'Messages at once',
+    'Kodla doğrulama':
+        'Confirm with a code',
+    'Arkadaşlarınla grup kur: yöneticiler üye ekler, çıkarır, “yalnız yöneticiler yazsın” der. @kullanıcıadı ile birini anabilirsin.':
+        'Make a group with your friends: admins add and remove members and can make it “only admins write”. Mention someone with @username.',
+    'Müzik listenden şarkı, son dinlenenler, son indirilenler, bütün bir çalma listesi, resim ya da bilgisayarından dosya gönder.':
+        'Send a song from your music list, the last played, the last downloaded, a whole playlist, a picture or a file from your computer.',
+    'Yanıtla, emoji ile tepki ver, herkesten sil, sohbette ara; ✓✓ ile okundu mu gör.':
+        'Reply, react with an emoji, delete for everyone, search in a chat; see with ✓✓ whether it was read.',
+    'Mesajlar ve bildirimler bir saniye içinde gelir; karşı taraf yazarken “yazıyor…” görürsün.':
+        'Messages and notifications come within a second; you see “is typing…” while the other side types.',
+    'Hesap açarken ve şifre yenilerken e-postana 6 haneli bir kod gelir; bağlantıya tıklamak yok.':
+        'A 6 digit code comes to your e-mail when you make an account or renew a password; no link to click.',
+    "E-posta adresin henüz doğrulanmadı. Gmail'ine gelen 6 haneli kodu yaz.":
+        'Your e-mail address is not confirmed yet. Type the 6 digit code that came to your Gmail.',
+    'Kod yanlış ya da süresi dolmuş. Yeni bir kod isteyebilirsin.':
+        'The code is wrong or has expired. You can ask for a new one.',
+    'E-postana gelen 6 haneli kodu yaz.':
+        'Type the 6 digit code that came to your e-mail.',
+    "Bu adrese 6 haneli bir doğrulama kodu gönderdik. Gmail'ini aç, DISO'dan gelen e-postadaki kodu aşağıya yaz. Gelmediyse gereksiz (spam) klasörüne de bak.":
+        "We sent a 6 digit confirmation code to this address. Open your Gmail and type the code from DISO's mail below. If it did not come, look in the spam folder too.",
+    '✔ Doğrula':
+        '✔ Confirm',
+    'Yeni kod gönder':
+        'Send a new code',
+    '📧 Kod gönder':
+        '📧 Send the code',
+    "Yeni kodu gönderdik. Gmail'ine bak.":
+        'We sent a new code. Look in your Gmail.',
+    'E-posta adresine 6 haneli bir kod gönderelim; kodu ve yeni şifreni aşağıya yaz.':
+        'Let us send a 6 digit code to your e-mail address; type the code and your new password below.',
+    'Yeni şifre (en az 6 karakter)':
+        'New password (at least 6 characters)',
+    'Kod':
+        'Code',
+    '🔑 Şifreni yenile':
+        '🔑 Renew your password',
+    'Şifreyi değiştir':
+        'Change the password',
+    '✔ Şifren değişti. Yeni şifrenle giriş yapabilirsin.':
+        '✔ Your password changed. You can sign in with it.',
+    'Bu kullanıcıya istek gönderemezsin.':
+        'You cannot send this user a request.',
+    'Bu kullanıcıya zaten bir istek gönderdin.':
+        'You already sent this user a request.',
+    'Boş mesaj gönderilmez.':
+        'An empty message is not sent.',
+    'Bu sohbete yazamazsın: yalnız yöneticiler yazabilir ya da artık arkadaş değilsiniz.':
+        'You cannot write in this chat: only admins can write, or you are not friends any more.',
+    'Grup oluşturuldu':
+        'Group created',
+    'Bir üye gruptan çıktı':
+        'A member left the group',
+    '💬 Sohbetler':
+        '💬 Chats',
+    '⛔ Engellediklerim…':
+        '⛔ My blocked people…',
+    'Kimseyi engellemedin':
+        'You blocked nobody',
+    'Engel kaldırıldı':
+        'Block removed',
+    '🟢 Çevrimiçi':
+        '🟢 Online',
+    '🌙 Rahatsız etme':
+        '🌙 Do not disturb',
+    '⚪ Görünmez':
+        '⚪ Invisible',
+    'Grup':
+        'Group',
+    '● çevrimiçi':
+        '● online',
+    'Henüz mesaj yok. İlk mesajı sen yaz 👋':
+        'No messages yet. Write the first one 👋',
+    'Soldan bir arkadaşını ya da grubunu seç.\n\nYeni biriyle konuşmak için kullanıcı adını yazıp ➕ İstek de.':
+        'Choose a friend or a group on the left.\n\nTo talk to someone new, type their user name and press ➕ Request.',
+    'Bu grupta yalnız yöneticiler yazabilir':
+        'Only admins can write in this group',
+    '↩ Yanıtla':
+        '↩ Reply',
+    '😊 Tepki ver':
+        '😊 React',
+    '📋 Kopyala':
+        '📋 Copy',
+    '⬇ Şarkıyı indir':
+        '⬇ Download the song',
+    '🗑 Sil (herkesten)':
+        '🗑 Delete (for everyone)',
+    '🚫 Bu mesaj silindi':
+        '🚫 This message was deleted',
+    'Bu mesaj herkesten silinsin mi?':
+        'Delete this message for everyone?',
+    '🎵 Müzik listemden şarkı…':
+        '🎵 A song from my music list…',
+    '🕘 Son dinlenenler…':
+        '🕘 Last played…',
+    '⬇ Son indirilenler…':
+        '⬇ Last downloaded…',
+    '📋 Bir çalma listesinin hepsi…':
+        '📋 A whole playlist…',
+    '🖼 Resim gönder…':
+        '🖼 Send a picture…',
+    '📁 Bilgisayardan dosya gönder…':
+        '📁 Send a file from the computer…',
+    'Resim seç':
+        'Choose a picture',
+    'Dosya seç':
+        'Choose a file',
+    '⬇ Kaydet':
+        '⬇ Save',
+    '⬇ Listeyi ekle ve indir':
+        '⬇ Add the list and download',
+    'Gönderilecek çalma listesi yok':
+        'No playlist to send',
+    'Bu şarkıların linkini bulamadım':
+        "I could not find these songs' links",
+    '✔ Gönderildi':
+        '✔ Sent',
+    'DISO arkadaş dosyaları':
+        "DISO friends' files",
+    '👍 Cevabın gönderildi':
+        '👍 Your answer was sent',
+    '👎 Cevabın gönderildi':
+        '👎 Your answer was sent',
+    'Sohbete git':
+        'Go to the chat',
+    'Bu sohbette ara…':
+        'Search in this chat…',
+    'Gelen istekler':
+        'Requests',
+    'Müzik listemden şarkı':
+        'A song from my music list',
+    'Son dinlenenler':
+        'Last played',
+    'Son indirilenler':
+        'Last downloaded',
+    'Ara…':
+        'Search…',
+    'Hiçbirini':
+        'None',
+    'Burada şarkı yok.':
+        'No songs here.',
+    'Önce göndermek istediklerini işaretle.':
+        'First tick what you want to send.',
+    'Yeni grup':
+        'New group',
+    '👥 Yeni grup':
+        '👥 New group',
+    'Grubun adı':
+        "The group's name",
+    'Ne hakkında? (isteğe bağlı)':
+        'What is it about? (optional)',
+    'Ne hakkında?':
+        'What is it about?',
+    'Grubu kur':
+        'Make the group',
+    'Grubun bir adı olsun.':
+        'Give the group a name.',
+    'Önce arkadaş eklemelisin; yine de yalnız başına grup kurabilirsin.':
+        'Add friends first; you can still make a group on your own.',
+    'Yönetici':
+        'Admin',
+    'Yönetici yap':
+        'Make admin',
+    'Yöneticilikten al':
+        'Remove as admin',
+    '📢 Yalnız yöneticiler yazabilsin':
+        '📢 Only admins can write',
+    '🔕 Sessize al':
+        '🔕 Mute',
+    '➕ Üye ekle':
+        '➕ Add a member',
+    'Gruptan çık':
+        'Leave the group',
+    '🗑 Grubu sil':
+        '🗑 Delete the group',
+    '⛔ Engelle':
+        '⛔ Block',
+    'Arkadaşın':
+        'Your friend',
+    'Eklenecek arkadaşın kalmadı.':
+        'No friends left to add.',
+    '✔ Kaydedildi':
+        '✔ Saved',
     # ---- 👥 friends
     'Şifre yanlış.':
         'Wrong password.',
@@ -1313,6 +1520,62 @@ TEMPLATES = [
      '@{}\n🎵 {}'),
     ('{}  ·  {}\n{}\n\n',
      '{}  ·  {}\n{}\n\n'),
+    ('📋 {} bir çalma listesi gönderdi: {}',
+     '📋 {} sent a playlist: {}'),
+    ('@ {} seni {} grubunda andı: {}',
+     '@ {} mentioned you in {}: {}'),
+    ('{} gruba eklendi',
+     '{} was added to the group'),
+    ('{} gruptan çıkarıldı',
+     '{} was removed from the group'),
+    ('{} yönetici yapıldı',
+     '{} was made an admin'),
+    ('{} yöneticilikten alındı',
+     '{} is not an admin any more'),
+    ('Dosya çok büyük (en fazla {} MB).',
+     'The file is too big (at most {} MB).'),
+    ("Kod {} adresine gönderildi. Gmail'ine bak (gereksiz klasörüne de).",
+     'The code was sent to {}. Look in your Gmail (the spam folder too).'),
+    ('Gruplar ({})',
+     'Groups ({})'),
+    ('{} yazıyor…',
+     '{} is typing…'),
+    ('Engeli kaldır: {} (@{})',
+     'Remove the block: {} (@{})'),
+    ('🎵 {} şarkı gönderildi',
+     '🎵 {} songs sent'),
+    ('📋 “{}” gönderildi',
+     '📋 “{}” sent'),
+    ('🔎 {} şarkının linki bulunuyor…',
+     '🔎 Finding the links of {} songs…'),
+    ('🔎 “{}” listesinin linkleri bulunuyor…',
+     '🔎 Finding the links of the list “{}”…'),
+    ('⬆ Gönderiliyor: {}',
+     '⬆ Sending: {}'),
+    ('📎 Gönderemedim: {}',
+     '📎 Could not send: {}'),
+    ('📎 İndiremedim: {}',
+     '📎 Could not download: {}'),
+    ('⬇ Kaydedildi: {}',
+     '⬇ Saved: {}'),
+    ('{}  ·  {} şarkı',
+     '{}  ·  {} songs'),
+    ('📋 {}  ·  {} şarkı',
+     '📋 {}  ·  {} songs'),
+    ('Kimler olsun? (en fazla {} arkadaş)',
+     'Who should be in it? (at most {} friends)'),
+    ('{} engellensin mi? Arkadaşlığınız biter, birbirinize yazamazsınız.',
+     'Block {}? Your friendship ends and you cannot write to each other.'),
+    ('“{}” grubu herkes için silinsin mi? Bu geri alınamaz.',
+     'Delete the group “{}” for everyone? This cannot be undone.'),
+    ('{} kişisine {} şarkı önerildi',
+     '{} songs recommended to {}'),
+    ('{}  (@{})',
+     '{}  (@{})'),
+    ('{}  (@{})  · sen',
+     '{}  (@{})  · you'),
+    ('Grup · yönetici',
+     'Group · admin'),
     # 👤 the DISO account
     ("Hesap sunucusu bir hata verdi ({}).", "The account server answered with an error ({})."),
     ("Hesabında başka bir bilgisayardan ({}, {}) gelen ayarlar, listeler, kanallar ve indirme geçmişi var.",

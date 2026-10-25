@@ -73,7 +73,7 @@ def test_whats_new_cards_open_their_features(app, monkeypatch):
 def test_the_new_cards_of_1_2_open_their_features(app, monkeypatch):
     monkeypatch.setattr(player, "new_backend", FakeBackend)
     actions = {card[3] for card in welcome_ui.WHATS_NEW}
-    assert {"friends", "share_song", "like", "account"} == actions - {None}
+    assert {"friends", "account"} == actions - {None}
     opened = []
     monkeypatch.setattr(app, "open_extension_guide", lambda: opened.append("guide"))
     app.try_feature("extension")

@@ -114,6 +114,12 @@ def collect() -> dict:
         info["phone_qr"] = phone_link.qr_image("http://192.168.1.2:1/?k=x").size[0] > 50
     except Exception as e:  # noqa: BLE001
         info["phone_qr"] = f"error: {type(e).__name__}: {e}"
+    try:   # 👥 the account and the friends (Supabase): the modules, the live connection's library
+        from . import account, social, social_dialogs, social_ui  # noqa: F401
+        import websockets.sync.client  # noqa: F401
+        info["friends"] = account.SUPABASE.startswith("https://") and callable(social.Live) and bool(social.REALTIME)
+    except Exception as e:  # noqa: BLE001
+        info["friends"] = f"error: {type(e).__name__}: {e}"
     return info
 
 

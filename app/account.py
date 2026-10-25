@@ -1,10 +1,10 @@
-"""👤 The DISO account: a name, a user name, an e-mail and a password (Firebase Authentication) that keep the settings,
-the playlists, the followed channels and the download history the same on every computer signed in to it. They are
-kept in Cloud Firestore under users/<uid>/files/<name>; its rules let only the owner read or write them, and only
-once the e-mail address is confirmed. User names are claimed in usernames/<name> (one owner each).
+"""👤 The DISO account: a name, a user name, an e-mail and a password (Supabase Authentication) that keep the
+settings, the playlists, the followed channels and the download history the same on every computer signed in to it.
+They are kept in the database (table user_files); its rules (row level security, supabase/schema.sql) let only the
+owner read or write them. User names are unique (table profiles).
 
-Making an account: the name, the user name, the e-mail and the password are asked; Firebase mails a link and the
-account counts only after the link was opened ("Doğruladım"). Until then it is "waiting" (waiting()).
+Making an account: the name, the user name, the e-mail and the password are asked; Supabase mails a 6 digit code and
+the account counts only after the code was typed ("Doğrula"). Until then it is "waiting" (waiting()).
 
 The songs and videos themselves never travel, only DISO's own small files do. A song of a list that lives in
 DISO's own music folder travels as "%DISO_MUSIC%\\<file>", so on another computer it points into that computer's
@@ -28,27 +28,31 @@ import re
 import socket
 import threading
 import time
+from datetime import datetime, timezone
 
 import requests
 
-from . import backup, brand, i18n, safefile
+from . import backup, brand, safefile
 from .google_account import _dpapi
 from .logs import log
 from .utils import app_data_dir
 
-API_KEY = "AIzaSyBvKGtY0NW3j40TdxqpFksvj51MN5FCvSQ"      # a Firebase web key: public by design (the rules guard)
-PROJECT = "diso-2112"
-AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts:"
-TOKEN_URL = "https://securetoken.googleapis.com/v1/token"
-STORE_URL = f"https://firestore.googleapis.com/v1/projects/{PROJECT}/databases/(default)/documents"
+# Supabase: the project's address and its publishable key (public by design: the rules in the database guard)
+SUPABASE = "https://jllnyvngelhukntlunck.supabase.co"
+API_KEY = "sb_publishable_W-m-tCPyOKMOSqOjN-gJug_e1xTUXxS"
+AUTH_URL = SUPABASE + "/auth/v1"
+REST_URL = SUPABASE + "/rest/v1"
+STORAGE_URL = SUPABASE + "/storage/v1"
+BACKEND = 2                    # which kind of account a saved session belongs to (1 was Firebase)
 TIMEOUT = (5, 15)              # connect, read (seconds)
 START_TIMEOUT = (2, 4)         # at start DISO's window waits for this: short
 CLOSE_TIMEOUT = (3, 5)
 SYNC_EVERY = 10 * 60 * 1000    # ms: what changed here goes up this often while DISO runs
-MAX_BYTES = 900_000            # a Firestore document holds 1 MiB at most
+MAX_BYTES = 4_000_000          # one synced file (the history of years is a few hundred KB)
 MIN_PASSWORD = 6
+CODE = re.compile(r"^\d{6,8}$")
 USERNAME = re.compile(r"^[a-z0-9._]{3,20}$")
-FILES = ("settings.json", "playlists.json", "channels.json", "history.json", "social.json")
+FILES = ("settings.json", "playlists.json", "channels.json", "history.json")
 MUSIC_DIR_NAME = "Müzik"       # (music_search.MUSIC_DIR_NAME: not imported, it pulls in the whole downloader)
 MUSIC_MARK = "%DISO_MUSIC%"
 REDOWNLOAD_MARK = "account-redownload"     # a file in the data folder: download the "away" songs at the next start
@@ -71,15 +75,24 @@ MESSAGES = {
     "TOO_MANY_ATTEMPTS_TRY_LATER": "Çok fazla deneme oldu. Biraz bekleyip tekrar dene.",
     "USER_DISABLED": "Bu hesap kapatılmış.",
     "PERMISSION_DENIED": "Hesap sunucusu bu işleme izin vermedi.",
-    "OPERATION_NOT_ALLOWED": "Hesap sunucusunda e-postayla giriş kapalı. DISO'nun Firebase ayarında "
-                             "Email/Password açılmalı.",
-    "PASSWORD_LOGIN_DISABLED": "Hesap sunucusunda e-postayla giriş kapalı. DISO'nun Firebase ayarında "
-                               "Email/Password açılmalı.",
     "ALREADY_EXISTS": "Bu kullanıcı adı alınmış, başka birini dene.",
     "BAD_USERNAME": "Kullanıcı adı 3–20 karakter olmalı: küçük harf, rakam, nokta ya da alt çizgi.",
     "MISSING_NAME": "Adını ve soyadını yaz.",
+    "BAD_CODE": "Kod yanlış ya da süresi dolmuş. Yeni bir kod isteyebilirsin.",
+    "MISSING_CODE": "E-postana gelen 6 haneli kodu yaz.",
     "REMOVED": "Bu bilgisayar, hesabından başka bir bilgisayardan çıkarıldı. İstersen yeniden giriş yapabilirsin.",
-    "NOT_VERIFIED": "E-posta adresin henüz doğrulanmadı. Gmail'ine gelen bağlantıya tıkla, sonra “Doğruladım” de.",
+    "NOT_VERIFIED": "E-posta adresin henüz doğrulanmadı. Gmail'ine gelen 6 haneli kodu yaz.",
+}
+# what the server calls a problem -> our code
+CODES = {
+    "user_already_exists": "EMAIL_EXISTS", "email_exists": "EMAIL_EXISTS", "invalid_credentials": "INVALID_LOGIN_CREDENTIALS",
+    "email_not_confirmed": "EMAIL_NOT_CONFIRMED", "weak_password": "WEAK_PASSWORD", "validation_failed": "INVALID_EMAIL",
+    "over_email_send_rate_limit": "TOO_MANY_ATTEMPTS_TRY_LATER", "over_request_rate_limit": "TOO_MANY_ATTEMPTS_TRY_LATER",
+    "otp_expired": "BAD_CODE", "otp_disabled": "BAD_CODE", "user_banned": "USER_DISABLED",
+    "refresh_token_not_found": "TOKEN_EXPIRED", "refresh_token_already_used": "TOKEN_EXPIRED",
+    "session_not_found": "TOKEN_EXPIRED", "session_expired": "TOKEN_EXPIRED", "user_not_found": "USER_NOT_FOUND",
+    "42501": "PERMISSION_DENIED", "23505": "ALREADY_EXISTS", "PGRST116": "NOT_FOUND", "PGRST301": "TOKEN_EXPIRED",
+    "PGRST303": "TOKEN_EXPIRED", "PGRST202": "NOT_FOUND",
 }
 
 
@@ -90,24 +103,31 @@ class AccountError(Exception):
 
 
 def _message(data, status) -> tuple:
-    err = data.get("error") if isinstance(data, dict) else None
+    """(what to tell the person, our code) for what the server answered."""
     raw = ""
-    if isinstance(err, dict):
-        # Auth names the problem in "message" (EMAIL_EXISTS ...); Firestore writes a sentence there and names
-        # it in "status" (PERMISSION_DENIED, ALREADY_EXISTS ...)
-        message = str(err.get("message") or "")
-        word = message.split(" ")[0].split(":")[0].strip()
-        raw = word if re.fullmatch(r"[A-Z_]+", word or "") else str(err.get("status") or message)
-    elif isinstance(err, str):
-        raw = err.upper()               # the token door answers {"error": "invalid_grant"}
-    code = raw.split(" ")[0].split(":")[0].strip()
+    if isinstance(data, dict):
+        raw = str(data.get("error_code") or "")
+        if not raw and data.get("error_description"):          # the token door: {"error": "invalid_grant", ...}
+            text = str(data["error_description"]).lower()
+            raw = ("invalid_credentials" if "invalid login" in text else
+                   "email_not_confirmed" if "not confirmed" in text else
+                   "refresh_token_not_found" if "refresh token" in text else str(data.get("error") or ""))
+        if not raw:                                              # the database
+            message = str(data.get("message") or data.get("msg") or "")
+            if re.fullmatch(r"[A-Z_]{4,}", message):             # our own RAISE EXCEPTION 'NOT_FRIENDS' ...
+                raw = message
+            elif str(data.get("code") or "") in CODES:
+                raw = str(data["code"])
+        if not raw and status in (401, 404):
+            raw = "TOKEN_EXPIRED" if status == 401 else "NOT_FOUND"
+    code = CODES.get(raw, raw)
     if code in SESSION_GONE:
         return "Oturumun süresi doldu. Hesabına yeniden giriş yap.", code
     return MESSAGES.get(code, f"Hesap sunucusu bir hata verdi ({code or status})."), code
 
 
-def _call(method, url, timeout=TIMEOUT, **kw) -> dict:
-    """The one door to the internet (tests put a pretend Firebase here)."""
+def _call(method, url, timeout=TIMEOUT, **kw):
+    """The one door to the internet (tests put a pretend Supabase here)."""
     try:
         r = requests.request(method, url, timeout=timeout, **kw)
     except requests.RequestException as e:
@@ -121,10 +141,49 @@ def _call(method, url, timeout=TIMEOUT, **kw) -> dict:
     return data
 
 
-def _auth(path, body, timeout=TIMEOUT) -> dict:
-    """Firebase Authentication; the mails it sends (the link) are in DISO's language."""
-    return _call("POST", AUTH_URL + path + "?key=" + API_KEY, timeout=timeout, json=body,
-                 headers={"X-Firebase-Locale": "tr" if i18n.current == "tr" else "en"})
+def _raw(method, url, timeout=TIMEOUT, **kw) -> bytes:
+    """The same door for what is not JSON (a file that is downloaded)."""
+    try:
+        r = requests.request(method, url, timeout=timeout, **kw)
+    except requests.RequestException as e:
+        raise AccountError("İnternete ulaşamadım. Bağlantını kontrol edip tekrar dene.", "OFFLINE") from e
+    if r.status_code >= 400:
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        raise AccountError(*_message(data, r.status_code))
+    return r.content
+
+
+def _anon() -> dict:
+    return {"apikey": API_KEY}
+
+
+def _auth(path, body, timeout=TIMEOUT, method="POST", params=None, session=None) -> dict:
+    """Supabase Authentication (the mails it sends have the language of its templates)."""
+    headers = _headers(session, timeout) if session else _anon()
+    return _call(method, f"{AUTH_URL}/{path}", timeout=timeout, json=body, headers=headers, params=params)
+
+
+def rest(method, table, session=None, params=None, json=None, prefer=None, timeout=TIMEOUT, anon=False):
+    """The database: GET / POST / PATCH / DELETE on a table (or POST on "rpc/<function>"). The rows come back as a
+    list (or what the function returns); params are the filters ("id": "eq.5", "select": "a,b", "order": "x.desc")."""
+    headers = _anon() if anon else _headers(session, timeout)
+    if prefer:
+        headers["Prefer"] = prefer
+    return _call(method, f"{REST_URL}/{table}", timeout=timeout, headers=headers, params=params, json=json)
+
+
+def iso(seconds=None) -> str:
+    return datetime.fromtimestamp(time.time() if seconds is None else seconds, timezone.utc).isoformat()
+
+
+def from_iso(text) -> float:
+    try:
+        return datetime.fromisoformat(str(text).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
 
 
 # ------------------------------------------------------------------------------ the session
@@ -136,12 +195,17 @@ def state_path(folder=None) -> str:
     return os.path.join(folder or app_data_dir(), "account-sync.json")
 
 
+def pending_path() -> str:
+    return os.path.join(app_data_dir(), "account-pending.json")
+
+
 def load():
     """The session ({uid, email, refresh, token, expires, verified, profile}), or None."""
     try:
         with open(store_path(), "rb") as f:
             data = json.loads(_dpapi(f.read(), False).decode("utf-8"))
-        return data if isinstance(data, dict) and data.get("uid") and data.get("refresh") else None
+        ok = isinstance(data, dict) and data.get("uid") and data.get("refresh") and data.get("backend") == BACKEND
+        return data if ok else None                          # (a session of the old Firebase accounts is no session)
     except (OSError, ValueError):
         return None
 
@@ -150,8 +214,30 @@ def _save(session):
     path = store_path()
     tmp = path + ".tmp"
     with open(tmp, "wb") as f:
-        f.write(_dpapi(json.dumps(session).encode("utf-8"), True))
+        f.write(_dpapi(json.dumps({**session, "backend": BACKEND}).encode("utf-8"), True))
     os.replace(tmp, path)
+
+
+def pending():
+    """{email, profile} of an account whose e-mail waits for its code, or None."""
+    try:
+        with open(pending_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) and data.get("email") else None
+    except (OSError, ValueError):
+        return None
+
+
+def _set_pending(address, profile=None):
+    with open(pending_path(), "w", encoding="utf-8") as f:
+        json.dump({"email": address, "profile": profile or {}}, f)
+
+
+def _clear_pending():
+    try:
+        os.remove(pending_path())
+    except OSError:
+        pass
 
 
 def signed_in() -> bool:
@@ -162,12 +248,11 @@ def signed_in() -> bool:
 
 def waiting() -> bool:
     """An account was made (or signed in to) whose e-mail is not confirmed yet."""
-    session = load()
-    return bool(session and not session.get("verified"))
+    return not signed_in() and pending() is not None
 
 
 def email() -> str:
-    return (load() or {}).get("email", "")
+    return (load() or pending() or {}).get("email", "")
 
 
 def profile() -> dict:
@@ -198,69 +283,85 @@ def clean_username(name) -> str:
     return name
 
 
-def _signed(data, **extra) -> dict:
-    session = {"uid": data["localId"], "email": data.get("email", ""), "refresh": data["refreshToken"],
-               "token": data["idToken"], "expires": time.time() + int(data.get("expiresIn", 3600)) - 60,
-               "verified": False, **extra}
+def clean_code(text) -> str:
+    code = re.sub(r"\s+", "", text or "")
+    if not code:
+        raise AccountError(MESSAGES["MISSING_CODE"], "MISSING_CODE")
+    if not CODE.match(code):
+        raise AccountError(MESSAGES["BAD_CODE"], "BAD_CODE")
+    return code
+
+
+def _signed(data, address="", verified=True) -> dict:
+    """The session Supabase gave ({access_token, refresh_token, expires_in, user}), saved."""
+    user = data.get("user") or {}
+    session = {"uid": user.get("id", ""), "email": user.get("email") or address, "refresh": data["refresh_token"],
+               "token": data["access_token"], "expires": time.time() + int(data.get("expires_in", 3600)) - 60,
+               "verified": verified}
     _save(session)
     return session
 
 
 def _headers(session, timeout=TIMEOUT) -> dict:
-    return {"Authorization": "Bearer " + token(session, timeout)}
+    return {"apikey": API_KEY, "Authorization": "Bearer " + token(session, timeout)}
+
+
+def username_free(name) -> bool:
+    return bool(rest("POST", "rpc/username_free", anon=True, json={"name": name}))
 
 
 def sign_up(first, last, username, address, password) -> dict:
-    """A new account. Its user name is claimed and a link to confirm the e-mail is mailed; the account works
-    once the link was opened (check_verified)."""
+    """A new account: Supabase mails a 6 digit code; the account works once it is typed (verify_code)."""
     first, last = " ".join((first or "").split()), " ".join((last or "").split())
     if not first or not last:
         raise AccountError(MESSAGES["MISSING_NAME"], "MISSING_NAME")
     username = clean_username(username)
     address = _check(address, password)
-    data = _auth("signUp", {"email": address, "password": password, "returnSecureToken": True})
-    session = _signed(data, profile={"first": first, "last": last, "username": username, "email": address})
+    if not username_free(username):
+        raise AccountError(MESSAGES["ALREADY_EXISTS"], "ALREADY_EXISTS")
     try:
-        _call("POST", f"{STORE_URL}/usernames", params={"documentId": username}, headers=_headers(session),
-              json={"fields": {"uid": {"stringValue": session["uid"]}, "made": {"doubleValue": time.time()}}})
-    except AccountError:
-        try:                   # the name is taken (or could not be claimed): the half-made account goes again
-            _auth("delete", {"idToken": session["token"]})
-        except AccountError:
-            log.warning("account: could not take back the account %s", session["uid"])
-        sign_out()
-        raise
-    try:
-        _auth("update", {"idToken": session["token"], "displayName": f"{first} {last}", "returnSecureToken": False})
+        data = _auth("signup", {"email": address, "password": password,
+                                "data": {"username": username, "first_name": first, "last_name": last}})
     except AccountError as e:
-        log.info("account: no display name: %s", e)
-    send_verification(session)
-    return session
+        if e.code in ("EMAIL_EXISTS", "WEAK_PASSWORD", "INVALID_EMAIL", "TOO_MANY_ATTEMPTS_TRY_LATER", "OFFLINE"):
+            raise
+        if not username_free(username):                           # taken between the question and the sign-up
+            raise AccountError(MESSAGES["ALREADY_EXISTS"], "ALREADY_EXISTS") from e
+        raise
+    if isinstance(data, dict) and data.get("identities") == []:   # an address that has an account already
+        raise AccountError(MESSAGES["EMAIL_EXISTS"], "EMAIL_EXISTS")
+    if isinstance(data, dict) and data.get("access_token"):       # (the project asks for no code: signed in at once)
+        session = _signed(data, address)
+        session["profile"] = {"first": first, "last": last, "username": username, "email": address}
+        _save(session)
+        _say_here(session)
+        return session
+    _set_pending(address, {"first": first, "last": last, "username": username, "email": address})
+    return {"uid": (data or {}).get("id", ""), "email": address, "verified": False}
 
 
-def send_verification(session=None):
-    """(Again) the mail with the link that confirms the e-mail address."""
-    session = session or load()
-    if session is None:
+def send_verification(address=None):
+    """(Again) the mail with the code that confirms the e-mail address."""
+    address = address or (pending() or {}).get("email")
+    if not address:
         raise AccountError("Hesaba giriş yapılmamış.")
-    _auth("sendOobCode", {"requestType": "VERIFY_EMAIL", "idToken": token(session)})
+    _auth("resend", {"type": "signup", "email": address})
 
 
-def check_verified(session=None) -> bool:
-    """"Doğruladım": was the link opened? Then the account works (a new token carries the news to the rules)
-    and the name given at sign-up is kept in the account."""
-    session = session or load()
-    if session is None:
+def verify_code(code) -> dict:
+    """"Doğrula": the code from the mail makes the account work; the session comes with it."""
+    wait = pending()
+    if wait is None:
         raise AccountError("Hesaba giriş yapılmamış.")
-    users = _auth("lookup", {"idToken": token(session)}).get("users") or [{}]
-    if not users[0].get("emailVerified"):
-        return False
-    session["verified"], session["expires"] = True, 0
-    token(session)                                        # the new token says email_verified=true
+    code = clean_code(code)
+    data = _auth("verify", {"type": "signup", "email": wait["email"], "token": code})
+    session = _signed(data, wait["email"])
+    session["profile"] = wait.get("profile") or {}
     _with_profile(session)
     _save(session)
+    _clear_pending()
     _say_here(session)
-    return True
+    return session
 
 
 def _say_here(session):
@@ -270,25 +371,18 @@ def _say_here(session):
         log.info("account: this computer is not listed yet: %s", e)
 
 
-def _profile_url(uid) -> str:
-    return f"{STORE_URL}/users/{uid}/info/profile"
-
-
 def _with_profile(session):
-    """The name: the one kept in the account (another computer), or the one given at sign-up goes there."""
+    """The name and the user name kept in the account (what another computer or the sign-up gave)."""
     try:
-        doc = _call("GET", _profile_url(session["uid"]), headers=_headers(session))
-        fields = doc.get("fields", {})
-        session["profile"] = {k: fields[k].get("stringValue", "") for k in ("first", "last", "username", "email")
-                              if k in fields}
+        rows = rest("GET", "profiles", session, params={"id": "eq." + session["uid"],
+                                                       "select": "username,first_name,last_name"})
     except AccountError as e:
-        if e.code != "NOT_FOUND":
-            log.info("account: no profile: %s", e)
-            return
-        p = session.get("profile") or {}
-        if p:
-            _call("PATCH", _profile_url(session["uid"]), headers=_headers(session),
-                  json={"fields": {k: {"stringValue": str(v)} for k, v in p.items()}})
+        log.info("account: no profile: %s", e)
+        return
+    if rows:
+        r = rows[0]
+        session["profile"] = {"first": r.get("first_name", ""), "last": r.get("last_name", ""),
+                              "username": r.get("username", ""), "email": session.get("email", "")}
 
 
 # ------------------------------------------------------------------------------ 💻 the computers of the account
@@ -312,34 +406,29 @@ def device_id() -> str:
     return new
 
 
-def _device_url(uid, device=None) -> str:
-    return f"{STORE_URL}/users/{uid}/devices" + (f"/{device}" if device else "")
+def _device_filter(session, device=None) -> dict:
+    out = {"user_id": "eq." + session["uid"]}
+    if device:
+        out["device_id"] = "eq." + device
+    return out
 
 
 def _here(session, timeout=TIMEOUT, fresh=False):
     """This computer tells the account it is here (its name, when, DISO's version). fresh: it has just signed in,
     so an old "signed out from elsewhere" mark of it goes too."""
-    fields = {"name": {"stringValue": socket.gethostname()}, "seen": {"doubleValue": time.time()},
-              "version": {"stringValue": brand.VERSION_LABEL}}
-    params = None
+    row = {"user_id": session["uid"], "device_id": device_id(), "name": socket.gethostname(), "seen": iso(),
+           "version": brand.VERSION_LABEL}
     if fresh:
-        fields["signed_out"] = {"booleanValue": False}
-    else:
-        params = [("updateMask.fieldPaths", k) for k in fields]          # (keeps a "signed out" mark it may have)
-    _call("PATCH", _device_url(session["uid"], device_id()), timeout=timeout, headers=_headers(session, timeout),
-          json={"fields": fields}, params=params)
+        row["signed_out"] = False                        # (without it the mark a sign-out left stays as it is)
+    rest("POST", "devices", session, params={"on_conflict": "user_id,device_id"}, json=row,
+         prefer="resolution=merge-duplicates", timeout=timeout)
 
 
 def _still_signed_in(session, timeout):
     """Was this computer signed out from another one? Then it forgets the account now."""
-    try:
-        doc = _call("GET", _device_url(session["uid"], device_id()), timeout=timeout,
-                    headers=_headers(session, timeout))
-    except AccountError as e:
-        if e.code == "NOT_FOUND":
-            return True
-        raise
-    if doc.get("fields", {}).get("signed_out", {}).get("booleanValue"):
+    rows = rest("GET", "devices", session, params={**_device_filter(session, device_id()), "select": "signed_out"},
+                timeout=timeout)
+    if rows and rows[0].get("signed_out"):
         sign_out()
         _mark_removed()
         raise AccountError(MESSAGES["REMOVED"], "REMOVED")
@@ -349,24 +438,18 @@ def _still_signed_in(session, timeout):
 def devices(session=None) -> list:
     """The computers signed in to the account: [{"id", "name", "seen", "version", "this"}], newest first."""
     session = session or _session_or_fail()
-    data = _call("GET", _device_url(session["uid"]), headers=_headers(session), params={"pageSize": 100})
-    mine, found = device_id(), []
-    for doc in data.get("documents", []):
-        f = doc.get("fields", {})
-        if f.get("signed_out", {}).get("booleanValue"):
-            continue
-        did = doc.get("name", "").rsplit("/", 1)[-1]
-        found.append({"id": did, "name": f.get("name", {}).get("stringValue", "?"),
-                      "seen": float(f.get("seen", {}).get("doubleValue", 0)),
-                      "version": f.get("version", {}).get("stringValue", ""), "this": did == mine})
+    rows = rest("GET", "devices", session, params={**_device_filter(session), "signed_out": "eq.false",
+                                                   "select": "device_id,name,seen,version"})
+    mine = device_id()
+    found = [{"id": r["device_id"], "name": r.get("name") or "?", "seen": from_iso(r.get("seen")),
+              "version": r.get("version", ""), "this": r["device_id"] == mine} for r in rows]
     return sorted(found, key=lambda d: (not d["this"], -d["seen"]))
 
 
 def sign_out_device(device, session=None):
     """That computer forgets the account the next time it talks to it (at its start, or within minutes)."""
     session = session or _session_or_fail()
-    _call("PATCH", _device_url(session["uid"], device), headers=_headers(session),
-          params=[("updateMask.fieldPaths", "signed_out")], json={"fields": {"signed_out": {"booleanValue": True}}})
+    rest("PATCH", "devices", session, params=_device_filter(session, device), json={"signed_out": True})
 
 
 def leave():
@@ -374,8 +457,7 @@ def leave():
     session = load()
     if session is not None and session.get("verified"):
         try:
-            _call("DELETE", _device_url(session["uid"], device_id()), timeout=CLOSE_TIMEOUT,
-                  headers=_headers(session, CLOSE_TIMEOUT))
+            rest("DELETE", "devices", session, params=_device_filter(session, device_id()), timeout=CLOSE_TIMEOUT)
         except AccountError as e:
             log.info("account: this computer stays listed: %s", e)
     sign_out()
@@ -403,23 +485,32 @@ def take_removed() -> bool:
 
 
 def sign_in(address, password) -> dict:
+    """Signing in. An address whose e-mail was never confirmed gets a new code and is "waiting" (verified False)."""
     address = _check(address)
     if not password:
         raise AccountError(MESSAGES["MISSING_PASSWORD"], "MISSING_PASSWORD")
-    data = _auth("signInWithPassword", {"email": address, "password": password, "returnSecureToken": True})
-    session = _signed(data)
-    users = _auth("lookup", {"idToken": session["token"]}).get("users") or [{}]
-    if users[0].get("emailVerified"):
-        session["verified"] = True
-        _with_profile(session)
-        _save(session)
-        _say_here(session)
+    try:
+        data = _auth("token", {"email": address, "password": password}, params={"grant_type": "password"})
+    except AccountError as e:
+        if e.code != "EMAIL_NOT_CONFIRMED":
+            raise
+        _set_pending(address, (pending() or {}).get("profile") if (pending() or {}).get("email") == address else {})
+        try:
+            send_verification(address)
+        except AccountError as again:
+            log.info("account: no new code: %s", again)
+        return {"uid": "", "email": address, "verified": False}
+    session = _signed(data, address)
+    _with_profile(session)
+    _save(session)
+    _clear_pending()
+    _say_here(session)
     return session
 
 
 def delete_account(password):
-    """🗑 The account goes for good: the password is asked again (Firebase wants a fresh sign-in for this), friends
-    are told, everything it kept (files, lists, shared lists, user name, devices) is deleted, then the account."""
+    """🗑 The account goes for good: the password is asked again, friends are told, everything it kept (files,
+    lists, shared lists, user name, devices, friendships, messages it wrote stay without a name) is deleted."""
     session = load()
     if session is None:
         raise AccountError("Hesaba giriş yapılmamış.")
@@ -429,28 +520,31 @@ def delete_account(password):
         if e.code in ("INVALID_LOGIN_CREDENTIALS", "INVALID_PASSWORD", "MISSING_PASSWORD"):
             raise AccountError("Şifre yanlış.", e.code) from e
         raise
-    fresh["profile"] = fresh.get("profile") or session.get("profile")
+    if not fresh.get("verified"):
+        raise AccountError(MESSAGES["NOT_VERIFIED"], "NOT_VERIFIED")
     from . import social
-    if fresh.get("verified"):
-        social.forget_everything(fresh)
-    elif fresh.get("profile", {}).get("username"):
-        try:                                       # (not confirmed yet: only its user name was kept)
-            _call("DELETE", f"{STORE_URL}/usernames/{fresh['profile']['username']}", headers=_headers(fresh))
-        except AccountError:
-            pass
-    _auth("delete", {"idToken": token(fresh)})
+    social.forget_everything(fresh)
+    rest("POST", "rpc/delete_me", fresh, json={})
     sign_out()
 
 
 def reset_password(address):
-    """Firebase mails a link for a new password."""
+    """Supabase mails a 6 digit code for a new password (finish_reset)."""
     address = _check(address)
-    _auth("sendOobCode", {"requestType": "PASSWORD_RESET", "email": address})
+    _auth("recover", {"email": address})
+
+
+def finish_reset(address, code, new_password):
+    """The new password, with the code from the mail. Nothing is kept signed in: the person signs in next."""
+    address = _check(address, new_password)
+    data = _auth("verify", {"type": "recovery", "email": address, "token": clean_code(code)})
+    _auth("user", {"password": new_password}, method="PUT", session={"uid": "", "token": data["access_token"],
+                                                                     "expires": time.time() + 600, "refresh": "x"})
 
 
 def sign_out():
     """This computer forgets the account. Its own files stay as they are."""
-    for path in (store_path(), store_path() + ".tmp", state_path()):
+    for path in (store_path(), store_path() + ".tmp", state_path(), pending_path()):
         try:
             os.remove(path)
         except OSError:
@@ -458,48 +552,37 @@ def sign_out():
 
 
 def token(session, timeout=TIMEOUT) -> str:
-    """A valid ID token: the saved one, or a new one for the refresh token (they live an hour)."""
+    """A valid access token: the saved one, or a new one for the refresh token (they live an hour)."""
     if session.get("token") and session.get("expires", 0) > time.time():
         return session["token"]
     try:
-        data = _call("POST", TOKEN_URL + "?key=" + API_KEY, timeout=timeout,
-                     data={"grant_type": "refresh_token", "refresh_token": session["refresh"]})
+        data = _call("POST", f"{AUTH_URL}/token", timeout=timeout, headers=_anon(),
+                     params={"grant_type": "refresh_token"}, json={"refresh_token": session["refresh"]})
     except AccountError as e:
         if e.code in SESSION_GONE:
             sign_out()
         raise
-    session.update(token=data["id_token"], refresh=data.get("refresh_token", session["refresh"]),
+    session.update(token=data["access_token"], refresh=data.get("refresh_token", session["refresh"]),
                    expires=time.time() + int(data.get("expires_in", 3600)) - 60)
-    _save(session)
+    if session.get("uid"):
+        _save(session)
     return session["token"]
 
 
 # ------------------------------------------------------------------------------ the files in the account
-def _doc_url(uid, name="") -> str:
-    return f"{STORE_URL}/users/{uid}/files" + (f"/{name[:-len('.json')]}" if name else "")
-
-
 def cloud_files(session, timeout=TIMEOUT) -> dict:
     """{name: {"text", "updated", "device"}} of what the account holds."""
-    data = _call("GET", _doc_url(session["uid"]), timeout=timeout, headers=_headers(session, timeout),
-                 params={"pageSize": 50})
-    found = {}
-    for doc in data.get("documents", []):
-        name = doc.get("name", "").rsplit("/", 1)[-1] + ".json"
-        fields = doc.get("fields", {})
-        if name in FILES and "stringValue" in fields.get("data", {}):
-            found[name] = {"text": fields["data"]["stringValue"],
-                           "updated": float(fields.get("updated", {}).get("doubleValue", 0)),
-                           "device": fields.get("device", {}).get("stringValue", "")}
-    return found
+    rows = rest("GET", "user_files", session, params={"user_id": "eq." + session["uid"],
+                                                      "select": "name,data,updated,device"}, timeout=timeout)
+    return {r["name"]: {"text": r["data"], "updated": float(r.get("updated") or 0), "device": r.get("device", "")}
+            for r in rows if r.get("name") in FILES}
 
 
 def put_file(session, name, text, timeout=TIMEOUT) -> float:
     updated = time.time()
-    _call("PATCH", _doc_url(session["uid"], name), timeout=timeout, headers=_headers(session, timeout),
-          json={"fields": {"data": {"stringValue": text}, "updated": {"doubleValue": updated},
-                           "device": {"stringValue": socket.gethostname()},
-                           "version": {"stringValue": brand.VERSION_LABEL}}})
+    rest("POST", "user_files", session, params={"on_conflict": "user_id,name"}, prefer="resolution=merge-duplicates",
+         json={"user_id": session["uid"], "name": name, "data": text, "updated": updated,
+               "device": socket.gethostname(), "version": brand.VERSION_LABEL}, timeout=timeout)
     return updated
 
 
@@ -682,6 +765,8 @@ def plan(local, cloud, seen) -> dict:
 def _session_or_fail():
     session = load()
     if session is None:
+        if pending() is not None:                          # made, the code not typed yet
+            raise AccountError(MESSAGES["NOT_VERIFIED"], "NOT_VERIFIED")
         raise AccountError("Hesaba giriş yapılmamış.")
     if not session.get("verified"):
         raise AccountError(MESSAGES["NOT_VERIFIED"], "NOT_VERIFIED")

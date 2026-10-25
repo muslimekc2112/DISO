@@ -258,3 +258,20 @@ def test_the_preview_shows_how_far_it_is_and_its_part(app, monkeypatch, tmp_path
     assert text.startswith("🎧 0:00 / 0:30") and "Şımarık" in text and "en çok dinlenen kısım" in text
     music.stop_preview()
     assert os.path.isfile(tmp_path / "p.mp3")                                # kept: played again at once
+
+
+def test_a_recorded_crash_goes_into_the_report_and_the_issue(tmp_path, monkeypatch):
+    import zipfile
+    from app import report
+    crash = tmp_path / "crash.log"
+    crash.write_text(f"Windows fatal exception: access violation\n  File \"{os.path.expanduser('~')}\\x.py\", line 3\n",
+                     encoding="utf-8")
+    monkeypatch.setattr(report, "crash_path", lambda: str(crash))
+    path = report.make("DISO 1.7", "ok", {}, [], folder=str(tmp_path))
+    with zipfile.ZipFile(path) as z:
+        assert "access violation" in z.read("crash.log").decode("utf-8")
+    from urllib.parse import unquote
+    url = unquote(report.issue_url("DISO 1.7", "r.zip"))
+    assert "access violation" in url and os.path.expanduser("~") not in url
+    crash.unlink()
+    assert report.crash_tail() == "" and "Çökme kaydı" not in unquote(report.issue_url("DISO 1.7", "r.zip"))
